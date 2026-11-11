@@ -1,25 +1,27 @@
-# Finanças 3.2
+# Finanças 3.3 — PWA pessoal
 
-Aplicativo PWA local-first, uma carteira por instalação. GitHub Pages entrega apenas os arquivos estáticos; o aplicativo salva lançamentos em IndexedDB, no dispositivo. Não inclui APIs de banco, sincronização, ferramentas de análise de uso ou fontes externas.
+Aplicativo local-first para uma carteira financeira por instalação, com IndexedDB e uso offline. GitHub Pages hospeda somente arquivos estáticos. Nenhum dado financeiro é incluído no repositório.
 
-## Estrutura de cálculo
+## Modelo de dados
 
-- Renda líquida: valor mensal cadastrado.
-- Fixos detalhados: soma dos itens válidos no mês (início/fim inclusivos).
-- Parcelas anteriores: valor unitário × quantidade de meses restantes, com início na primeira fatura pendente.
-- Parcelas novas: valor total dividido entre meses, com ajuste de centavos na última prestação.
-- Investimentos: aporte mensal planejado ou exceção cadastrada para um mês.
-- Saldo mensal projetado: renda − fixos − parcelas anteriores − parcelas novas − investimentos.
-- Cota semanal equivalente: saldo mensal × 12 / 52. A conta semanal acumula cotas desde a segunda-feira de início do controle e subtrai apenas os gastos à vista lançados separadamente.
+- Renda mensal e aporte de investimento padrão.
+- Investimento extra em um mês **soma** ao aporte padrão; o campo guarda apenas o adicional.
+- Despesas fixas detalhadas (nome, valor, início, fim opcional).
+- Parcelas antigas detalhadas (descrição, valor unitário, restantes, primeira fatura).
+- Novas parcelas por compra e gastos à vista registrados.
+- Orçamento mensal = renda − fixos − parcelas antigas − parcelas novas − aporte padrão − investimento extra.
+- A cota semanal é uma equivalência 12/52 do orçamento mensal. O acumulado começa na segunda-feira definida em Ajustes. Não é uma conciliação bancária.
 
-O saldo é um **orçamento**, não uma conciliação bancária. Investimentos representam previsão de aporte, não acompanhamento patrimonial. Compras à vista não devem ser registradas também como parcelas. No modo detalhado, meses sem parcelas antigas cadastradas são interpretados como zero.
+## Backup
 
-## Migração da v3.1
+A exportação JSON inclui integralmente `fixedItems`, `baseParcels`, `parcels`, `expenses`, `investmentOverrides`, investimentos padrão, renda e demais configurações. A importação restaura os itens individualizados.
 
-Ao abrir, um estado versão 3 é copiado para a chave `state-before-v3.2` e convertido para versão 4 em `mode:legacy`. Nesse modo os totais antigos continuam valendo; os novos itens detalhados não são descontados até a ativação explícita do controle por itens. A conversão é irreversível na interface, mas os totais anteriores permanecem no banco e o backup antigo pode ser exportado em Ajustes. Fazer backup **antes** de atualizar e **antes** de trocar o modo.
+**Importante:** backups de versões antigas com apenas totais agregados não permitem reconstruir as descrições individuais. Ao atualizar de um estado legado, o app cria itens identificados como `total a detalhar` preservando os valores antigos conhecidos, que podem ser substituídos por lançamentos reais sem contá-los duas vezes. Um snapshot do estado anterior é mantido no IndexedDB como `state-before-v3.3`, exportável na área Ajustes.
 
-O armazenamento local pode ser apagado pelo iOS/usuário. A funcionalidade Exportar backup gera JSON legível, que deve ser guardado privadamente no app Arquivos. A geração de arquivo não confirma que o usuário o salvou. Não coloque dados financeiros reais no repositório público.
+Exceções de investimentos de versões anteriores eram valores absolutos. A conversão preserva o valor total do mês (inclusive se menor que o padrão). Exceções novas passam a ser valores positivos adicionais; ao editá-las, passam a usar a semântica nova.
+
+O IndexedDB é armazenamento local, não um backup externo. A exportação requer que o usuário confirme o salvamento do arquivo em local seguro. A instalação do PWA no outro aparelho usa um banco independente.
 
 ## Publicação
 
-Carregue os oito arquivos na raiz da branch publicada pelo GitHub Pages. Não apague o PWA instalado nem limpe dados do Safari durante atualizações. `sw.js` gerencia cache de arquivos estáticos e prioriza a rede enquanto disponível.
+Atualize os oito arquivos na raiz do mesmo GitHub Pages, mantendo URL e escopo. Faça backup antes. Não desinstale o PWA ou limpe o armazenamento para atualizar. O service worker prioriza rede quando disponível e o cache ao operar offline.

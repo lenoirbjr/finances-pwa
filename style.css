@@ -9,3 +9,9 @@
 
 /* v3.2 */
 .surface h3{font-size:14px;margin:20px 0 4px;color:#eaf6f9}.subtotal{font-size:13px;color:#9ee9d8;white-space:nowrap}.small-action{border:0;background:transparent;color:#82d7cb;font-size:12px;padding:8px 3px}.forecast-row{display:flex;align-items:center;justify-content:space-between;gap:9px;width:100%;background:transparent;border:0;border-bottom:1px solid #2a485a;color:#eaf4f8;text-align:left;padding:15px 0}.forecast-row:last-child{border-bottom:0}.forecast-row>span{min-width:0}.forecast-row small{display:block;color:#9ab4c5;font-size:11px;line-height:1.5;margin-top:6px}.forecast-row>strong{white-space:nowrap;font-size:13px}.breakdown{padding-top:13px}.detail-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 0;border-bottom:1px solid #294558;font-size:12px;color:#bed0dc}.detail-line span{min-width:0;overflow-wrap:anywhere}.detail-line strong{color:#f0f6f9;white-space:nowrap;text-align:right}.detail-total{font-size:14px;color:#fff;font-weight:750;border-bottom:0;padding-top:16px}.detail-total strong{color:#96ecdb}.calendar-field{isolation:isolate}.surface .calendar-field input[type=month],.surface .calendar-field input[type=date]{font-size:16px!important}
+
+/* v3.3 — área Ajustes isolada, menu principal com três áreas */
+.tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.settings-view .hero,.settings-view .tabs{display:none}
+.settings-view .topbar{margin-bottom:26px}
+.settings-view .icon-button{font-size:26px}

@@ -1,22 +1,20 @@
-# Finanças 3.5 — registro local de orçamento e caixa
+# Finanças 3.6
 
-PWA estático. IndexedDB; nenhuma transmissão financeira para servidores. Não coloque dados pessoais no GitHub.
+PWA local-first hospedado no GitHub Pages. O IndexedDB armazena os registros no dispositivo. O repositório público não recebe dados financeiros.
 
-## Migração
+## Uso
+- **Semana:** gastos à vista, entradas extraordinárias e limite de consumo acumulado.
+- **Parcelas:** novas compras parceladas.
+- **Planejamento:** composição por mês e próximos 12 meses.
+- **Ajustes:** saldo inicial, renda por vigência, investimento mensal e extra, margem, despesas fixas e parcelas-base, backup.
 
-Estados versão 6 são migrados para 7 e copiados sob `state-before-v3.5`. O estado anterior e os itens permanecem intactos. Backup JSON v7 inclui abertura, entradas extras, confirmações de caixa, registros e detalhamento.
+## Saldo estimado
+A partir do saldo de abertura, a projeção adiciona o salário todo dia 30 (ou último dia do mês, se não houver dia 30), deduz o investimento mensal no mesmo dia, e deduz fatura e despesas fixas no dia 5. Entradas extraordinárias, gastos à vista e aportes extras são aplicados nas respectivas datas. Eventos na data exata da abertura não são repetidos. O saldo é uma estimativa, não uma reconciliação com o banco. As datas dos fixos são uma convenção de projeção, não seus vencimentos efetivos.
 
-## Regras
+Ao atualizar o saldo de abertura, o app redefine o marco do saldo estimado. A opção separada **Início do controle semanal** continua sendo o marco das cotas. Não há lançamento manual de recebimento/pagamento de salário ou fatura.
 
-- Abertura: saldo bancário acessível na data inicial, não receita.
-- Extras: entrada positiva datada, aumenta o caixa estimado e o saldo acumulado semanal somente após a data; não altera salário recorrente.
-- Gastos à vista e investimentos extras: diminuem caixa estimado e orçamento semanal uma vez.
-- Salário/fatura/fixos/investimentos mensais: o orçamento mensal já os contempla; no caixa bancário só passam a valer após confirmação manual, pelo valor e data efetivos. NÃO os lançar também em gasto semanal.
-- Parcelas novas: comprometem orçamento dos meses indicados, sem reduzir o caixa no ato da compra. Confirmar pagamento da fatura para refletir no caixa.
-- Teto prudente: menor entre saldo bancário estimado (pelos registros) e saldo semanal; não é garantia de liquidez futura. Verifique obrigações pendentes antes de gastar.
-- Datas de vencimento de despesas fixas não são conhecidas. O app não supõe que foram pagas por passagem do tempo.
-- Entradas extras feitas antes da abertura não são somadas ao caixa, mas podem integrar controle semanal se dentro da semana inicial. Evite registros anteriores ao marco zero.
+## Dados existentes
+O formato de armazenamento da versão 3.5 (versão interna 7) foi mantido para preservar atualizações e backups. Registros manuais de caixa feitos na 3.5 permanecem dentro do backup, mas não são incorporados ao cálculo automático para evitar duplicidade. Exportar backup antes de atualizar.
 
-## Segurança e uso
-
-Exportar backup ANTES de atualizar. Não remover PWA nem limpar o armazenamento. Service Worker v3.5 atualiza cache por versão; IndexedDB não é cópia de segurança permanente.
+## Limitações
+A equivalência semanal utiliza 12/52 do orçamento mensal; trata-se de orçamento, não de extrato. Os cálculos automáticos pressupõem que os recebimentos e pagamentos ocorram nas datas previstas. Se não acontecerem, o saldo estimado diverge do real. Faça backup periódico.

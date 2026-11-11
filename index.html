@@ -1,12 +1,53 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0c1728"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Finanças"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"><link rel="manifest" href="./manifest.webmanifest"><link rel="apple-touch-icon" href="./icon-192.png"><link rel="stylesheet" href="./style.css"><title>Finanças • Offline</title></head><body><main>
-<div class="eyebrow">PRIVADO NO APARELHO · OFFLINE</div><h1>Finanças</h1><p class="muted" id="subtitle">Carregando seus dados locais...</p>
-<div id="banner" role="status" aria-live="polite" class="banner">Iniciando armazenamento...</div>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#081522">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./style.css">
+<title>Finanças</title>
+</head>
+<body>
+<div class="app-shell">
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></header>
+<div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
-<div class="switch"><button id="person0" data-person="0">Carteira A</button><button id="person1" data-person="1">Carteira B</button></div>
-<div class="card"><div class="eyebrow">Disponível no mês de referência</div><div class="big" id="available">—</div><div class="grid"><div class="metric"><div class="label">Teto semanal equivalente</div><b id="weekly">—</b></div><div class="metric"><div class="label">Saldo semanal acumulado</div><b id="balance">—</b></div></div><div class="divider"></div><div class="muted" id="meta"></div></div>
-<div class="tabs"><button data-tab="spend" id="tab-spend">Semana</button><button data-tab="parcel" id="tab-parcel">Parcelar</button><button data-tab="settings" id="tab-settings">Baseline</button></div>
-<section id="view-spend" class="card"><h3>Gastos à vista</h3><p class="muted">O saldo semanal começa na data inicial configurada e acumula cotas semanais. Parcelas são contabilizadas na fatura, não aqui.</p><label for="expenseDate">Data da compra</label><input id="expenseDate" type="date"><label for="expenseName">Descrição</label><input id="expenseName" maxlength="120" placeholder="Café, jantar, cinema..."><label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="65.50"><button class="btn" id="addExpense">Registrar gasto</button><div class="divider"></div><b>Histórico</b><div id="expenses"></div></section>
-<section id="view-parcel" class="card hidden"><h3>Nova compra parcelada</h3><p class="muted">Cada parcela compromete o orçamento do seu mês de cobrança. O valor não é descontado novamente na semana.</p><label for="parcelName">Descrição</label><input id="parcelName" maxlength="120" placeholder="Ex.: Fone de ouvido"><label for="parcelTotal">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal"><div class="two"><div><label for="parcelCount">Parcelas</label><select id="parcelCount"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option><option>8</option><option>10</option><option>12</option><option>18</option><option>24</option></select></div><div><label for="parcelStart">Primeira fatura</label><input type="month" id="parcelStart"></div></div><button class="btn" id="addParcel">Registrar parcelamento</button><div class="divider"></div><b>Novas parcelas</b><div id="parcels"></div><div class="divider"></div><b>Próximos 12 meses</b><p class="note">Projeção: fatura-base cadastrada por mês + novas compras parceladas. Meses sem fatura-base informada são marcados como incompletos.</p><div id="forecast"></div></section>
-<section id="view-settings" class="card hidden"><h3>Baseline da carteira</h3><label for="label">Nome da carteira</label><input id="label" maxlength="50"><label for="income">Renda líquida mensal (R$)</label><input id="income" type="number" min="0" step="0.01"><label for="fixed">Despesas fixas mensais (total R$)</label><input id="fixed" type="number" min="0" step="0.01"><label for="started">Primeira segunda-feira do controle</label><input id="started" type="date"><button class="btn" id="saveBaseline">Salvar Baseline</button><div class="divider"></div><b>Faturas já comprometidas</b><p class="note">Informe o total das parcelas antigas em cada mês. Não inclua as novas compras cadastradas na aba Parcelar.</p><label for="invoiceMonth">Mês</label><input id="invoiceMonth" type="month"><label for="invoice">Valor da fatura-base (R$)</label><input id="invoice" type="number" min="0" step="0.01"><div class="two"><button class="btn secondary" id="saveInvoice">Salvar fatura</button><button class="btn secondary" id="clearInvoice">Marcar não informada</button></div><div class="divider"></div><b>Armazenamento e backup</b><p class="note">Salvamento automático em IndexedDB neste dispositivo. Os arquivos do GitHub não contêm seus dados pessoais. Dados locais ainda podem ser apagados pelo sistema ou ao excluir o aplicativo.</p><div id="storageStatus" class="note"></div><button class="btn secondary" id="exportBackup">Exportar backup JSON</button><label for="restoreFile">Restaurar backup JSON</label><input type="file" accept=".json,application/json" id="restoreFile"><p class="note">Importar um backup substitui os registros locais das duas carteiras. Mantenha cópias fora do iPhone.</p><div class="divider"></div><button class="btn danger" id="resetDemo">Reiniciar dados de demonstração</button></section>
-<div class="footer">v2.1 · IndexedDB local · Sem login · Sem sincronização</div></div>
-</main><script src="./app.js" defer></script></body></html>
+<section class="hero" aria-label="Resumo do orçamento"><div class="hero-overline">DISPONÍVEL NA SEMANA</div><div class="hero-number" id="weekBalance">—</div><div class="hero-sub" id="weekDetail">Saldo acumulado</div><div class="hero-divider"></div><div class="stats"><div><div class="stat-label">Limite semanal</div><div id="weekQuota" class="stat-value">—</div></div><div><div class="stat-label">Livre no mês</div><div id="monthAvailable" class="stat-value">—</div></div></div></section>
+<nav class="tabs" aria-label="Áreas do aplicativo"><button type="button" data-screen="week" class="active">Semana</button><button type="button" data-screen="installments">Parcelas</button><button type="button" data-screen="planning">Planejamento</button><button type="button" data-screen="settings">Ajustes</button></nav>
+<main>
+<section id="screen-week" class="screen">
+<div class="section-heading"><div><h1>Movimentações</h1><p>Acompanhe seus gastos à vista.</p></div></div>
+<div class="surface"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
+<label for="expenseDate">Data</label><input id="expenseDate" type="date" required>
+<label for="expenseName">Descrição</label><input id="expenseName" type="text" maxlength="120" placeholder="Ex.: Jantar" required>
+<label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<button class="primary" type="submit">Adicionar gasto</button></form></div>
+<div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div><div id="expenses"></div></div>
+</section>
+<section id="screen-installments" class="screen hidden"><div class="section-heading"><div><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
+<div class="surface"><h2>Nova compra</h2><form id="parcelForm"><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
+<label for="parcelTotal">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="8">8x</option><option value="10">10x</option><option value="12">12x</option><option value="18">18x</option><option value="24">24x</option></select></div><div><label for="parcelStart">Primeira fatura</label><input id="parcelStart" type="month" required></div></div>
+<div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div>Impacto semanal equivalente <strong id="weeklyImpact">R$ 0,00</strong></div></div>
+<button class="primary" type="submit">Adicionar parcelamento</button></form></div>
+<div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><div id="parcels"></div></div>
+</section>
+<section id="screen-planning" class="screen hidden"><div class="section-heading"><div><h1>Planejamento</h1><p>Perspectiva dos próximos 12 meses.</p></div></div><div class="surface"><div class="surface-heading"><h2>Projeção mensal</h2></div><div id="forecast"></div><p class="fine-print">Os meses sem fatura-base informada são exibidos sem saldo calculado.</p></div></section>
+<section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Configurações</h1><p>Valores que alimentam seu planejamento.</p></div></div>
+<div class="surface"><h2>Seu Baseline</h2><form id="baselineForm"><label for="income">Renda líquida mensal (R$)</label><input id="income" type="number" min="0" step="0.01" required>
+<label for="fixed">Despesas fixas mensais (R$)</label><input id="fixed" type="number" min="0" step="0.01" required>
+<label for="started">Início do controle</label><input id="started" type="date" required><button class="primary" type="submit">Salvar alterações</button></form></div>
+<div class="surface"><h2>Fatura-base</h2><p class="assistive">Informe as parcelas antigas já contratadas. Compras cadastradas em “Parcelas” são somadas automaticamente e não devem entrar aqui.</p><form id="invoiceForm"><label for="invoiceMonth">Mês de cobrança</label><input id="invoiceMonth" type="month" required><label for="invoice">Valor comprometido (R$)</label><input id="invoice" type="number" min="0" step="0.01" placeholder="0,00"><button class="primary" type="submit">Salvar fatura-base</button></form><button id="clearInvoice" class="text-button" type="button">Marcar este mês como não informado</button></div>
+<div class="surface"><h2>Backup e restauração</h2><button id="exportBackup" class="secondary" type="button">Exportar meus dados</button><label for="restoreFile" class="file-label">Importar backup</label><input id="restoreFile" class="file-input" type="file" accept=".json,application/json"><button id="exportLegacy" type="button" class="text-button hidden">Exportar arquivo anterior das duas carteiras</button></div>
+</section>
+</main></div>
+<div id="loading" class="loading">Abrindo suas finanças…</div>
+</div>
+<script src="./app.js" defer></script>
+</body></html>

@@ -22,8 +22,13 @@ A equivalência semanal utiliza 12/52 do orçamento mensal; trata-se de orçamen
 ## Interface de Ajustes
 Todas as sete seções agora são recolhíveis. Datas de vigência das configurações e início do controle semanal continuam independentes. Nenhum dado ou fórmula foi alterado.
 
-## Atualização 3.6.2
+## Atualização 3.6.3
 - Corrigido o código legado que gerava painéis aninhados com o título genérico “Detalhes”.
 - Seções de Ajustes exibem seus títulos próprios e permanecem recolhíveis.
 - Novo ícone ⓘ no cabeçalho, abrindo página de ajuda por campo.
 - Nenhuma alteração no esquema IndexedDB, migração, cálculos ou dados.
+
+## Atualização 3.6.3
+- Removidos os valores totais dos títulos recolhíveis em Ajustes (Despesas fixas e Parcelas anteriores).
+- Os cálculos e os valores detalhados permanecem iguais.
+- IndexedDB, dados e estrutura de backup inalterados.

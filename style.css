@@ -40,3 +40,6 @@
 .help-item strong{display:block;font-size:14px;color:#f0f8fb}
 .help-item p{font-size:13px;line-height:1.55;color:#adc6d4;margin:6px 0 0}
 #screen-settings > .settings-details > summary{font-size:17px}
+
+/* 3.6.3: cabeçalhos recolhíveis sem subtotais, mantendo os valores nos detalhes e no planejamento */
+#screen-settings > details > summary .subtotal { display:none !important; }

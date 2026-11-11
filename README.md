@@ -1,34 +1,25 @@
-# Finanças 3.6.1
+# Finanças 3.7 — Uso no iPhone
 
-PWA local-first hospedado no GitHub Pages. O IndexedDB armazena os registros no dispositivo. O repositório público não recebe dados financeiros.
+PWA estático para GitHub Pages. Os dados são armazenados localmente no IndexedDB.
 
-## Uso
-- **Semana:** gastos à vista, entradas extraordinárias e limite de consumo acumulado.
-- **Parcelas:** novas compras parceladas.
-- **Planejamento:** composição por mês e próximos 12 meses.
-- **Ajustes:** saldo inicial, renda por vigência, investimento mensal e extra, margem, despesas fixas e parcelas-base, backup.
+## O que mudou
+- Saldo estimado em destaque, com orçamento seguro para gastar abaixo. Nunca somar os dois.
+- Removido o indicador Livre no mês da tela principal; composição mensal permanece em Planejamento.
+- Orçamento semanal de consumo limitado pelo saldo estimado e pelas obrigações previstas até o próximo salário.
+- Aporte mensal padrão realizado antes do dia 30 pode ser marcado em Ajustes → Investimento extra realizado. Só sai do saldo uma vez: na data real ou, sem confirmação, no dia 30.
+- Investimentos extras são lançamentos distintos do aporte mensal.
+- Gravação local IndexedDB: backups exportados incluem os itens detalhados, perfis e aportes antecipados.
 
-## Saldo estimado
-A partir do saldo de abertura, a projeção adiciona o salário todo dia 30 (ou último dia do mês, se não houver dia 30), deduz o investimento mensal no mesmo dia, e deduz fatura e despesas fixas no dia 5. Entradas extraordinárias, gastos à vista e aportes extras são aplicados nas respectivas datas. Eventos na data exata da abertura não são repetidos. O saldo é uma estimativa, não uma reconciliação com o banco. As datas dos fixos são uma convenção de projeção, não seus vencimentos efetivos.
+## Backup fornecido separadamente
+O JSON `financas-leno-v3-7-atualizado.json` é privado e **não deve ser enviado ao repositório GitHub público**. O arquivo preserva todos os itens do backup enviado, os R$ 4 extras já registrados e acrescenta o aporte mensal de R$ 792 realizado em 11/11/2026. Com saldo inicial R$ 4.862,20, o caixa após os aportes é R$ 4.066,20.
 
-Ao atualizar o saldo de abertura, o app redefine o marco do saldo estimado. A opção separada **Início do controle semanal** continua sendo o marco das cotas. Não há lançamento manual de recebimento/pagamento de salário ou fatura.
+## Regras
+- A data de abertura é interpretada como começo do dia, antes das movimentações registradas naquela data.
+- Salário entra no dia 30 (último dia em fevereiro). Fatura e fixos saem no dia 5.
+- Investimento mensal é subtraído no dia 30, a menos que tenha um registro de realização antecipada.
+- O orçamento semanal é uma regra de consumo, não uma entrada no caixa; não se soma ao saldo estimado.
+- Os pagamentos reais podem divergir de eventos presumidos. Backups periódicos continuam necessários.
+- Atualizações antigas (formato interno 7) são migradas para formato 8, preservando um snapshot no IndexedDB.
 
-## Dados existentes
-O formato de armazenamento da versão 3.5 (versão interna 7) foi mantido para preservar atualizações e backups. Registros manuais de caixa feitos na 3.5 permanecem dentro do backup, mas não são incorporados ao cálculo automático para evitar duplicidade. Exportar backup antes de atualizar.
-
-## Limitações
-A equivalência semanal utiliza 12/52 do orçamento mensal; trata-se de orçamento, não de extrato. Os cálculos automáticos pressupõem que os recebimentos e pagamentos ocorram nas datas previstas. Se não acontecerem, o saldo estimado diverge do real. Faça backup periódico.
-
-## Interface de Ajustes
-Todas as sete seções agora são recolhíveis. Datas de vigência das configurações e início do controle semanal continuam independentes. Nenhum dado ou fórmula foi alterado.
-
-## Atualização 3.6.3
-- Corrigido o código legado que gerava painéis aninhados com o título genérico “Detalhes”.
-- Seções de Ajustes exibem seus títulos próprios e permanecem recolhíveis.
-- Novo ícone ⓘ no cabeçalho, abrindo página de ajuda por campo.
-- Nenhuma alteração no esquema IndexedDB, migração, cálculos ou dados.
-
-## Atualização 3.6.3
-- Removidos os valores totais dos títulos recolhíveis em Ajustes (Despesas fixas e Parcelas anteriores).
-- Os cálculos e os valores detalhados permanecem iguais.
-- IndexedDB, dados e estrutura de backup inalterados.
+## Publicação
+Envie somente os oito arquivos do pacote ZIP para a raiz de `finances-pwa`, branch `main`. Exporte um backup antes da atualização e depois importe o JSON privado pelo app instalado.

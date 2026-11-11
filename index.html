@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.6.3">
+<link rel="stylesheet" href="./style.css?v=3.7.0">
 <title>Finanças</title>
 </head>
 <body>
@@ -18,8 +18,16 @@
 <header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda">ⓘ</button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
-<section class="hero" aria-label="Resumo do orçamento"><div class="hero-overline">DISPONÍVEL NA SEMANA</div><div class="hero-number" id="weekBalance">—</div><div class="hero-sub" id="weekDetail">Saldo acumulado</div><div class="hero-divider"></div><div class="stats"><div><div class="stat-label">Limite semanal</div><div id="weekQuota" class="stat-value">—</div></div><div><div class="stat-label">Livre no mês</div><div id="monthAvailable" class="stat-value">—</div></div><div><div class="stat-label">Investimento protegido</div><div id="protectedInvestment" class="stat-value">—</div></div><div><div class="stat-label">Margem protegida</div><div id="protectedMargin" class="stat-value">—</div></div></div></section>
-<div class="cash-strip cash-simple"><div><div class="stat-label">SALDO ESTIMADO</div><strong id="cashBalance">—</strong></div></div>
+<section class="hero" aria-label="Saldo atual">
+<div class="hero-overline">SALDO ESTIMADO</div><div class="hero-number" id="cashBalance">—</div>
+<div class="hero-sub">Saldo de abertura atualizado com suas movimentações.</div></section>
+<section class="week-summary" aria-label="Orçamento semanal">
+<div class="week-overline">DISPONÍVEL PARA GASTAR NESTA SEMANA</div>
+<div class="week-number" id="weekBalance">—</div>
+<div class="week-description" id="weekDetail">Orçamento disponível</div>
+<div class="hero-divider"></div>
+<div class="stats"><div><div class="stat-label">Cota semanal</div><div id="weekQuota" class="stat-value">—</div></div><div><div class="stat-label">Saldo acumulado do orçamento</div><div id="monthAvailable" class="stat-value">—</div></div><div><div class="stat-label">Investimento protegido</div><div id="protectedInvestment" class="stat-value">—</div></div><div><div class="stat-label">Margem protegida</div><div id="protectedMargin" class="stat-value">—</div></div></div>
+</section>
 <nav class="tabs" aria-label="Áreas do aplicativo"><button type="button" data-screen="week" class="active">Semana</button><button type="button" data-screen="installments">Parcelas</button><button type="button" data-screen="planning">Planejamento</button></nav>
 <main>
 <section id="screen-week" class="screen">
@@ -44,7 +52,7 @@
 <div class="surface" id="detailCard"><h2>Composição do mês</h2><label for="detailMonth">Mês</label><div class="calendar-field"><span class="calendar-label" data-for="detailMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="detailMonth" type="month" required></div><div id="monthBreakdown" class="breakdown"></div></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
-<details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário: dia 30. Fatura e fixos: dia 5. Investimento mensal: dia 30. O saldo é estimado; ajuste a abertura quando precisar.</p></details>
+<details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário: dia 30. Fatura e fixos: dia 5. Investimento mensal: dia 30. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
 <details class="surface settings-details"><summary>Renda e investimentos</summary><form id="baselineForm">
 <label for="effectiveMonth">Renda e aporte válidos a partir de</label><div class="calendar-field"><span class="calendar-label" data-for="effectiveMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="effectiveMonth" type="month" required></div>
 <label for="income">Renda líquida mensal (R$)</label><input id="income" type="number" min="0" step="0.01" required>
@@ -57,6 +65,11 @@
 <label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte extra">
 <label for="extraAmount">Valor investido a mais (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required>
 <button class="primary" type="submit">Registrar investimento extra</button></form><div id="extraInvestmentList"></div>
+<div class="divider-soft"></div><h3>Antecipou o aporte mensal?</h3>
+<p class="assistive">O aporte mensal normalmente é estimado no dia 30. Se você já o fez antes, informe a data: será descontado nessa data e não novamente no dia 30. Não inclua aqui a parte extra.</p>
+<form id="monthlyPaidForm"><label for="monthlyPaidMonth">Mês do aporte</label><div class="calendar-field"><span class="calendar-label" data-for="monthlyPaidMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="monthlyPaidMonth" type="month" required></div>
+<label for="monthlyPaidDate">Data em que investiu</label><div class="calendar-field"><span class="calendar-label" data-for="monthlyPaidDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="monthlyPaidDate" type="date" required></div>
+<button class="secondary" type="submit">Registrar aporte mensal antecipado</button></form><div id="paidMonthlyList"></div>
 </details>
 <details class="surface settings-details"><summary>Despesas fixas<strong id="fixedSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="fixedList"></div><div id="itemPanels"><form id="fixedForm"><h3>Cadastrar ou editar despesa fixa</h3><label for="fixedName">Descrição</label><input id="fixedName" maxlength="120" placeholder="Ex.: Spotify" required><label for="fixedAmount">Valor mensal (R$)</label><input id="fixedAmount" type="number" min="0" step="0.01" required><div class="two-cols"><div><label for="fixedStart">Início</label><div class="calendar-field"><span class="calendar-label" data-for="fixedStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="fixedStart" type="month" required></div></div><div><label for="fixedEnd">Fim (opcional)</label><div class="calendar-field"><span class="calendar-label" data-for="fixedEnd">Sem término</span><span class="calendar-icon">▦</span><input id="fixedEnd" type="month"></div></div></div><button id="fixedSubmit" class="primary" type="submit">Adicionar despesa fixa</button><button id="fixedCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores<strong id="baseSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="baseList"></div><div id="baseEntry"><form id="baseForm"><h3>Cadastrar ou editar parcela anterior</h3><label for="baseName">Descrição</label><input id="baseName" maxlength="120" placeholder="Ex.: Hospedagem" required><label for="basePayment">Valor de cada parcela (R$)</label><input id="basePayment" type="number" min="0.01" step="0.01" required><div class="two-cols"><div><label for="baseRemaining">Parcelas restantes</label><input id="baseRemaining" type="number" min="1" max="240" step="1" required></div><div><label for="baseStart">Primeira fatura pendente</label><div class="calendar-field"><span class="calendar-label" data-for="baseStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="baseStart" type="month" required></div></div></div><button id="baseSubmit" class="primary" type="submit">Adicionar parcela antiga</button><button id="baseCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
@@ -66,10 +79,10 @@
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
 <div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
-<div class="help-item"><strong>Disponível na semana</strong><p>Cotas semanais acumuladas desde o início do controle, menos gastos à vista e investimentos extras, mais entradas extras registradas. É um orçamento para orientar o consumo, não o saldo bancário.</p></div>
+<div class="help-item"><strong>Disponível na semana</strong><p>O menor valor entre orçamento semanal acumulado e caixa disponível, reservando pagamentos previstos antes do próximo salário. Não é dinheiro adicional.</p></div>
 <div class="help-item"><strong>Limite semanal</strong><p>Parcela semanal equivalente do orçamento mensal, calculada por (renda − fixos − faturas − investimento padrão − margem) × 12 ÷ 52.</p></div>
-<div class="help-item"><strong>Livre no mês</strong><p>Valor projetado após compromissos mensais. Não representa necessariamente o dinheiro que está hoje na conta.</p></div>
-<div class="help-item"><strong>Investimento protegido</strong><p>Aporte recorrente planejado para o mês. É separado antes de calcular o dinheiro para consumo.</p></div>
+<div class="help-item"><strong>Saldo acumulado do orçamento</strong><p>Acúmulo das cotas semanais, descontando gastos e investimentos extras. Não deve ser somado ao saldo estimado.</p></div>
+<div class="help-item"><strong>Investimento protegido</strong><p>Aporte recorrente reservado no orçamento. Entra no caixa dia 30, exceto se você registrar a realização antecipada.</p></div>
 <div class="help-item"><strong>Margem protegida</strong><p>Valor mensal que você prefere não comprometer com novas compras.</p></div>
 <div class="help-item"><strong>Saldo estimado</strong><p>Saldo de abertura atualizado com eventos automáticos e movimentos registrados desde a data de referência. É uma estimativa, não uma consulta ao banco.</p></div></details>
 <details class="surface settings-details"><summary>Movimentações</summary>
@@ -84,7 +97,7 @@
 <div class="help-item"><strong>Primeira fatura</strong><p>Mês do primeiro vencimento. A compra é distribuída por esse mês e pelos próximos, sem ser descontada novamente como gasto à vista.</p></div></details>
 <details class="surface settings-details"><summary>Saldo de abertura</summary>
 <div class="help-item"><strong>Data de referência</strong><p>Dia em que você verificou quanto dinheiro tinha. Movimentos anteriores ficam fora da evolução do saldo estimado.</p></div>
-<div class="help-item"><strong>Saldo inicial</strong><p>Dinheiro disponível na data escolhida. Serve como ponto de partida, inclusive se precisar recomeçar após um problema; não é nova renda nem cria cotas semanais.</p></div></details>
+<div class="help-item"><strong>Saldo inicial</strong><p>Dinheiro disponível antes dos lançamentos que você fará nessa data. Serve como ponto de partida, inclusive se precisar recomeçar após um problema; não é nova renda nem cria cotas semanais.</p></div></details>
 <details class="surface settings-details"><summary>Renda, investimentos e semanas</summary>
 <div class="help-item"><strong>Renda e aporte válidos a partir de</strong><p>Mês em que passam a valer a renda, o investimento padrão e a margem cadastrados. Configurações anteriores continuam aplicáveis aos meses anteriores.</p></div>
 <div class="help-item"><strong>Renda líquida mensal</strong><p>Salário após descontos. Na projeção do caixa é acrescentado automaticamente no dia 30 (ou no último dia de meses menores).</p></div>
@@ -94,7 +107,7 @@
 <details class="surface settings-details"><summary>Investimentos extras</summary>
 <div class="help-item"><strong>Data do investimento</strong><p>Dia em que fez o aporte adicional.</p></div>
 <div class="help-item"><strong>Descrição</strong><p>Nome opcional para identificar o aporte no histórico.</p></div>
-<div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
+<div class="help-item"><strong>Aporte mensal antecipado</strong><p>Se realizou o aporte padrão antes do dia 30, marque o mês e a data. O aplicativo não fará um segundo desconto no dia 30.</p></div><div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
 <details class="surface settings-details"><summary>Despesas fixas</summary>
 <div class="help-item"><strong>Descrição e valor mensal</strong><p>Nome e custo de uma obrigação recorrente, como plano de celular ou assinatura.</p></div>
 <div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
@@ -115,5 +128,5 @@
 </main></div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.6.3" defer></script>
+<script src="./app.js?v=3.7.0" defer></script>
 </body></html>

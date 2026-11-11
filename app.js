@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.6: armazenamento local, sem envio de informações financeiras. */
+/* Finanças 3.7: controle de caixa local, com aportes mensais antecipados. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -15,18 +15,18 @@ const isDate=s=>/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(s)&&dateKey(new D
 const isMonth=s=>/^\d{4}-(0[1-9]|1[0-2])$/.test(s);
 const amount=id=>{const raw=$(id).value.trim().replace(',','.');return raw===''?NaN:Number(raw)};
 const newId=()=>crypto.randomUUID();
-const empty=()=>({version:7,opening:null,extraIncome:[],cashEntries:[],mode:'items',income:0,legacyFixed:0,legacyInvoices:{},fixedItems:[],baseParcels:[],investments:0,investmentOverrides:{},investmentLowerLegacy:{},extraInvestments:[],profiles:[{from:'2000-01',income:0,investments:0,margin:0}],expenses:[],parcels:[],started:monday(new Date())});
+const empty=()=>({version:8,monthlyPaid:[],opening:null,extraIncome:[],cashEntries:[],mode:'items',income:0,legacyFixed:0,legacyInvoices:{},fixedItems:[],baseParcels:[],investments:0,investmentOverrides:{},investmentLowerLegacy:{},extraInvestments:[],profiles:[{from:'2000-01',income:0,investments:0,margin:0}],expenses:[],parcels:[],started:monday(new Date())});
 function validLegacyShape(s){return !!(s&&s.version===5&&s.mode==='items'&&Number.isFinite(s.income)&&s.income>=0&&Number.isFinite(s.legacyFixed)&&s.legacyFixed>=0&&isDate(s.started)&&Number.isFinite(s.investments)&&s.investments>=0&&s.legacyInvoices&&typeof s.legacyInvoices==='object'&&!Array.isArray(s.legacyInvoices)&&Object.entries(s.legacyInvoices).every(([m,v])=>isMonth(m)&&Number.isFinite(v)&&v>=0)&&s.investmentOverrides&&Object.entries(s.investmentOverrides).every(([m,v])=>isMonth(m)&&Number.isFinite(v)&&v>=0)&&Array.isArray(s.fixedItems)&&s.fixedItems.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&Number.isFinite(e.amount)&&e.amount>=0&&isMonth(e.start)&&(!e.end||isMonth(e.end)))&&Array.isArray(s.baseParcels)&&s.baseParcels.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&Number.isFinite(e.payment)&&e.payment>0&&isMonth(e.start)&&Number.isInteger(e.remaining)&&e.remaining>0&&e.remaining<=240)&&Array.isArray(s.expenses)&&s.expenses.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&Number.isFinite(e.amount)&&e.amount>0&&isDate(e.date))&&Array.isArray(s.parcels)&&s.parcels.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isMonth(e.start)&&Number.isInteger(e.count)&&e.count>0&&e.count<=120&&Number.isFinite(e.total)&&e.total>0&&Number.isFinite(e.payment)&&e.payment>=0));}
 
 function valid(s){
- if(!s||s.version!==7||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments))return false;
+ if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
  const base={...s,version:5};if(!validLegacyShape(base))return false;
  if(!s.profiles.every(p=>isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
  if(s.opening!==null&&(!s.opening||!isDate(s.opening.date)||!Number.isFinite(s.opening.amount)||s.opening.amount<0))return false;
  if(!Array.isArray(s.extraIncome)||!s.extraIncome.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>0))return false;
  if(!Array.isArray(s.cashEntries)||!s.cashEntries.every(e=>typeof e.id==='string'&&['salary','invoice','fixed','investment','adjustment-in','adjustment-out'].includes(e.type)&&isDate(e.date)&&isMonth(e.month)&&Number.isFinite(e.amount)&&e.amount>0))return false;
- return s.extraInvestments.every(x=>typeof x.id==='string'&&typeof x.name==='string'&&x.name.length<=120&&isDate(x.date)&&Number.isFinite(x.amount)&&x.amount>0);
+ return s.extraInvestments.every(x=>typeof x.id==='string'&&typeof x.name==='string'&&x.name.length<=120&&isDate(x.date)&&Number.isFinite(x.amount)&&x.amount>0)&&s.monthlyPaid.every(x=>isMonth(x.month)&&isDate(x.date)&&x.date.slice(0,7)===x.month&&Number.isFinite(x.amount)&&x.amount>=0)&&new Set(s.monthlyPaid.map(x=>x.month)).size===s.monthlyPaid.length;
 }
 function toV6(v){
  if(v.version===6)return v;
@@ -42,23 +42,47 @@ function toV7(v){
  const x=toV6(v);x.version=7;x.opening=null;x.extraIncome=[];x.cashEntries=[];
  return x;
 }
+function toV8(v){
+ if(v.version===8)return v;
+ const x=toV7(v);x.version=8;x.monthlyPaid=[];return x;
+}
+function settled(s,m){return (s.monthlyPaid||[]).find(x=>x.month===m)||null;}
 // Projeção local a partir de um saldo de abertura. Não significa conciliação bancária.
 // Fevereiro usa o último dia do mês como equivalente ao pagamento do dia 30.
 function eventDate(m,day){const [y,mo]=m.split('-').map(Number),last=new Date(y,mo,0).getDate();return `${m}-${pad(Math.min(day,last))}`}
-function cashToday(s){
+function cashAt(s,end){
  if(!s.opening)return null;
- const start=s.opening.date,end=today();
+ const start=s.opening.date;
  if(end<start)return round(s.opening.amount);
  let projected=s.opening.amount;
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
-   const p=profile(s,m),salaryDay=eventDate(m,30),payDay=eventDate(m,5);
-   if(salaryDay>start&&salaryDay<=end) projected+=p.income-p.investments;
-   if(payDay>start&&payDay<=end){projected-=baseAmount(s,m)+newAmount(s,m)+fixedAmount(s,m)}
+   const p=profile(s,m),salaryDay=eventDate(m,30),payDay=eventDate(m,5),real=settled(s,m);
+   if(salaryDay>start&&salaryDay<=end)projected+=p.income;
+   // Aporte recorrente: uma só saída, na data real se antecipado; senão dia 30.
+   if(real){if(real.date>=start&&real.date<=end)projected-=real.amount}
+   else if(salaryDay>start&&salaryDay<=end)projected-=investmentAmount(s,m);
+   if(payDay>start&&payDay<=end)projected-=baseAmount(s,m)+newAmount(s,m)+fixedAmount(s,m);
  }
- projected+=s.extraIncome.filter(e=>e.date>start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
- projected-=s.expenses.filter(e=>e.date>start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
- projected-=s.extraInvestments.filter(e=>e.date>start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
+ // Abertura é o saldo antes de outras movimentações lançadas na mesma data.
+ projected+=s.extraIncome.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
+ projected-=s.expenses.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
+ projected-=s.extraInvestments.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
  return round(projected);
+}
+function cashToday(s){return cashAt(s,today())}
+// Reserva contas que vencem antes do próximo salário, sem antecipar receitas futuras.
+function cashBeforeNextSalary(s){
+ const current=cashToday(s);if(current===null)return null;
+ const now=today(),m=now.slice(0,7);
+ const salaryDate=eventDate(m,30)>now?eventDate(m,30):eventDate(shiftMonth(m,1),30);
+ let out=0;
+ for(let month=m;month<=salaryDate.slice(0,7);month=shiftMonth(month,1)){
+  const day=eventDate(month,5);
+  if(day>now&&day<salaryDate)out+=fixedAmount(s,month)+baseAmount(s,month)+newAmount(s,month);
+  const real=settled(s,month);
+  if(real&&real.date>now&&real.date<salaryDate)out+=real.amount;
+ }
+ return round(Math.max(0,current-out));
 }
 
 function profile(s,m){return s.profiles.filter(p=>p.from<=m).sort((a,b)=>b.from.localeCompare(a.from))[0]||s.profiles.slice().sort((a,b)=>a.from.localeCompare(b.from))[0]}
@@ -107,8 +131,18 @@ function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,1,12).toLocaleDateString('pt-BR',{month:'short',year:'numeric'})}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
 function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
 function rows(items,type){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right"><button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
-function breakdown(s,m){const z=monthly(s,m),l=[];l.push(`<div class="detail-line"><span>Renda líquida</span><strong>${money(z.income)}</strong></div>`);if(s.mode==='legacy'){l.push(`<div class="detail-line"><span>Despesas fixas (total antigo)</span><strong>− ${money(z.fixed)}</strong></div>`);l.push(`<div class="detail-line"><span>Fatura-base (total antigo)</span><strong>− ${z.known?money(z.base):'Não informada'}</strong></div>`)}else{for(const e of activeFixed(s,m))l.push(`<div class="detail-line"><span>${esc(e.name)} · fixo</span><strong>− ${money(e.amount)}</strong></div>`);for(const e of oldParts(s,m))l.push(`<div class="detail-line"><span>${esc(e.name)} · parcela antiga</span><strong>− ${money(e.payment)}</strong></div>`)}for(const e of s.parcels){const a=newPartAmount(e,m);if(a)l.push(`<div class="detail-line"><span>${esc(e.name)} · compra nova</span><strong>− ${money(a)}</strong></div>`)}l.push(`<div class="detail-line"><span>Investimento padrão e extras antigos planejados</span><strong>− ${money(z.investment)}</strong></div>`);for(const e of s.extraInvestments.filter(e=>e.date.slice(0,7)===m))l.push(`<div class="detail-line"><span>${esc(e.name)} · investimento em ${esc(e.date.split('-').reverse().join('/'))}</span><strong>− ${money(e.amount)}</strong></div>`);for(const e of s.extraIncome.filter(e=>e.date.slice(0,7)===m))l.push(`<div class="detail-line"><span>${esc(e.name)} · entrada extra</span><strong>+ ${money(e.amount)}</strong></div>`);l.push(`<div class="detail-line"><span>Margem protegida</span><strong>− ${money(z.margin)}</strong></div>`);l.push(`<div class="detail-line detail-total"><span>Livre no mês</span><strong>${z.known?money(round(z.available+s.extraIncome.filter(e=>e.date.slice(0,7)===m).reduce((a,e)=>a+e.amount,0))):'—'}</strong></div>`);return l.join('')}
-function render(){const m=monthNow(),x=monthly(state,m),w=weekly(state);$('monthCaption').textContent=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});$('weekBalance').textContent=w.known?money(w.balance):'—';$('weekBalance').classList.toggle('negative',w.known&&w.balance<0);$('weekDetail').textContent=w.detail;$('weekQuota').textContent=weeklyBudget(state,m)===null?'—':money(weeklyBudget(state,m));$('monthAvailable').textContent=x.known?money(round(x.available+state.extraIncome.filter(e=>e.date.slice(0,7)===m).reduce((a,e)=>a+e.amount,0))):'—';$('protectedInvestment').textContent=money(profile(state,m).investments);$('protectedMargin').textContent=money(profile(state,m).margin);$('cashBalance').textContent= cashToday(state)===null?'—':money(cashToday(state));
+function breakdown(s,m){const z=monthly(s,m),l=[];l.push(`<div class="detail-line"><span>Renda líquida</span><strong>${money(z.income)}</strong></div>`);if(s.mode==='legacy'){l.push(`<div class="detail-line"><span>Despesas fixas (total antigo)</span><strong>− ${money(z.fixed)}</strong></div>`);l.push(`<div class="detail-line"><span>Fatura-base (total antigo)</span><strong>− ${z.known?money(z.base):'Não informada'}</strong></div>`)}else{for(const e of activeFixed(s,m))l.push(`<div class="detail-line"><span>${esc(e.name)} · fixo</span><strong>− ${money(e.amount)}</strong></div>`);for(const e of oldParts(s,m))l.push(`<div class="detail-line"><span>${esc(e.name)} · parcela antiga</span><strong>− ${money(e.payment)}</strong></div>`)}for(const e of s.parcels){const a=newPartAmount(e,m);if(a)l.push(`<div class="detail-line"><span>${esc(e.name)} · compra nova</span><strong>− ${money(a)}</strong></div>`)}l.push(`<div class="detail-line"><span>Investimento mensal protegido${settled(s,m)?' · realizado em '+settled(s,m).date.split('-').reverse().join('/'):' · previsto'}</span><strong>− ${money(z.investment)}</strong></div>`);for(const e of s.extraInvestments.filter(e=>e.date.slice(0,7)===m))l.push(`<div class="detail-line"><span>${esc(e.name)} · investimento em ${esc(e.date.split('-').reverse().join('/'))}</span><strong>− ${money(e.amount)}</strong></div>`);for(const e of s.extraIncome.filter(e=>e.date.slice(0,7)===m))l.push(`<div class="detail-line"><span>${esc(e.name)} · entrada extra</span><strong>+ ${money(e.amount)}</strong></div>`);l.push(`<div class="detail-line"><span>Margem protegida</span><strong>− ${money(z.margin)}</strong></div>`);l.push(`<div class="detail-line detail-total"><span>Livre no mês</span><strong>${z.known?money(round(z.available+s.extraIncome.filter(e=>e.date.slice(0,7)===m).reduce((a,e)=>a+e.amount,0))):'—'}</strong></div>`);return l.join('')}
+function render(){const m=monthNow(),x=monthly(state,m),w=weekly(state);$('monthCaption').textContent=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const cash=cashToday(state),protectedCash=cashBeforeNextSalary(state);
+const safe=w.known&&cash!==null?Math.max(0,Math.min(w.balance,protectedCash)):null;
+$('weekBalance').textContent=safe===null?'—':money(round(safe));$('weekBalance').classList.toggle('negative',false);
+$('weekDetail').textContent=safe===null?'Configure o saldo de abertura para consultar quanto pode gastar.':'Menor valor entre seu orçamento acumulado e o caixa disponível antes do próximo salário.';
+$('weekQuota').textContent=weeklyBudget(state,m)===null?'—':money(weeklyBudget(state,m));
+$('monthAvailable').textContent=w.known?money(w.balance):'—';
+$('protectedInvestment').textContent=money(investmentAmount(state,m));$('protectedMargin').textContent=money(profile(state,m).margin);
+$('cashBalance').textContent=cash===null?'—':money(cash);
+$('cashBalance').classList.toggle('negative',cash!==null&&cash<0);
+$('paidMonthlyList').innerHTML=(state.monthlyPaid||[]).slice().sort((a,b)=>b.month.localeCompare(a.month)).map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.month)} · aporte do mês</div><div class="entry-description">Realizado em ${esc(e.date.split('-').reverse().join('/'))}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button type="button" class="entry-remove" data-delete-paid="${esc(e.month)}" aria-label="Desfazer registro de aporte">×</button></div></div>`).join('');
+
 
 const ex=state.expenses.slice().sort((a,b)=>b.date.localeCompare(a.date));$('expenseCount').textContent=String(ex.length);$('expenses').innerHTML=ex.length?ex.map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${e.date.split('-').reverse().join('/')}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button class="entry-remove" type="button" data-delete-expense="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`).join(''):'<p class="empty">Nenhum gasto registrado.</p>';
 $('parcels').innerHTML=rows(state.parcels,'new');$('parcelCountBadge').textContent=String(state.parcels.length);$('fixedList').innerHTML=rows(state.fixedItems,'fixed');$('baseList').innerHTML=rows(state.baseParcels,'base');$('fixedSubtotal').textContent=money(x.fixed);$('fixedSubtotalSummary').textContent=money(x.fixed);$('baseSubtotal').textContent= x.known?money(x.base):'—';$('baseSubtotalSummary').textContent=x.known?money(x.base):'—';$('investmentSubtotal').textContent=money(x.investment+x.invested);$('extraInvestmentList').innerHTML=state.extraInvestments.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(e.date.split('-').reverse().join('/'))}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button class="entry-remove" data-delete-extra="${esc(e.id)}" aria-label="Excluir investimento">×</button></div></div>`).join('')||'<p class="empty">Nenhum investimento extra realizado.</p>';
@@ -126,6 +160,16 @@ async function saveFixed(e){e.preventDefault();const name=$('fixedName').value.t
 async function saveBase(e){e.preventDefault();const name=$('baseName').value.trim(),payment=amount('basePayment'),remaining=Number($('baseRemaining').value),start=$('baseStart').value;if(!name||!(payment>0)||!Number.isInteger(remaining)||remaining<1||remaining>240||!isMonth(start))return notice('Confira a parcela antiga.','warning');if(await update(s=>{const item={id:editingBase||newId(),name,payment:round(payment),remaining,start};if(editingBase)s.baseParcels=s.baseParcels.map(p=>p.id===editingBase?item:p);else s.baseParcels.push(item)})){editingBase=null;$('baseForm').reset();$('baseStart').value=monthNow();$('baseSubmit').textContent='Adicionar parcela antiga';$('baseCancel').classList.add('hidden');calendarLabels()}}
 async function saveExtraInvestment(e){e.preventDefault();const date=$('extraDate').value,name=$('extraName').value.trim()||'Investimento extra',v=amount('extraAmount');if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Informe data e valor positivo.','warning');if(await update(s=>s.extraInvestments.push({id:newId(),date,name,amount:round(v)}))){$('extraAmount').value='';$('extraName').value=''}}
 
+
+async function saveMonthlyPaid(e){
+ e.preventDefault();const date=$('monthlyPaidDate').value,month=$('monthlyPaidMonth').value;
+ if(!isDate(date)||!isMonth(month)||date.slice(0,7)!==month)return notice('A data precisa pertencer ao mês do aporte.','warning');
+ const value=investmentAmount(state,month);
+ if(!(value>0))return notice('Não há investimento mensal configurado para este mês.','warning');
+ if(settled(state,month)&&!confirm('Substituir a data anterior deste aporte mensal?'))return;
+ await update(s=>{s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==month);s.monthlyPaid.push({month,date,amount:value})});
+}
+
 async function saveOpening(e){e.preventDefault();const date=$('openingDate').value,v=amount('openingAmount');if(!isDate(date)||!Number.isFinite(v)||v<0)return notice('Informe data e saldo de abertura válidos.','warning');if(state.opening&&!confirm('Alterar o saldo de abertura recalculará o caixa. Deseja continuar?'))return;await update(s=>{s.opening={date,amount:round(v)}})}
 async function saveExtraIncome(e){e.preventDefault();const date=$('incomeExtraDate').value,name=$('incomeExtraName').value.trim()||'Entrada extra',v=amount('incomeExtraAmount');if(!isDate(date)||!(v>0))return notice('Confira a data e o valor da entrada extra.','warning');if(await update(s=>s.extraIncome.push({id:newId(),date,name,amount:round(v)}))){$('incomeExtraName').value='';$('incomeExtraAmount').value=''}}
 
@@ -133,25 +177,25 @@ function resetForms(){editingFixed=editingBase=editingNew=null;for(const [a,b] o
 function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Backup preparado. Confirme se ele foi salvo no aplicativo Arquivos.','warning')}
-async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV7(raw.version===7?raw:normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write(RECORD,incoming);state=incoming;resetForms();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
+async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write(RECORD,incoming);state=incoming;resetForms();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
 async function init(){try{
  db=await openDb();let v=await read(RECORD);archived=!!(await read(ARCHIVE));
  if(v){
-   if(v.version===7){if(!valid(v))throw Error('Dados existentes precisam de recuperação. Não apague o aplicativo.');state=v}
+   if(v.version===8){if(!valid(v))throw Error('Dados existentes precisam de recuperação. Não apague o aplicativo.');state=v}
    else {
-     const older=v.version===6||v.version===5||v.version===4?v:v.version===3?migrateV3(v):isOldV2(v)?migrateOld(v):null;
+     const older=v.version===7||v.version===6||v.version===5||v.version===4?v:v.version===3?migrateV3(v):isOldV2(v)?migrateOld(v):null;
      if(!older)throw Error('Formato anterior não reconhecido.');
-     const next=toV7(older);if(!valid(next))throw Error('Dados anteriores incompatíveis.');
-     await write(BEFORE35,v);if(isOldV2(v)){await write(ARCHIVE,v);archived=true}
+     const next=toV8(older);if(!valid(next))throw Error('Dados anteriores incompatíveis.');
+     await write('state-before-v3.7',v);if(isOldV2(v)){await write(ARCHIVE,v);archived=true}
      await write(RECORD,next);state=next;
    }
  }else{
    let legacy=null;try{const x=localStorage.getItem(OLD_KEY);if(x)legacy=JSON.parse(x)}catch{}
-   if(legacy){state=toV7(migratePilot(legacy));if(!valid(state))throw Error('Dados anteriores incompatíveis.');await write(ARCHIVE,legacy);archived=true}
+   if(legacy){state=toV8(migratePilot(legacy));if(!valid(state))throw Error('Dados anteriores incompatíveis.');await write(ARCHIVE,legacy);archived=true}
    else state=empty();await write(RECORD,state);
  }
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
- for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth','detailMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();
+ for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth','detailMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('monthlyPaidDate').value=today();$('monthlyPaidMonth').value=monthNow();
  render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
@@ -160,14 +204,14 @@ document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListe
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>showScreen(b.dataset.screen)));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'week':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'week':'info'));
-for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome]])$(id).addEventListener('submit',fn);
+for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['monthlyPaidForm',saveMonthlyPaid]])$(id).addEventListener('submit',fn);
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);
 $('detailMonth').addEventListener('change',()=>{viewMonth=$('detailMonth').value;$('monthBreakdown').innerHTML=breakdown(state,viewMonth)});
 
 $('exportBackup').addEventListener('click',exportBackup);$('restoreFile').addEventListener('change',restoreBackup);$('exportLegacy').addEventListener('click',async()=>{const old=await read(ARCHIVE);if(old)downloadFile(JSON.stringify(old,null,2),`financas-arquivo-anterior-${today()}.json`)});
-$('exportPrevious').addEventListener('click',async()=>{const old=await read(BEFORE35)||await read(BEFORE34)||await read(BEFORE33)||await read(PREVIOUS);if(old)downloadFile(JSON.stringify(old,null,2),`financas-versao-anterior-${today()}.json`);else notice('Arquivo da versão anterior indisponível.','warning')});
+$('exportPrevious').addEventListener('click',async()=>{const old=await read('state-before-v3.7')||await read(BEFORE35)||await read(BEFORE34)||await read(BEFORE33)||await read(PREVIOUS);if(old)downloadFile(JSON.stringify(old,null,2),`financas-versao-anterior-${today()}.json`);else notice('Arquivo da versão anterior indisponível.','warning')});
 for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).addEventListener('click',()=>{resetForms();render()});
-document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>s[field]=s[field].filter(x=>x.id!==id));return}}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==exp.dataset.deleteExpense));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este investimento extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const mv=target.closest('[data-view-month]');if(mv){viewMonth=mv.dataset.viewMonth;$('detailMonth').value=viewMonth;$('monthBreakdown').innerHTML=breakdown(state,viewMonth);$('detailCard').scrollIntoView({behavior:'smooth'})}});
+document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>s[field]=s[field].filter(x=>x.id!==id));return}}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==exp.dataset.deleteExpense));return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este investimento extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const mv=target.closest('[data-view-month]');if(mv){viewMonth=mv.dataset.viewMonth;$('detailMonth').value=viewMonth;$('monthBreakdown').innerHTML=breakdown(state,viewMonth);$('detailCard').scrollIntoView({behavior:'smooth'})}});
 init();
 if('serviceWorker' in navigator){let reloading=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload()});window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});reg.update().catch(()=>{})}catch{}})}

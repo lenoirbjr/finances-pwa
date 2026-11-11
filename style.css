@@ -43,3 +43,13 @@
 
 /* 3.6.3: cabeçalhos recolhíveis sem subtotais, mantendo os valores nos detalhes e no planejamento */
 #screen-settings > details > summary .subtotal { display:none !important; }
+
+/* v3.7 — Saldo real estimado como KPI principal, orçamento seguro abaixo. */
+.week-summary{margin-top:13px;padding:19px 20px;background:#122b40;border:1px solid #2b4b61;border-radius:22px;}
+.week-overline{font-size:10px;letter-spacing:1.5px;color:#a4d4d4;font-weight:750}
+.week-number{font-weight:780;font-size:clamp(28px,7.3vw,38px);line-height:1.2;margin-top:10px;overflow-wrap:anywhere}
+.week-description{font-size:12px;color:#adc6d1;line-height:1.5;margin-top:7px}
+.week-summary .hero-divider{margin:17px 0 15px}
+.week-summary .stats{gap:16px}
+.divider-soft{height:1px;background:#345269;margin-top:20px}
+.settings-view .week-summary{display:none}

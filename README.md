@@ -1,4 +1,4 @@
-# Finanças 3.6
+# Finanças 3.6.1
 
 PWA local-first hospedado no GitHub Pages. O IndexedDB armazena os registros no dispositivo. O repositório público não recebe dados financeiros.
 
@@ -18,3 +18,6 @@ O formato de armazenamento da versão 3.5 (versão interna 7) foi mantido para p
 
 ## Limitações
 A equivalência semanal utiliza 12/52 do orçamento mensal; trata-se de orçamento, não de extrato. Os cálculos automáticos pressupõem que os recebimentos e pagamentos ocorram nas datas previstas. Se não acontecerem, o saldo estimado diverge do real. Faça backup periódico.
+
+## Interface de Ajustes
+Todas as sete seções agora são recolhíveis. Datas de vigência das configurações e início do controle semanal continuam independentes. Nenhum dado ou fórmula foi alterado.

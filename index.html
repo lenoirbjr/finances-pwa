@@ -10,12 +10,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.6.1">
+<link rel="stylesheet" href="./style.css?v=3.6.2">
 <title>Finanças</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda">ⓘ</button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
 <section class="hero" aria-label="Resumo do orçamento"><div class="hero-overline">DISPONÍVEL NA SEMANA</div><div class="hero-number" id="weekBalance">—</div><div class="hero-sub" id="weekDetail">Saldo acumulado</div><div class="hero-divider"></div><div class="stats"><div><div class="stat-label">Limite semanal</div><div id="weekQuota" class="stat-value">—</div></div><div><div class="stat-label">Livre no mês</div><div id="monthAvailable" class="stat-value">—</div></div><div><div class="stat-label">Investimento protegido</div><div id="protectedInvestment" class="stat-value">—</div></div><div><div class="stat-label">Margem protegida</div><div id="protectedMargin" class="stat-value">—</div></div></div></section>
@@ -63,8 +63,57 @@
 <details class="surface settings-details"><summary>Resumo do Baseline</summary><div class="detail-line"><span>Fixos neste mês</span><strong id="fixedSubtotalSummary"></strong></div><div class="detail-line"><span>Fatura-base neste mês</span><strong id="baseSubtotalSummary"></strong></div><div class="detail-line"><span>Investimentos neste mês</span><strong id="investmentSubtotal"></strong></div></details>
 <details class="surface settings-details"><summary>Backup e restauração</summary><button id="exportBackup" class="secondary" type="button">Exportar meus dados</button><label for="restoreFile" class="file-label">Importar backup</label><input id="restoreFile" class="file-input" type="file" accept=".json,application/json"><p class="assistive">O backup inclui cada item e movimentação, inclusive o histórico de vigência de renda, investimentos e margem de segurança.</p><button id="exportPrevious" type="button" class="text-button">Exportar versão anterior (se disponível)</button><button id="exportLegacy" class="text-button hidden" type="button">Exportar arquivo antigo das duas carteiras</button></details>
 </section>
+<section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
+<div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
+<details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
+<div class="help-item"><strong>Disponível na semana</strong><p>Cotas semanais acumuladas desde o início do controle, menos gastos à vista e investimentos extras, mais entradas extras registradas. É um orçamento para orientar o consumo, não o saldo bancário.</p></div>
+<div class="help-item"><strong>Limite semanal</strong><p>Parcela semanal equivalente do orçamento mensal, calculada por (renda − fixos − faturas − investimento padrão − margem) × 12 ÷ 52.</p></div>
+<div class="help-item"><strong>Livre no mês</strong><p>Valor projetado após compromissos mensais. Não representa necessariamente o dinheiro que está hoje na conta.</p></div>
+<div class="help-item"><strong>Investimento protegido</strong><p>Aporte recorrente planejado para o mês. É separado antes de calcular o dinheiro para consumo.</p></div>
+<div class="help-item"><strong>Margem protegida</strong><p>Valor mensal que você prefere não comprometer com novas compras.</p></div>
+<div class="help-item"><strong>Saldo estimado</strong><p>Saldo de abertura atualizado com eventos automáticos e movimentos registrados desde a data de referência. É uma estimativa, não uma consulta ao banco.</p></div></details>
+<details class="surface settings-details"><summary>Movimentações</summary>
+<div class="help-item"><strong>Data</strong><p>Dia da entrada extra ou da compra à vista. Afeta o saldo estimado e o controle da semana correspondente.</p></div>
+<div class="help-item"><strong>Descrição</strong><p>Nome usado para reconhecer a movimentação no histórico; opcional apenas para renda extra.</p></div>
+<div class="help-item"><strong>Valor</strong><p>Valor efetivamente recebido ou gasto. Registre somente sua parte de uma compra compartilhada.</p></div>
+<div class="help-item"><strong>Compra parcelada</strong><p>Cadastre na aba Parcelas, não novamente como gasto à vista, para evitar dupla contagem.</p></div></details>
+<details class="surface settings-details"><summary>Compras parceladas</summary>
+<div class="help-item"><strong>Descrição</strong><p>Nome da compra para identificá-la na composição da fatura.</p></div>
+<div class="help-item"><strong>Valor total</strong><p>Valor que você assumiu pagar, não o preço cheio quando outra pessoa paga parte.</p></div>
+<div class="help-item"><strong>Quantidade</strong><p>Número de prestações da compra nova.</p></div>
+<div class="help-item"><strong>Primeira fatura</strong><p>Mês do primeiro vencimento. A compra é distribuída por esse mês e pelos próximos, sem ser descontada novamente como gasto à vista.</p></div></details>
+<details class="surface settings-details"><summary>Saldo de abertura</summary>
+<div class="help-item"><strong>Data de referência</strong><p>Dia em que você verificou quanto dinheiro tinha. Movimentos anteriores ficam fora da evolução do saldo estimado.</p></div>
+<div class="help-item"><strong>Saldo inicial</strong><p>Dinheiro disponível na data escolhida. Serve como ponto de partida, inclusive se precisar recomeçar após um problema; não é nova renda nem cria cotas semanais.</p></div></details>
+<details class="surface settings-details"><summary>Renda, investimentos e semanas</summary>
+<div class="help-item"><strong>Renda e aporte válidos a partir de</strong><p>Mês em que passam a valer a renda, o investimento padrão e a margem cadastrados. Configurações anteriores continuam aplicáveis aos meses anteriores.</p></div>
+<div class="help-item"><strong>Renda líquida mensal</strong><p>Salário após descontos. Na projeção do caixa é acrescentado automaticamente no dia 30 (ou no último dia de meses menores).</p></div>
+<div class="help-item"><strong>Investimento mensal protegido</strong><p>Valor recorrente destinado aos investimentos. Reduz o orçamento livre e é considerado na projeção do caixa no dia 30.</p></div>
+<div class="help-item"><strong>Margem de segurança mensal</strong><p>Quantia que você escolhe preservar, além do investimento padrão. Reduz a disponibilidade para consumo; não é um pagamento registrado na conta.</p></div>
+<div class="help-item"><strong>Primeira semana do orçamento</strong><p>Marco zero da acumulação semanal. Não muda a partir de quando seu salário ou investimentos passam a valer.</p></div></details>
+<details class="surface settings-details"><summary>Investimentos extras</summary>
+<div class="help-item"><strong>Data do investimento</strong><p>Dia em que fez o aporte adicional.</p></div>
+<div class="help-item"><strong>Descrição</strong><p>Nome opcional para identificar o aporte no histórico.</p></div>
+<div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
+<details class="surface settings-details"><summary>Despesas fixas</summary>
+<div class="help-item"><strong>Descrição e valor mensal</strong><p>Nome e custo de uma obrigação recorrente, como plano de celular ou assinatura.</p></div>
+<div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
+<div class="help-item"><strong>Fim (opcional)</strong><p>Último mês em que ela será cobrada. Deixe vazio se continuar por prazo indeterminado.</p></div>
+<div class="help-item"><strong>Dia de pagamento</strong><p>Na versão atual, despesas fixas são consideradas pagas no dia 5 para fins de saldo estimado, mesmo que o vencimento real seja diferente.</p></div></details>
+<details class="surface settings-details"><summary>Parcelas anteriores</summary>
+<div class="help-item"><strong>Descrição</strong><p>Nome da compra que já estava parcelada antes de começar o controle.</p></div>
+<div class="help-item"><strong>Valor de cada parcela</strong><p>Quanto você paga por mês; não é o valor total da compra.</p></div>
+<div class="help-item"><strong>Parcelas restantes</strong><p>Quantidade de prestações ainda pendentes, incluindo a primeira fatura informada.</p></div>
+<div class="help-item"><strong>Primeira fatura pendente</strong><p>Mês em que a próxima parcela será cobrada. As seguintes são projetadas automaticamente.</p></div></details>
+<details class="surface settings-details"><summary>Planejamento e backups</summary>
+<div class="help-item"><strong>Composição do mês</strong><p>Detalha de onde vêm os totais de renda, fixos, faturas, investimentos e margem.</p></div>
+<div class="help-item"><strong>Próximos 12 meses</strong><p>Projeção mensal baseada nos dados atuais, sem presumir novas compras futuras.</p></div>
+<div class="help-item"><strong>Exportar meus dados</strong><p>Cria um arquivo JSON com itens e registros detalhados. Guarde-o em local privado, fora do repositório público.</p></div>
+<div class="help-item"><strong>Importar backup</strong><p>Restaura os registros do arquivo escolhido, substituindo os dados locais existentes. Faça uma exportação antes de restaurar.</p></div>
+<div class="help-item"><strong>Atualização automática</strong><p>O aplicativo funciona sem internet após carregar seus arquivos. Os dados são mantidos localmente, mas ainda é importante realizar backups periódicos.</p></div></details>
+</section>
 </main></div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.6.1" defer></script>
+<script src="./app.js?v=3.6.2" defer></script>
 </body></html>

@@ -31,3 +31,12 @@
 .settings-details summary::after{content:'+';font-size:21px;color:#95b8c8}
 .settings-details[open] summary::after{content:'−'}
 .settings-details[open] summary{margin-bottom:15px}
+
+/* 3.6.2 — cabeçalho e tela de ajuda */
+.header-actions{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.header-actions .icon-button{display:grid;place-items:center;font-size:23px}
+.help-item{padding:12px 0;border-bottom:1px solid #2a485a}
+.help-item:last-child{border-bottom:0;padding-bottom:0}
+.help-item strong{display:block;font-size:14px;color:#f0f8fb}
+.help-item p{font-size:13px;line-height:1.55;color:#adc6d4;margin:6px 0 0}
+#screen-settings > .settings-details > summary{font-size:17px}

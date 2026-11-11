@@ -116,7 +116,7 @@ $('forecast').innerHTML=Array.from({length:12},(_,i)=>{const month=shiftMonth(m,
 $('started').value=state.started;const editingMonth=$('effectiveMonth').value||m;$('effectiveMonth').value=editingMonth;fillProfileInputs();
 $('exportLegacy').classList.toggle('hidden',!archived);
 $('detailMonth').value=viewMonth;$('monthBreakdown').innerHTML=breakdown(state,viewMonth);previewParcel();calendarLabels();showScreenNoScroll()}
-function showScreenNoScroll(){document.body.classList.toggle('settings-view',screen==='settings');$('quickSettings').textContent=screen==='settings'?'←':'⚙';$('quickSettings').setAttribute('aria-label',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');for(const n of ['week','installments','planning','settings']){$('screen-'+n).classList.toggle('hidden',n!==screen);const button=document.querySelector(`[data-screen="${n}"]`);if(button)button.classList.toggle('active',n===screen)}}
+function showScreenNoScroll(){const auxiliary=screen==='settings'||screen==='info';document.body.classList.toggle('settings-view',auxiliary);$('quickSettings').textContent=screen==='settings'?'←':'⚙';$('quickSettings').setAttribute('aria-label',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');$('quickInfo').textContent=screen==='info'?'←':'ⓘ';$('quickInfo').setAttribute('aria-label',screen==='info'?'Voltar ao aplicativo':'Abrir informações');$('quickSettings').classList.toggle('hidden',screen==='info');$('quickInfo').classList.toggle('hidden',screen==='settings');for(const n of ['week','installments','planning','settings','info']){$('screen-'+n).classList.toggle('hidden',n!==screen);const button=document.querySelector(`[data-screen="${n}"]`);if(button)button.classList.toggle('active',n===screen)}}
 function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(round(unit*12/52))}
 async function saveExpense(e){e.preventDefault();const name=$('expenseName').value.trim(),value=amount('expenseAmount'),date=$('expenseDate').value;if(!name||!(value>0)||!isDate(date))return notice('Informe data, descrição e valor positivo.','warning');if(await update(s=>s.expenses.push({id:newId(),name,amount:round(value),date}))){$('expenseName').value='';$('expenseAmount').value=''}}
 async function saveNew(e){e.preventDefault();const name=$('parcelName').value.trim(),total=amount('parcelTotal'),count=Number($('parcelCount').value),start=$('parcelStart').value;if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120)return notice('Confira os campos da compra.','warning');if(await update(s=>{const item={id:editingNew||newId(),name,total:round(total),payment:round(total/count),count,start};if(editingNew)s.parcels=s.parcels.map(p=>p.id===editingNew?item:p);else s.parcels.push(item)})){editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden')}}
@@ -155,25 +155,11 @@ async function init(){try{
  render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
-// Ajustes menos carregados: seções secundárias recolhidas até serem necessárias.
-(function compactSettings(){
- const labels=['Investimento extra','Despesas fixas','Parcelas anteriores','Resumo do Baseline','Backup'];
- const areas=[...document.querySelectorAll('#screen-settings > .surface')];
- for(let i=2;i<areas.length;i++){
-  const section=areas[i],title=labels[i-2];if(!title)continue;
-  const details=document.createElement('details');details.className='settings-details';
-  const summary=document.createElement('summary');summary.textContent=title;details.append(summary);
-  while(section.firstChild){
-   const node=section.firstChild;
-   if(node.nodeType===1&&node.matches?.('h2')){node.remove();continue}
-   details.append(node);
-  }
-  section.append(details);
- }
-})();
+// As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
 document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',calendarLabels);el.addEventListener('change',calendarLabels)});
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>showScreen(b.dataset.screen)));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'week':'settings'));
+$('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'week':'info'));
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome]])$(id).addEventListener('submit',fn);
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);

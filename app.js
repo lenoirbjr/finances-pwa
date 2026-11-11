@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.7: controle de caixa local, com aportes mensais antecipados. */
+/* Finanças 3.8: orçamento baseado no saldo existente e nos compromissos por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -70,19 +70,39 @@ function cashAt(s,end){
  return round(projected);
 }
 function cashToday(s){return cashAt(s,today())}
-// Reserva contas que vencem antes do próximo salário, sem antecipar receitas futuras.
-function cashBeforeNextSalary(s){
- const current=cashToday(s);if(current===null)return null;
- const now=today(),m=now.slice(0,7);
- const salaryDate=eventDate(m,30)>now?eventDate(m,30):eventDate(shiftMonth(m,1),30);
- let out=0;
- for(let month=m;month<=salaryDate.slice(0,7);month=shiftMonth(month,1)){
-  const day=eventDate(month,5);
-  if(day>now&&day<salaryDate)out+=fixedAmount(s,month)+baseAmount(s,month)+newAmount(s,month);
-  const real=settled(s,month);
-  if(real&&real.date>now&&real.date<salaryDate)out+=real.amount;
+// Os limites nunca contam salário futuro como dinheiro disponível hoje.
+// Eventos futuros só ajudam a verificar se pagamentos posteriores caberão.
+function addDays(date,n){const [y,m,d]=date.split('-').map(Number);return dateKey(new Date(y,m-1,d+n,12))}
+function daysBetween(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)}
+function nextPayday(date){const m=date.slice(0,7),pay=eventDate(m,30);return pay>date?pay:eventDate(shiftMonth(m,1),30)}
+function nextSunday(date){const d=new Date(date+'T12:00:00');return addDays(date,(7-d.getDay())%7)}
+// Avalia os compromissos até o terceiro próximo crédito mensal.
+// A margem é um piso de caixa, e não uma saída bancária nem um valor somado todos os meses.
+function cycleBudget(s,asOf=today()){
+ const next=nextPayday(asOf), days=Math.max(1,daysBetween(asOf,next));
+ const current=s.opening&&s.opening.date<=asOf?cashAt(s,asOf):null;
+ if(current===null)return {ready:false,reason:'Configure um saldo de abertura com data igual ou anterior a hoje.'};
+ const horizon=nextPayday(nextPayday(next));
+ const checkpoints=new Set([asOf,next,horizon]);
+ for(let month=asOf.slice(0,7);month<=horizon.slice(0,7);month=shiftMonth(month,1)){
+   for(const day of [5,30]){const t=eventDate(month,day);if(t>asOf&&t<=horizon)checkpoints.add(t)}
  }
- return round(Math.max(0,current-out));
+ for(const group of [s.monthlyPaid||[],s.extraIncome||[],s.extraInvestments||[],s.expenses||[]]){
+   for(const item of group){if(item.date>asOf&&item.date<=horizon)checkpoints.add(item.date)}
+ }
+ let minimum=current-profile(s,asOf.slice(0,7)).margin;
+ let lowestDate=asOf;
+ for(const d of [...checkpoints].sort()){
+   if(d<asOf)continue;
+   const value=cashAt(s,d)-profile(s,d.slice(0,7)).margin;
+   if(value<minimum){minimum=value;lowestDate=d}
+ }
+ const available=round(Math.max(0,Math.min(current,minimum)));
+ const daily=round(available/days);
+ const sunday=nextSunday(asOf);
+ const remaining=Math.min(days,daysBetween(asOf,sunday)+1);
+ const week=round(Math.min(available,available/days*remaining));
+ return {ready:true,current,next,days,sunday,remaining,available,daily,week,minimum:round(minimum),lowestDate,horizon,margin:profile(s,asOf.slice(0,7)).margin};
 }
 
 function profile(s,m){return s.profiles.filter(p=>p.from<=m).sort((a,b)=>b.from.localeCompare(a.from))[0]||s.profiles.slice().sort((a,b)=>a.from.localeCompare(b.from))[0]}
@@ -132,15 +152,18 @@ function calendarLabels(){for(const el of document.querySelectorAll('.calendar-f
 function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
 function rows(items,type){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right"><button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
 function breakdown(s,m){const z=monthly(s,m),l=[];l.push(`<div class="detail-line"><span>Renda líquida</span><strong>${money(z.income)}</strong></div>`);if(s.mode==='legacy'){l.push(`<div class="detail-line"><span>Despesas fixas (total antigo)</span><strong>− ${money(z.fixed)}</strong></div>`);l.push(`<div class="detail-line"><span>Fatura-base (total antigo)</span><strong>− ${z.known?money(z.base):'Não informada'}</strong></div>`)}else{for(const e of activeFixed(s,m))l.push(`<div class="detail-line"><span>${esc(e.name)} · fixo</span><strong>− ${money(e.amount)}</strong></div>`);for(const e of oldParts(s,m))l.push(`<div class="detail-line"><span>${esc(e.name)} · parcela antiga</span><strong>− ${money(e.payment)}</strong></div>`)}for(const e of s.parcels){const a=newPartAmount(e,m);if(a)l.push(`<div class="detail-line"><span>${esc(e.name)} · compra nova</span><strong>− ${money(a)}</strong></div>`)}l.push(`<div class="detail-line"><span>Investimento mensal protegido${settled(s,m)?' · realizado em '+settled(s,m).date.split('-').reverse().join('/'):' · previsto'}</span><strong>− ${money(z.investment)}</strong></div>`);for(const e of s.extraInvestments.filter(e=>e.date.slice(0,7)===m))l.push(`<div class="detail-line"><span>${esc(e.name)} · investimento em ${esc(e.date.split('-').reverse().join('/'))}</span><strong>− ${money(e.amount)}</strong></div>`);for(const e of s.extraIncome.filter(e=>e.date.slice(0,7)===m))l.push(`<div class="detail-line"><span>${esc(e.name)} · entrada extra</span><strong>+ ${money(e.amount)}</strong></div>`);l.push(`<div class="detail-line"><span>Margem protegida</span><strong>− ${money(z.margin)}</strong></div>`);l.push(`<div class="detail-line detail-total"><span>Livre no mês</span><strong>${z.known?money(round(z.available+s.extraIncome.filter(e=>e.date.slice(0,7)===m).reduce((a,e)=>a+e.amount,0))):'—'}</strong></div>`);return l.join('')}
-function render(){const m=monthNow(),x=monthly(state,m),w=weekly(state);$('monthCaption').textContent=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const cash=cashToday(state),protectedCash=cashBeforeNextSalary(state);
-const safe=w.known&&cash!==null?Math.max(0,Math.min(w.balance,protectedCash)):null;
-$('weekBalance').textContent=safe===null?'—':money(round(safe));$('weekBalance').classList.toggle('negative',false);
-$('weekDetail').textContent=safe===null?'Configure o saldo de abertura para consultar quanto pode gastar.':'Menor valor entre seu orçamento acumulado e o caixa disponível antes do próximo salário.';
-$('weekQuota').textContent=weeklyBudget(state,m)===null?'—':money(weeklyBudget(state,m));
-$('monthAvailable').textContent=w.known?money(w.balance):'—';
-$('protectedInvestment').textContent=money(investmentAmount(state,m));$('protectedMargin').textContent=money(profile(state,m).margin);
-$('cashBalance').textContent=cash===null?'—':money(cash);
-$('cashBalance').classList.toggle('negative',cash!==null&&cash<0);
+function render(){const m=monthNow(),x=monthly(state,m),calc=cycleBudget(state);$('monthCaption').textContent=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+$('cashBalance').textContent=calc.ready?money(calc.current):'—';
+$('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
+$('cycleAvailable').textContent=calc.ready?money(calc.available):'—';
+$('dayReference').textContent=calc.ready?money(calc.daily):'—';
+$('sundayReference').textContent=calc.ready?money(calc.week):'—';
+$('paydayCaption').textContent=calc.ready?calc.next.split('-').reverse().join('/'):'—';
+$('daysCaption').textContent=calc.ready?`${calc.days} dia(s) até o salário`:'—';
+$('sundayCaption').textContent=calc.ready?`Até ${calc.sunday.split('-').reverse().join('/')} · ${calc.remaining} dia(s)`:'—';
+$('cycleDetail').textContent=!calc.ready?calc.reason:calc.minimum<0?'Atenção: os compromissos projetados ultrapassam o caixa protegido. Confira o planejamento.':'Após a margem e os pagamentos previstos, sem antecipar salários futuros.';
+$('currentMargin').textContent=money(profile(state,m).margin);
+$('currentInvestment').textContent=money(investmentAmount(state,m));
 $('paidMonthlyList').innerHTML=(state.monthlyPaid||[]).slice().sort((a,b)=>b.month.localeCompare(a.month)).map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.month)} · aporte do mês</div><div class="entry-description">Realizado em ${esc(e.date.split('-').reverse().join('/'))}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button type="button" class="entry-remove" data-delete-paid="${esc(e.month)}" aria-label="Desfazer registro de aporte">×</button></div></div>`).join('');
 
 
@@ -151,7 +174,7 @@ $('started').value=state.started;const editingMonth=$('effectiveMonth').value||m
 $('exportLegacy').classList.toggle('hidden',!archived);
 $('detailMonth').value=viewMonth;$('monthBreakdown').innerHTML=breakdown(state,viewMonth);previewParcel();calendarLabels();showScreenNoScroll()}
 function showScreenNoScroll(){const auxiliary=screen==='settings'||screen==='info';document.body.classList.toggle('settings-view',auxiliary);$('quickSettings').textContent=screen==='settings'?'←':'⚙';$('quickSettings').setAttribute('aria-label',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');$('quickInfo').textContent=screen==='info'?'←':'ⓘ';$('quickInfo').setAttribute('aria-label',screen==='info'?'Voltar ao aplicativo':'Abrir informações');$('quickSettings').classList.toggle('hidden',screen==='info');$('quickInfo').classList.toggle('hidden',screen==='settings');for(const n of ['week','installments','planning','settings','info']){$('screen-'+n).classList.toggle('hidden',n!==screen);const button=document.querySelector(`[data-screen="${n}"]`);if(button)button.classList.toggle('active',n===screen)}}
-function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(round(unit*12/52))}
+function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
 async function saveExpense(e){e.preventDefault();const name=$('expenseName').value.trim(),value=amount('expenseAmount'),date=$('expenseDate').value;if(!name||!(value>0)||!isDate(date))return notice('Informe data, descrição e valor positivo.','warning');if(await update(s=>s.expenses.push({id:newId(),name,amount:round(value),date}))){$('expenseName').value='';$('expenseAmount').value=''}}
 async function saveNew(e){e.preventDefault();const name=$('parcelName').value.trim(),total=amount('parcelTotal'),count=Number($('parcelCount').value),start=$('parcelStart').value;if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120)return notice('Confira os campos da compra.','warning');if(await update(s=>{const item={id:editingNew||newId(),name,total:round(total),payment:round(total/count),count,start};if(editingNew)s.parcels=s.parcels.map(p=>p.id===editingNew?item:p);else s.parcels.push(item)})){editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden')}}
 function fillProfileInputs(){if(!state)return;const p=profile(state,$('effectiveMonth').value||monthNow());$('income').value=p.income;$('investment').value=p.investments;$('margin').value=p.margin}

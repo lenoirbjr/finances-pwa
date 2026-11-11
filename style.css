@@ -53,3 +53,12 @@
 .week-summary .stats{gap:16px}
 .divider-soft{height:1px;background:#345269;margin-top:20px}
 .settings-view .week-summary{display:none}
+
+/* 3.8 — Fluxo por ciclo salarial em vez de cotas anualizadas. */
+.three-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.three-kpis .stat-value{font-size:clamp(18px,5vw,24px)}
+.stat-note{font-size:11px;color:#92b3c3;line-height:1.4;margin-top:6px}
+.next-payday{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px;font-size:12px;color:#a9c5d0;border-top:1px solid #345269;padding-top:15px}
+.next-payday strong{color:#effcf9;font-size:13px}
+.mini-protections{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:15px;color:#91b7c4;font-size:11px;line-height:1.5}
+.mini-protections strong{color:#e4f7f4;white-space:nowrap}

@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças v3: no external network requests; IndexedDB only. */
+/* Finanças v3.1: dados em IndexedDB local; sem requisições externas de dados. */
 const DB='finances-pwa-local',STORE='app',RECORD='state',ARCHIVE='legacy-two-wallets-v2',OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id);
 const round=n=>Math.round((n+Number.EPSILON)*100)/100;
@@ -34,11 +34,27 @@ function monthly(p,m){let known=Object.prototype.hasOwnProperty.call(p.invoices,
 function weeklyBudget(p,m){let x=monthly(p,m);return x.known?round(x.available*12/52):null}
 function weekly(p){const start=p.started,cur=monday(new Date());const totalWeeks=weekDiff(start,cur);if(totalWeeks<0)return {known:false,balance:null,detail:'O período de controle ainda não começou.'};if(totalWeeks>520)return {known:false,balance:null,detail:'Reconfigure a data inicial do controle.'};let sum=0,unknown=0;for(let i=0;i<=totalWeeks;i++){const b=weeklyBudget(p,weekShift(start,i).slice(0,7));if(b===null)unknown++;else sum+=b}let spent=p.expenses.filter(e=>e.date<=today()&&e.date>=start).reduce((a,e)=>a+e.amount,0);return unknown?{known:false,balance:null,detail:`Há ${unknown} semana(s) com fatura-base não informada.`}:{known:true,balance:round(sum-spent),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · menos gastos registrados`}}
 function showScreen(s){screen=s;for(const id of ['week','installments','planning','settings']){$('screen-'+id).classList.toggle('hidden',s!==id);document.querySelector(`[data-screen="${id}"]`).classList.toggle('active',s===id)}window.scrollTo({top:0,behavior:'instant'})}
+function updateCalendarLabels(){
+  for(const el of document.querySelectorAll('.calendar-field input')){
+    const label=document.querySelector(`[data-for="${el.id}"]`);
+    if(!label)continue;
+    const val=el.value;
+    if(!val){label.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue;}
+    if(el.type==='month'){
+      const [y,m]=val.split('-').map(Number);
+      label.textContent=new Date(y,m-1,1,12).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    }else{
+      const [y,m,d]=val.split('-').map(Number);
+      label.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+    }
+  }
+}
+document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',updateCalendarLabels);el.addEventListener('change',updateCalendarLabels)});
 function render(){const m=monthNow(),x=monthly(state,m),wb=weeklyBudget(state,m),w=weekly(state);$('monthCaption').textContent=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});$('weekBalance').textContent=w.known?money(w.balance):'—';$('weekBalance').classList.toggle('negative',w.known&&w.balance<0);$('weekDetail').textContent=w.detail;$('weekQuota').textContent=wb===null?'—':money(wb);$('monthAvailable').textContent=x.known?money(x.available):'—';
 const expenses=state.expenses.slice().sort((a,b)=>b.date.localeCompare(a.date));$('expenseCount').textContent=String(expenses.length);$('expenses').innerHTML=expenses.length?expenses.map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${e.date.split('-').reverse().join('/')}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button class="entry-remove" type="button" data-delete-expense="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`).join(''):'<p class="empty">Ainda não há gastos registrados.</p>';
 const parcels=state.parcels.slice().reverse();$('parcelCountBadge').textContent=String(parcels.length);$('parcels').innerHTML=parcels.length?parcels.map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${e.count}x de ${money(e.payment)} · a partir de ${esc(e.start)}</div></div><div class="entry-right"><button class="entry-remove" type="button" data-delete-parcel="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`).join(''):'<p class="empty">Nenhuma compra parcelada registrada.</p>';
 $('forecast').innerHTML=Array.from({length:12},(_,i)=>{const date=shiftMonth(m,i),z=monthly(state,date);return `<div class="entry"><div class="entry-main"><div class="forecast-month">${new Date(date+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'short',year:'numeric'})}</div><div class="entry-description">Fatura-base ${z.known?money(z.base):'não informada'} · novas parcelas ${money(z.extra)}</div></div><div class="forecast-value ${z.known&&z.available<0?'negative':''}">${z.known?money(z.available):'—'}</div></div>`}).join('');
-$('income').value=String(state.income);$('fixed').value=String(state.fixed);$('started').value=state.started;if(!$('invoiceMonth').value)$('invoiceMonth').value=m;$('invoice').value=state.invoices[$('invoiceMonth').value]??'';$('exportLegacy').classList.toggle('hidden',!archived);previewParcel();showScreenWithoutScroll();}
+$('income').value=String(state.income);$('fixed').value=String(state.fixed);$('started').value=state.started;if(!$('invoiceMonth').value)$('invoiceMonth').value=m;$('invoice').value=state.invoices[$('invoiceMonth').value]??'';$('exportLegacy').classList.toggle('hidden',!archived);previewParcel();updateCalendarLabels();showScreenWithoutScroll();}
 function showScreenWithoutScroll(){for(const id of ['week','installments','planning','settings']){$('screen-'+id).classList.toggle('hidden',screen!==id);document.querySelector(`[data-screen="${id}"]`).classList.toggle('active',screen===id)}}
 function previewParcel(){let total=cleanAmount('parcelTotal'),count=Number($('parcelCount').value);const unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(round(unit*12/52))}
 async function submitExpense(e){e.preventDefault();const name=$('expenseName').value.trim(),amount=cleanAmount('expenseAmount'),date=$('expenseDate').value;if(!name||!(amount>0)||!Number.isFinite(amount)||!isDate(date))return notice('Preencha descrição, data e valor válido.','warning');const ok=await update(s=>s.expenses.push({id:crypto.randomUUID(),name,amount:round(amount),date}));if(ok){$('expenseName').value='';$('expenseAmount').value='';}}
@@ -48,7 +64,7 @@ async function submitInvoice(e){e.preventDefault();const m=$('invoiceMonth').val
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Arquivo preparado. Confira se o backup foi salvo no aplicativo Arquivos.','warning')}
 async function restoreBackup(e){let file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());let incoming=raw.version===3?raw:isOldV2(raw)?migrateOld(raw):migratePilot(raw);if(!valid(incoming))throw Error('Arquivo incompatível');if(!confirm('Substituir os registros deste aparelho pelo conteúdo do backup?'))return;const ok=await update(s=>{Object.keys(s).forEach(k=>delete s[k]);Object.assign(s,incoming)});if(ok)notice('Backup restaurado com sucesso.')}catch(err){notice('Não foi possível restaurar: '+err.message,'error')}finally{e.target.value=''}}
-async function init(){try{db=await openDb();let current=await read(RECORD),oldArchive=await read(ARCHIVE);archived=!!oldArchive;if(current){if(current.version===3){if(!valid(current))throw Error('Os dados existentes precisam de recuperação. Não apague o aplicativo.');state=current}else if(isOldV2(current)){const next=migrateOld(current);await write(ARCHIVE,current);await write(RECORD,next);archived=true;state=next;notice('Carteira atualizada. Uma cópia das duas carteiras anteriores está disponível em Ajustes.')}else throw Error('Versão do banco não reconhecida. Não apague o aplicativo.')}else{let legacy;try{const text=localStorage.getItem(OLD_KEY);if(text)legacy=JSON.parse(text)}catch{}if(legacy){state=migratePilot(legacy);await write(ARCHIVE,legacy);archived=true}else state=empty();await write(RECORD,state)}$('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();$('parcelStart').value=monthNow();$('invoiceMonth').value=monthNow();render();navigator.storage?.persist?.().catch(()=>{});}catch(e){$('loading').hidden=true;notice('Não foi possível carregar: '+e.message,'error')}}
+async function init(){try{db=await openDb();let current=await read(RECORD),oldArchive=await read(ARCHIVE);archived=!!oldArchive;if(current){if(current.version===3){if(!valid(current))throw Error('Os dados existentes precisam de recuperação. Não apague o aplicativo.');state=current}else if(isOldV2(current)){const next=migrateOld(current);await write(ARCHIVE,current);await write(RECORD,next);archived=true;state=next;notice('Carteira atualizada. Uma cópia das duas carteiras anteriores está disponível em Ajustes.')}else throw Error('Versão do banco não reconhecida. Não apague o aplicativo.')}else{let legacy;try{const text=localStorage.getItem(OLD_KEY);if(text)legacy=JSON.parse(text)}catch{}if(legacy){state=migratePilot(legacy);await write(ARCHIVE,legacy);archived=true}else state=empty();await write(RECORD,state)}$('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();$('parcelStart').value=monthNow();$('invoiceMonth').value=monthNow();updateCalendarLabels();render();navigator.storage?.persist?.().catch(()=>{});}catch(e){$('loading').hidden=true;notice('Não foi possível carregar: '+e.message,'error')}}
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>showScreen(b.dataset.screen)));
 $('quickSettings').addEventListener('click',()=>showScreen('settings'));
 $('expenseForm').addEventListener('submit',submitExpense);
@@ -62,4 +78,20 @@ $('exportBackup').addEventListener('click',exportBackup);$('restoreFile').addEve
 $('exportLegacy').addEventListener('click',async()=>{const legacy=await read(ARCHIVE);if(!legacy)return notice('Arquivo anterior indisponível.','error');downloadFile(JSON.stringify(legacy,null,2),`financas-versao-anterior-${today()}.json`);notice('Arquivo anterior preparado. Salve uma cópia em Arquivos.','warning')});
 document.addEventListener('click',e=>{const expense=e.target.closest('[data-delete-expense]'),parcel=e.target.closest('[data-delete-parcel]');if(expense&&confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==expense.dataset.deleteExpense));if(parcel&&confirm('Excluir esta compra e todas as parcelas futuras?'))update(s=>s.parcels=s.parcels.filter(x=>x.id!==parcel.dataset.deleteParcel))});
 init();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{}));
+if('serviceWorker' in navigator){
+  let reloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(reloading)return;
+    reloading=true;
+    location.reload();
+  });
+  window.addEventListener('load',async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+      if(navigator.onLine)reg.update().catch(()=>{});
+    }catch(e){/* o aplicativo segue funcionando sem worker, quando online */}
+  });
+  window.addEventListener('online',async()=>{
+    try{const reg=await navigator.serviceWorker.getRegistration();if(reg)reg.update().catch(()=>{})}catch(e){}
+  });
+}

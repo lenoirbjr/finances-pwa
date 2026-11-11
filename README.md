@@ -31,3 +31,10 @@ Antes de atualizar, exporte um backup pelo aplicativo anterior. No GitHub, edita
 ## Publicação segura
 
 Manter apenas arquivos estáticos no GitHub, HTTPS habilitado, autenticação multifator e permissões restritas ao repositório. Testar atualização do cache e funcionamento em modo avião após cada release.
+
+
+## Atualização v3.1
+- Corrigidos inputs nativos de data/mês no iOS usando camada visual dimensionada no formulário. O seletor do iOS continua acessível ao tocar.
+- Atualizado Service Worker para buscar HTML online antes de usar a cópia offline; arquivos estáticos passam para cache versionado v3.1.
+- O app verifica novas versões ao abrir online e após recuperar conexão.
+- Não é necessário remover o ícone do iPhone nem apagar dados para atualizar. Faça backup antes de alterações.

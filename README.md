@@ -1,23 +1,22 @@
-# Finanças 3.4 — controle financeiro local
+# Finanças 3.5 — registro local de orçamento e caixa
 
-PWA pessoal de carteira única, IndexedDB, publicação estática no GitHub Pages. Nenhuma conexão bancária, sincronização ou envio de lançamentos para servidores.
+PWA estático. IndexedDB; nenhuma transmissão financeira para servidores. Não coloque dados pessoais no GitHub.
 
-## Modelo de orçamento
+## Migração
 
-- Histórico de configurações com mês de vigência: renda líquida, investimentos mínimos mensais e margem protegida. Alterações com vigência futura preservam períodos anteriores.
-- Despesas fixas e parcelas detalhadas continuam com datas próprias.
-- Cota semanal de referência = (renda − fixos − parcelas antigas − novas parcelas − investimento mínimo − margem − extras antigos planejados) × 12/52, baseada no mês da segunda-feira.
-- Saldo acumulado semanal = soma das cotas desde o início do controle − gastos à vista realizados até hoje − investimentos extras efetivamente realizados até hoje. Não antecipa cotas de semanas futuras.
-- Livre no mês = renda − fixos − parcelas − investimento mínimo − margem − investimentos extras realizados no mês − extras antigos planejados. Não é saldo bancário ou previsão precisa de liquidez.
+Estados versão 6 são migrados para 7 e copiados sob `state-before-v3.5`. O estado anterior e os itens permanecem intactos. Backup JSON v7 inclui abertura, entradas extras, confirmações de caixa, registros e detalhamento.
 
-## Compatibilidade
+## Regras
 
-- Migra dados v3.3 para v3.4 sem apagar movimentos; guarda uma cópia v3.3 no IndexedDB para recuperação.
-- Os antigos investimentos extras por mês eram valores planejados. Permanecem como previsões, sem que o aplicativo finja que foram efetivamente realizados. Aporte novo datado é registrado separadamente. Para evitar dupla contagem, revise os extras antigos antes de cadastrar um realizado referente ao mesmo valor.
-- Dados do período anterior à instalação podem ser recalculados se o usuário editar itens históricos. Não é um livro-caixa fechado.
+- Abertura: saldo bancário acessível na data inicial, não receita.
+- Extras: entrada positiva datada, aumenta o caixa estimado e o saldo acumulado semanal somente após a data; não altera salário recorrente.
+- Gastos à vista e investimentos extras: diminuem caixa estimado e orçamento semanal uma vez.
+- Salário/fatura/fixos/investimentos mensais: o orçamento mensal já os contempla; no caixa bancário só passam a valer após confirmação manual, pelo valor e data efetivos. NÃO os lançar também em gasto semanal.
+- Parcelas novas: comprometem orçamento dos meses indicados, sem reduzir o caixa no ato da compra. Confirmar pagamento da fatura para refletir no caixa.
+- Teto prudente: menor entre saldo bancário estimado (pelos registros) e saldo semanal; não é garantia de liquidez futura. Verifique obrigações pendentes antes de gastar.
+- Datas de vencimento de despesas fixas não são conhecidas. O app não supõe que foram pagas por passagem do tempo.
+- Entradas extras feitas antes da abertura não são somadas ao caixa, mas podem integrar controle semanal se dentro da semana inicial. Evite registros anteriores ao marco zero.
 
-## Segurança e backup
+## Segurança e uso
 
-- Os arquivos públicos não incluem salários, lançamentos ou dados de cartão.
-- Faça backup JSON antes de atualizar e verifique se o arquivo foi salvo. Não desinstale o PWA para atualizar. IndexedDB não substitui cópia de recuperação.
-- Mantenha o mesmo endereço e escopo do GitHub Pages para preservar a base local.
+Exportar backup ANTES de atualizar. Não remover PWA nem limpar o armazenamento. Service Worker v3.5 atualiza cache por versão; IndexedDB não é cópia de segurança permanente.

@@ -1,27 +1,23 @@
-# Finanças 3.3 — PWA pessoal
+# Finanças 3.4 — controle financeiro local
 
-Aplicativo local-first para uma carteira financeira por instalação, com IndexedDB e uso offline. GitHub Pages hospeda somente arquivos estáticos. Nenhum dado financeiro é incluído no repositório.
+PWA pessoal de carteira única, IndexedDB, publicação estática no GitHub Pages. Nenhuma conexão bancária, sincronização ou envio de lançamentos para servidores.
 
-## Modelo de dados
+## Modelo de orçamento
 
-- Renda mensal e aporte de investimento padrão.
-- Investimento extra em um mês **soma** ao aporte padrão; o campo guarda apenas o adicional.
-- Despesas fixas detalhadas (nome, valor, início, fim opcional).
-- Parcelas antigas detalhadas (descrição, valor unitário, restantes, primeira fatura).
-- Novas parcelas por compra e gastos à vista registrados.
-- Orçamento mensal = renda − fixos − parcelas antigas − parcelas novas − aporte padrão − investimento extra.
-- A cota semanal é uma equivalência 12/52 do orçamento mensal. O acumulado começa na segunda-feira definida em Ajustes. Não é uma conciliação bancária.
+- Histórico de configurações com mês de vigência: renda líquida, investimentos mínimos mensais e margem protegida. Alterações com vigência futura preservam períodos anteriores.
+- Despesas fixas e parcelas detalhadas continuam com datas próprias.
+- Cota semanal de referência = (renda − fixos − parcelas antigas − novas parcelas − investimento mínimo − margem − extras antigos planejados) × 12/52, baseada no mês da segunda-feira.
+- Saldo acumulado semanal = soma das cotas desde o início do controle − gastos à vista realizados até hoje − investimentos extras efetivamente realizados até hoje. Não antecipa cotas de semanas futuras.
+- Livre no mês = renda − fixos − parcelas − investimento mínimo − margem − investimentos extras realizados no mês − extras antigos planejados. Não é saldo bancário ou previsão precisa de liquidez.
 
-## Backup
+## Compatibilidade
 
-A exportação JSON inclui integralmente `fixedItems`, `baseParcels`, `parcels`, `expenses`, `investmentOverrides`, investimentos padrão, renda e demais configurações. A importação restaura os itens individualizados.
+- Migra dados v3.3 para v3.4 sem apagar movimentos; guarda uma cópia v3.3 no IndexedDB para recuperação.
+- Os antigos investimentos extras por mês eram valores planejados. Permanecem como previsões, sem que o aplicativo finja que foram efetivamente realizados. Aporte novo datado é registrado separadamente. Para evitar dupla contagem, revise os extras antigos antes de cadastrar um realizado referente ao mesmo valor.
+- Dados do período anterior à instalação podem ser recalculados se o usuário editar itens históricos. Não é um livro-caixa fechado.
 
-**Importante:** backups de versões antigas com apenas totais agregados não permitem reconstruir as descrições individuais. Ao atualizar de um estado legado, o app cria itens identificados como `total a detalhar` preservando os valores antigos conhecidos, que podem ser substituídos por lançamentos reais sem contá-los duas vezes. Um snapshot do estado anterior é mantido no IndexedDB como `state-before-v3.3`, exportável na área Ajustes.
+## Segurança e backup
 
-Exceções de investimentos de versões anteriores eram valores absolutos. A conversão preserva o valor total do mês (inclusive se menor que o padrão). Exceções novas passam a ser valores positivos adicionais; ao editá-las, passam a usar a semântica nova.
-
-O IndexedDB é armazenamento local, não um backup externo. A exportação requer que o usuário confirme o salvamento do arquivo em local seguro. A instalação do PWA no outro aparelho usa um banco independente.
-
-## Publicação
-
-Atualize os oito arquivos na raiz do mesmo GitHub Pages, mantendo URL e escopo. Faça backup antes. Não desinstale o PWA ou limpe o armazenamento para atualizar. O service worker prioriza rede quando disponível e o cache ao operar offline.
+- Os arquivos públicos não incluem salários, lançamentos ou dados de cartão.
+- Faça backup JSON antes de atualizar e verifique se o arquivo foi salvo. Não desinstale o PWA para atualizar. IndexedDB não substitui cópia de recuperação.
+- Mantenha o mesmo endereço e escopo do GitHub Pages para preservar a base local.

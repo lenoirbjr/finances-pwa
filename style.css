@@ -62,3 +62,18 @@
 .next-payday strong{color:#effcf9;font-size:13px}
 .mini-protections{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:15px;color:#91b7c4;font-size:11px;line-height:1.5}
 .mini-protections strong{color:#e4f7f4;white-space:nowrap}
+
+/* v3.9 — mês selecionado e agrupamentos expansíveis */
+.month-label{font-size:12px;color:#a4d4d4;text-transform:capitalize;white-space:nowrap}
+.forecast-row.selected{background:#1c4857;border-radius:12px;padding:14px 9px;border:1px solid #44a89e}
+.breakdown-group{margin:10px 0;background:#0e2538;border:1px solid #315166;border-radius:13px;overflow:hidden}
+.breakdown-group>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:15px 12px;gap:8px;color:#eaf6f9;font-weight:700;font-size:13px}
+.breakdown-group>summary::-webkit-details-marker{display:none}
+.breakdown-group>summary small{display:block;color:#96aebe;font-weight:400;margin-top:4px}
+.breakdown-group>summary strong{white-space:nowrap;color:#a5e7db}
+.breakdown-rows{padding:0 12px 9px;border-top:1px solid #294558}
+.breakdown-rows .detail-line small{display:block;color:#91a9ba;margin-top:4px}
+.pay-month-bar{display:flex;justify-content:space-between;align-items:center;margin:10px 0;text-transform:capitalize}
+.pay-row{display:flex!important;align-items:center;gap:12px;border-bottom:1px solid #294558;padding:12px 0;margin:0!important;color:#e5f2f6!important}
+.pay-row input[type=checkbox]{appearance:auto!important;-webkit-appearance:checkbox!important;width:21px!important;height:21px!important;flex-shrink:0;accent-color:#2bb9a3;padding:0!important}
+.pay-row .pay-text{flex:1;min-width:0;line-height:1.5}.pay-row .pay-text strong{display:block;font-size:13px}.pay-row small{display:block;font-size:11px;color:#a0b6c4}.pay-row b{font-size:13px;white-space:nowrap}

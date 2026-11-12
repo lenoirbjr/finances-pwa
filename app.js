@@ -1,9 +1,9 @@
 'use strict';
-/* Finanças 3.11: orçamento baseado no saldo existente e nos compromissos por data. */
+/* Finanças 3.11.1: orçamento baseado no saldo existente e nos compromissos por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
-const monthTitle=m=>{const d=monthTitle(m).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
+const monthTitle=m=>{const d=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
 const shortMonthTitle=m=>{const d=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'short',year:'numeric'}).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0'), dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;

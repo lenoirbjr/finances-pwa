@@ -1,4 +1,4 @@
-# Finanças 3.11 — Histórico e temas
+# Finanças 3.11.1 — Histórico e temas
 
 PWA local no IndexedDB, para GitHub Pages. Não publicar backups financeiros no repositório.
 
@@ -12,3 +12,7 @@ PWA local no IndexedDB, para GitHub Pages. Não publicar backups financeiros no 
 ## Notas
 - Confirmar aporte do mês informa o **total** investido, incluindo aportes extras. O aplicativo deduz os extras previamente registrados ao armazenar a parte principal.
 - Antes de atualizar, exporte um backup. Não remova o PWA para forçar atualização.
+
+
+## Correção 3.11.1
+Corrigida recursão involuntária em `monthTitle` que causava `Maximum call stack size exceeded` ao carregar ou importar backups. Nenhum dado local é apagado ou migrado. Cache de arquivos atualizado para v3.11.1.

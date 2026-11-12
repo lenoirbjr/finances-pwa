@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.11.1: orçamento baseado no saldo existente e nos compromissos por data. */
+/* Finanças 3.11.2: orçamento baseado no saldo existente e nos compromissos por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -225,7 +225,7 @@ function breakdown(s,m){
 function investmentsStatus(s,m){const paid=settled(s,m),extra=extraInvested(s,m),plan=investmentAmount(s,m);return {paid,extra,plan,total:round((paid?paid.amount:0)+extra),status:paid?'done':skipped(s,m)?'skipped':'pending'};}
 function updateInvestmentForm(){if(!state)return;const m=$('investmentConfirmMonth').value||monthNow(),x=investmentsStatus(state,m);
  $('investmentTarget').textContent=money(x.plan);$('investmentConfirmStatus').value=x.status;
- $('investmentConfirmAmount').value=x.status==='done'?x.total.toFixed(2):x.plan.toFixed(2);
+ $('investmentConfirmAmount').value=x.status==='done'&&x.paid?x.paid.amount.toFixed(2):x.plan.toFixed(2);
  $('investmentConfirmDate').value=x.paid?.date||eventDate(m,Math.min(Number(today().slice(-2)),30));
  const date=$('investmentConfirmDate').value;
  if(!date.startsWith(m))$('investmentConfirmDate').value=m+'-01';
@@ -235,10 +235,10 @@ function showInvestmentFields(){const selected=$('investmentConfirmStatus').valu
 function renderInvestmentPanels(){
  const m=$('investmentConfirmMonth').value||monthNow(),x=investmentsStatus(state,m),diff=round(x.total-x.plan);
  const label=x.status==='done'?'Realizado':x.status==='skipped'?'Não realizado':'Pendente';
- $('investmentMonthSummary').innerHTML=`<div class="investment-target"><span>Situação</span><strong>${label}</strong></div><div class="investment-target"><span>Total investido</span><strong>${money(x.total)}</strong></div><div class="investment-target"><span>Diferença da meta</span><strong class="${diff<0?'negative':''}">${diff>0?'+ ':''}${money(diff)}</strong></div>`;
+ const principalAmount=x.paid?x.paid.amount:0;
+ $('investmentMonthSummary').innerHTML=`<div class="investment-target"><span>Situação</span><strong>${label}</strong></div><div class="investment-target"><span>Primeiro aporte</span><strong>${money(principalAmount)}</strong></div><div class="investment-target"><span>Aportes extras no mês</span><strong>${money(x.extra)}</strong></div><div class="investment-target"><span>Total investido no mês</span><strong>${money(x.total)}</strong></div><div class="investment-target"><span>Diferença da meta</span><strong class="${diff<0?'negative':''}">${diff>0?'+ ':''}${money(diff)}</strong></div>`;
  const now=monthNow();
  const dates=[state.opening?.date?.slice(0,7),state.started?.slice(0,7),...state.monthlyPaid.map(x=>x.month),...(state.investmentSkipped||[]),...state.extraInvestments.map(x=>x.date.slice(0,7))].filter(isMonth);
- // No historical backfill before the financial tracking began.
  const earliest=dates.length?dates.reduce((a,b)=>a<b?a:b):shiftMonth(now,-11);
  const from=earliest<shiftMonth(now,-119)?shiftMonth(now,-119):earliest;
  const months=[];
@@ -250,11 +250,12 @@ function renderInvestmentPanels(){
    const rendered=entries.map(month=>{
      const info=investmentsStatus(state,month),difference=round(info.total-info.plan);
      const extraItems=state.extraInvestments.filter(e=>e.date.slice(0,7)===month).slice().sort((a,b)=>a.date.localeCompare(b.date));
-     const principal=info.paid?`<div class="investment-event"><span>Primeiro aporte <small>${info.paid.date.split('-').reverse().join('/')}</small></span><strong>${money(info.paid.amount)}</strong></div>`:info.status==='skipped'?'<p class="empty">Nenhum aporte principal realizado.</p>':'<p class="empty">Primeiro aporte ainda pendente.</p>';
-     const extras=extraItems.map(e=>`<div class="investment-event"><span>${esc(e.name)} <small>${e.date.split('-').reverse().join('/')}</small></span><strong>${money(e.amount)}</strong></div>`).join('');
-     return `<details class="investment-history-month" data-history-month="${month}" ${openHistoryMonths.has(month)?'open':''}><summary><span class="investment-history-month-name">${monthTitle(month)}</span><span class="investment-history-amount"><strong>${money(info.total)}</strong><small>${info.status==='done'?'Realizado':info.status==='skipped'?'Não investi':'Pendente'}</small></span></summary><div class="investment-history-content"><div class="investment-event"><span>Meta prevista</span><strong>${money(info.plan)}</strong></div>${principal}${extras}<div class="investment-event investment-difference"><span>Diferença da meta</span><strong class="${difference<0?'negative':''}">${difference>0?'+ ':''}${money(difference)}</strong></div><button type="button" class="secondary investment-edit" data-edit-investment="${month}">Editar aporte do mês</button></div></details>`;
+     const principal=info.paid?`<div class="investment-event"><span>Primeiro aporte <small>${info.paid.date.split('-').reverse().join('/')}</small></span><strong>${money(info.paid.amount)}</strong></div>`:info.status==='skipped'?'<p class="empty">Nenhum primeiro aporte realizado.</p>':'<p class="empty">Primeiro aporte ainda pendente.</p>';
+     const extrasBlock=extraItems.length?extraItems.map(e=>`<div class="investment-event"><span>${esc(e.name)} <small>${e.date.split('-').reverse().join('/')}</small></span><strong>${money(e.amount)}</strong></div>`).join(''):'<p class="empty">Nenhum aporte extra neste mês.</p>';
+     const statusText=info.status==='done'?'Aporte principal confirmado':info.status==='skipped'?'Sem aporte principal':'Aporte principal pendente';
+     return `<details class="investment-history-month" data-history-month="${month}" ${openHistoryMonths.has(month)?'open':''}><summary><span class="investment-history-month-name">${monthTitle(month)}</span><span class="investment-history-amount"><strong>${money(info.total)}</strong><small>${statusText}</small></span></summary><div class="investment-history-content"><div class="investment-event"><span>Meta prevista</span><strong>${money(info.plan)}</strong></div>${principal}<div class="investment-event"><span>Total de aportes extras</span><strong>${money(info.extra)}</strong></div>${extrasBlock}<div class="investment-event investment-difference"><span>Total investido no mês</span><strong>${money(info.total)}</strong></div><div class="investment-event investment-difference"><span>Diferença da meta</span><strong class="${difference<0?'negative':''}">${difference>0?'+ ':''}${money(difference)}</strong></div><button type="button" class="secondary investment-edit" data-edit-investment="${month}">Editar primeiro aporte</button></div></details>`;
    }).join('');
-   return `<details class="investment-history-year" data-history-year="${year}" ${openHistoryYears.has(year)?'open':''}><summary><strong>${year}</strong><span>${money(yearAmount)} <small>${entries.length} ${entries.length===1?'mês':'meses'}</small></span></summary><div class="investment-history-year-content">${rendered}</div></details>`;
+   return `<details class="investment-history-year" data-history-year="${year}" ${openHistoryYears.has(year)?'open':''}><summary><strong>${year}</strong><span><strong class="year-total">${money(yearAmount)}</strong><small>${entries.length} ${entries.length===1?'mês':'meses'}</small></span></summary><div class="investment-history-year-content">${rendered}</div></details>`;
  }).join('');
 }
 function render(){const m=monthNow(),x=monthly(state,m),calc=cycleBudget(state);$('monthCaption').textContent=monthTitle(m);
@@ -295,14 +296,12 @@ async function saveExtraInvestment(e){e.preventDefault();const date=$('extraDate
 async function saveInvestmentConfirmation(e){
  e.preventDefault();const m=$('investmentConfirmMonth').value,status=$('investmentConfirmStatus').value;
  if(!isMonth(m))return notice('Escolha um mês válido.','warning');
- const date=$('investmentConfirmDate').value,total=amount('investmentConfirmAmount');
- if(status==='done'&&(!isDate(date)||date.slice(0,7)!==m||!Number.isFinite(total)||total<=0))return notice('Informe a data e o valor efetivamente investido.','warning');
- const extras=extraInvested(state,m);
- if(status==='done'&&total+0.001<extras)return notice(`O total precisa incluir os ${money(extras)} de aportes extras já registrados neste mês.`,'warning');
+ const date=$('investmentConfirmDate').value,principal=amount('investmentConfirmAmount');
+ if(status==='done'&&(!isDate(date)||date.slice(0,7)!==m||!Number.isFinite(principal)||principal<=0))return notice('Informe a data e o valor do primeiro aporte do mês.','warning');
  if(await update(s=>{
    s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==m);
    s.investmentSkipped=(s.investmentSkipped||[]).filter(x=>x!==m);
-   if(status==='done')s.monthlyPaid.push({month:m,date,amount:round(total-extraInvested(s,m))});
+   if(status==='done')s.monthlyPaid.push({month:m,date,amount:round(principal)});
    if(status==='skipped')s.investmentSkipped.push(m);
  })){updateInvestmentForm();}
 }

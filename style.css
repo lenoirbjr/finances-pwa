@@ -107,6 +107,8 @@
 .detail-total .line-amount strong{color:#99ead9;font-size:15px}
 .investment-target{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 0;border-bottom:1px solid #2a485a;font-size:13px}
 .investment-target span{color:#a8c1cf}
+.investment-target strong{font-size:14px;font-weight:750;white-space:nowrap;color:#f2f9fc}
+.year-total{font-size:14px;font-weight:750;white-space:nowrap;color:#f2f9fc}
 .investment-month-summary{margin-top:15px}
 @media(max-width:375px){.plan-month-body{padding-left:4px}.plan-month-name{font-size:14px}.group-money strong{font-size:11px}.tabs button{font-size:10px}}
 
@@ -124,7 +126,7 @@
 .investment-history-month:last-child{border-bottom:0}
 .investment-history-month>summary{padding:15px 0}
 .investment-history-month-name{font-size:14px;font-weight:650}
-.investment-history-amount strong{font-size:13px;white-space:nowrap}
+.investment-history-amount strong{font-size:14px;font-weight:750;letter-spacing:-.2px;white-space:nowrap;color:#f2f9fc}
 .investment-history-content{padding:3px 0 16px 18px}
 .investment-event{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:9px 0;font-size:12px;border-bottom:1px solid #294558;color:#c1d3df}
 .investment-event span{min-width:0;overflow-wrap:anywhere}
@@ -150,5 +152,5 @@ html[data-theme=pink] .plan-month>summary:before,html[data-theme=pink] .breakdow
 html[data-theme=pink] .hero-overline,html[data-theme=pink] .week-overline,html[data-theme=pink] .subtotal,html[data-theme=pink] .detail-total .line-amount strong{color:#ffb8d8}
 html[data-theme=pink] .hero-sub,html[data-theme=pink] .section-heading p,html[data-theme=pink] .stat-label,html[data-theme=pink] .stat-note,html[data-theme=pink] .assistive,html[data-theme=pink] .fine-print,html[data-theme=pink] .entry-description,html[data-theme=pink] .group-money small,html[data-theme=pink] .line-amount small,html[data-theme=pink] .investment-target span{color:#e2b8ce}
 html[data-theme=pink] .detail-line,html[data-theme=pink] .entry,html[data-theme=pink] .investment-event,html[data-theme=pink] .investment-history-year-content,html[data-theme=pink] .investment-history-month{border-color:#714766}
-html[data-theme=pink] .group-money strong,html[data-theme=pink] .detail-line strong,html[data-theme=pink] .investment-event strong{color:#fff2f8}
+html[data-theme=pink] .group-money strong,html[data-theme=pink] .detail-line strong,html[data-theme=pink] .investment-event strong,html[data-theme=pink] .investment-history-amount strong,html[data-theme=pink] .year-total,html[data-theme=pink] .investment-target strong{color:#fff2f8}
 html[data-theme=pink] .header-actions .icon-button{color:#fff2f8}

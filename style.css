@@ -64,7 +64,7 @@
 .mini-protections strong{color:#e4f7f4;white-space:nowrap}
 
 /* v3.9 — mês selecionado e agrupamentos expansíveis */
-.month-label{font-size:12px;color:#a4d4d4;text-transform:capitalize;white-space:nowrap}
+.month-label{font-size:12px;color:#a4d4d4;text-transform:none;white-space:nowrap}
 .forecast-row.selected{background:#1c4857;border-radius:12px;padding:14px 9px;border:1px solid #44a89e}
 .breakdown-group{margin:10px 0;background:#0e2538;border:1px solid #315166;border-radius:13px;overflow:hidden}
 .breakdown-group>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:15px 12px;gap:8px;color:#eaf6f9;font-weight:700;font-size:13px}
@@ -87,7 +87,7 @@
 .plan-month>summary::-webkit-details-marker,.breakdown-group>summary::-webkit-details-marker{display:none}
 .plan-month>summary:before,.breakdown-group>summary:before{content:'›';color:#8fdccc;font-size:23px;transition:transform .16s ease;flex:none}
 .plan-month[open]>summary:before,.breakdown-group[open]>summary:before{transform:rotate(90deg)}
-.plan-month-name{font-size:16px;font-weight:750;text-transform:capitalize;flex:1;min-width:0}
+.plan-month-name{font-size:16px;font-weight:750;text-transform:none;flex:1;min-width:0}
 .plan-month-total{display:flex;flex-direction:column;align-items:flex-end;gap:5px;text-align:right;min-width:0}
 .plan-month-total strong{font-size:14px;white-space:nowrap}
 .plan-month-total small,.line-amount small,.group-money small{display:block;font-size:10px;color:#91b2c4;font-weight:500;white-space:nowrap}
@@ -109,3 +109,46 @@
 .investment-target span{color:#a8c1cf}
 .investment-month-summary{margin-top:15px}
 @media(max-width:375px){.plan-month-body{padding-left:4px}.plan-month-name{font-size:14px}.group-money strong{font-size:11px}.tabs button{font-size:10px}}
+
+/* v3.11 — chronological investment history, year/month accordion */
+.investment-history-year{border:1px solid #315166;border-radius:14px;margin:12px 0;background:#0b2335;overflow:hidden}
+.investment-history-year>summary,.investment-history-month>summary{display:flex;align-items:center;gap:11px;justify-content:space-between;cursor:pointer;list-style:none;padding:15px 13px;min-width:0}
+.investment-history-year>summary::-webkit-details-marker,.investment-history-month>summary::-webkit-details-marker{display:none}
+.investment-history-year>summary::before,.investment-history-month>summary::before{content:'›';font-size:24px;line-height:1;color:#8fdccc;flex:none;transition:transform .16s}
+.investment-history-year[open]>summary::before,.investment-history-month[open]>summary::before{transform:rotate(90deg)}
+.investment-history-year>summary>strong,.investment-history-month-name{font-size:16px;flex:1;min-width:0}
+.investment-history-year>summary>span,.investment-history-amount{text-align:right;display:grid;gap:4px}
+.investment-history-year>summary>span small,.investment-history-amount small{font-size:11px;color:#99b6c7;font-weight:400}
+.investment-history-year-content{border-top:1px solid #294558;padding:0 12px 9px}
+.investment-history-month{border-bottom:1px solid #294558}
+.investment-history-month:last-child{border-bottom:0}
+.investment-history-month>summary{padding:15px 0}
+.investment-history-month-name{font-size:14px;font-weight:650}
+.investment-history-amount strong{font-size:13px;white-space:nowrap}
+.investment-history-content{padding:3px 0 16px 18px}
+.investment-event{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:9px 0;font-size:12px;border-bottom:1px solid #294558;color:#c1d3df}
+.investment-event span{min-width:0;overflow-wrap:anywhere}
+.investment-event small{display:block;margin-top:4px;color:#95b3c2}
+.investment-event strong{color:#f2f9fc;white-space:nowrap}
+.investment-difference{border-bottom:0}
+.investment-edit{margin-top:8px;font-size:12px;min-height:40px}
+/* v3.11 — two self-contained color palettes; theme affects appearance only */
+html[data-theme=pink]{background:#251222;color:#fff1f8}
+html[data-theme=pink] body{background:radial-gradient(ellipse at top,#572c4a 0%,#321a32 43%,#251222 100%)}
+html[data-theme=pink] .brand-icon{background:linear-gradient(135deg,#ed79b0,#ffc0dc);color:#4a1835}
+html[data-theme=pink] .hero{background:linear-gradient(145deg,#713b61,#4c2748 65%,#432340);border-color:#9f648c}
+html[data-theme=pink] .week-summary,html[data-theme=pink] .surface,html[data-theme=pink] .cash-strip{background:#412640;border-color:#794b70}
+html[data-theme=pink] .tabs{background:#381d35;border-color:#734461}
+html[data-theme=pink] .tabs button{color:#f1c4db}
+html[data-theme=pink] .tabs button.active,html[data-theme=pink] .primary{background:#ef89bd;color:#3d1534}
+html[data-theme=pink] .icon-button,html[data-theme=pink] .secondary,html[data-theme=pink] .file-label{background:#613554;color:#ffeaf6;border-color:#a16b93}
+html[data-theme=pink] .surface input:not([type=file]),html[data-theme=pink] .surface select,html[data-theme=pink] .calendar-field{background:#301b30;border-color:#8b5679;color:#ffedf7}
+html[data-theme=pink] .surface input:focus,html[data-theme=pink] .surface select:focus,html[data-theme=pink] .calendar-field:focus-within{outline-color:#ff9fcb}
+html[data-theme=pink] .preview,html[data-theme=pink] .breakdown-group,html[data-theme=pink] .investment-history-year{background:#321d35;border-color:#805078}
+html[data-theme=pink] .plan-month .breakdown-group{background:#342037;border-color:#805078}
+html[data-theme=pink] .plan-month>summary:before,html[data-theme=pink] .breakdown-group>summary:before,html[data-theme=pink] .investment-history-year>summary::before,html[data-theme=pink] .investment-history-month>summary::before{color:#ffabd0}
+html[data-theme=pink] .hero-overline,html[data-theme=pink] .week-overline,html[data-theme=pink] .subtotal,html[data-theme=pink] .detail-total .line-amount strong{color:#ffb8d8}
+html[data-theme=pink] .hero-sub,html[data-theme=pink] .section-heading p,html[data-theme=pink] .stat-label,html[data-theme=pink] .stat-note,html[data-theme=pink] .assistive,html[data-theme=pink] .fine-print,html[data-theme=pink] .entry-description,html[data-theme=pink] .group-money small,html[data-theme=pink] .line-amount small,html[data-theme=pink] .investment-target span{color:#e2b8ce}
+html[data-theme=pink] .detail-line,html[data-theme=pink] .entry,html[data-theme=pink] .investment-event,html[data-theme=pink] .investment-history-year-content,html[data-theme=pink] .investment-history-month{border-color:#714766}
+html[data-theme=pink] .group-money strong,html[data-theme=pink] .detail-line strong,html[data-theme=pink] .investment-event strong{color:#fff2f8}
+html[data-theme=pink] .header-actions .icon-button{color:#fff2f8}

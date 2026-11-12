@@ -1,8 +1,10 @@
 'use strict';
-/* Finanças 3.10: orçamento baseado no saldo existente e nos compromissos por data. */
+/* Finanças 3.11: orçamento baseado no saldo existente e nos compromissos por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
+const monthTitle=m=>{const d=monthTitle(m).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
+const shortMonthTitle=m=>{const d=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'short',year:'numeric'}).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0'), dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const today=()=>dateKey(new Date()), monthNow=()=>today().slice(0,7);
@@ -167,7 +169,7 @@ function toV5(v){
  }
  x.mode='items';x.version=5;return x;
 }
-let db,state,openPlanMonths=new Set(),screen='week',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,viewMonth=monthNow();
+let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),screen='week',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,viewMonth=monthNow();
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
@@ -184,7 +186,16 @@ function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.inv
 function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),base=newBaseAmount(s,m),extra=newAmount(s,m),investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-base-extra-applied-p.margin)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
-function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,1,12).toLocaleDateString('pt-BR',{month:'short',year:'numeric'})}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
+function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
+const THEME_KEY='finances-pwa-theme-v3.11';
+function setTheme(theme){
+ const next=theme==='pink'?'pink':'ocean';document.documentElement.dataset.theme=next;
+ const button=$('themeToggle');button.textContent=next==='pink'?'◈':'◐';
+ button.setAttribute('aria-label',next==='pink'?'Ativar tema azul':'Ativar tema rosa');
+ button.title=next==='pink'?'Usar tema azul':'Usar tema rosa';
+ const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#251222':'#081522';
+ try{localStorage.setItem(THEME_KEY,next)}catch{}
+}
 function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
 function rows(items,type){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right"><button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
 function pct(amount,income){return income>0?`${(100*amount/income).toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})}%`:'—'}
@@ -225,11 +236,28 @@ function renderInvestmentPanels(){
  const m=$('investmentConfirmMonth').value||monthNow(),x=investmentsStatus(state,m),diff=round(x.total-x.plan);
  const label=x.status==='done'?'Realizado':x.status==='skipped'?'Não realizado':'Pendente';
  $('investmentMonthSummary').innerHTML=`<div class="investment-target"><span>Situação</span><strong>${label}</strong></div><div class="investment-target"><span>Total investido</span><strong>${money(x.total)}</strong></div><div class="investment-target"><span>Diferença da meta</span><strong class="${diff<0?'negative':''}">${diff>0?'+ ':''}${money(diff)}</strong></div>`;
- const all=new Set([...state.profiles.map(x=>x.from),...state.monthlyPaid.map(x=>x.month),...(state.investmentSkipped||[]),...state.extraInvestments.map(x=>x.date.slice(0,7)),monthNow()]);
- const visible=Array.from({length:12},(_,i)=>shiftMonth(monthNow(),-i));
- $('investmentHistory').innerHTML=visible.map(month=>{const i=investmentsStatus(state,month);return `<div class="entry"><div class="entry-main"><div class="entry-title">${new Date(month+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</div><div class="entry-description">Meta ${money(i.plan)} · ${i.status==='done'?'Realizado':i.status==='skipped'?'Não investido':'Pendente'}</div></div><div class="entry-right"><span class="entry-price">${money(i.total)}</span><button type="button" class="small-action" data-edit-investment="${month}">Editar</button></div></div>`}).join('');
+ const now=monthNow();
+ const dates=[state.opening?.date?.slice(0,7),state.started?.slice(0,7),...state.monthlyPaid.map(x=>x.month),...(state.investmentSkipped||[]),...state.extraInvestments.map(x=>x.date.slice(0,7))].filter(isMonth);
+ // No historical backfill before the financial tracking began.
+ const earliest=dates.length?dates.reduce((a,b)=>a<b?a:b):shiftMonth(now,-11);
+ const from=earliest<shiftMonth(now,-119)?shiftMonth(now,-119):earliest;
+ const months=[];
+ for(let cursor=now;cursor>=from;cursor=shiftMonth(cursor,-1))months.push(cursor);
+ const years=new Map();
+ for(const month of months){const year=month.slice(0,4);if(!years.has(year))years.set(year,[]);years.get(year).push(month)}
+ $('investmentHistory').innerHTML=Array.from(years.entries()).map(([year,entries])=>{
+   const yearAmount=round(entries.reduce((v,month)=>v+investmentsStatus(state,month).total,0));
+   const rendered=entries.map(month=>{
+     const info=investmentsStatus(state,month),difference=round(info.total-info.plan);
+     const extraItems=state.extraInvestments.filter(e=>e.date.slice(0,7)===month).slice().sort((a,b)=>a.date.localeCompare(b.date));
+     const principal=info.paid?`<div class="investment-event"><span>Primeiro aporte <small>${info.paid.date.split('-').reverse().join('/')}</small></span><strong>${money(info.paid.amount)}</strong></div>`:info.status==='skipped'?'<p class="empty">Nenhum aporte principal realizado.</p>':'<p class="empty">Primeiro aporte ainda pendente.</p>';
+     const extras=extraItems.map(e=>`<div class="investment-event"><span>${esc(e.name)} <small>${e.date.split('-').reverse().join('/')}</small></span><strong>${money(e.amount)}</strong></div>`).join('');
+     return `<details class="investment-history-month" data-history-month="${month}" ${openHistoryMonths.has(month)?'open':''}><summary><span class="investment-history-month-name">${monthTitle(month)}</span><span class="investment-history-amount"><strong>${money(info.total)}</strong><small>${info.status==='done'?'Realizado':info.status==='skipped'?'Não investi':'Pendente'}</small></span></summary><div class="investment-history-content"><div class="investment-event"><span>Meta prevista</span><strong>${money(info.plan)}</strong></div>${principal}${extras}<div class="investment-event investment-difference"><span>Diferença da meta</span><strong class="${difference<0?'negative':''}">${difference>0?'+ ':''}${money(difference)}</strong></div><button type="button" class="secondary investment-edit" data-edit-investment="${month}">Editar aporte do mês</button></div></details>`;
+   }).join('');
+   return `<details class="investment-history-year" data-history-year="${year}" ${openHistoryYears.has(year)?'open':''}><summary><strong>${year}</strong><span>${money(yearAmount)} <small>${entries.length} ${entries.length===1?'mês':'meses'}</small></span></summary><div class="investment-history-year-content">${rendered}</div></details>`;
+ }).join('');
 }
-function render(){const m=monthNow(),x=monthly(state,m),calc=cycleBudget(state);$('monthCaption').textContent=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+function render(){const m=monthNow(),x=monthly(state,m),calc=cycleBudget(state);$('monthCaption').textContent=monthTitle(m);
 $('cashBalance').textContent=calc.ready?money(calc.current):'—';
 $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
 $('cycleAvailable').textContent=calc.ready?money(calc.available):'—';
@@ -245,7 +273,7 @@ const ex=state.expenses.slice().sort((a,b)=>b.date.localeCompare(a.date));$('exp
 $('parcels').innerHTML=rows(state.parcels,'new');$('parcelCountBadge').textContent=String(state.parcels.length);$('fixedList').innerHTML=rows(state.fixedItems,'fixed');$('baseList').innerHTML=rows(state.baseParcels,'base');$('fixedSubtotal').textContent=money(x.fixed);$('baseSubtotal').textContent= x.known?money(x.base):'—';$('extraInvestmentList').innerHTML=state.extraInvestments.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(e.date.split('-').reverse().join('/'))}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button class="entry-remove" data-delete-extra="${esc(e.id)}" aria-label="Excluir investimento">×</button></div></div>`).join('')||'<p class="empty">Nenhum investimento extra realizado.</p>';
 $('forecast').innerHTML=Array.from({length:12},(_,i)=>{
  const month=shiftMonth(m,i),z=monthly(state,month),extras=round(state.extraIncome.filter(e=>e.date.slice(0,7)===month).reduce((a,e)=>a+e.amount,0)),net=round(z.available+extras);
- const label=new Date(month+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+ const label=monthTitle(month);
  return `<details class="plan-month" data-plan-month="${month}"><summary><span class="plan-month-name">${label}</span><span class="plan-month-total"><strong class="${net<0?'negative':''}">${z.known?money(net):'—'}</strong><small>${z.known?pct(net,z.income):'—'} da renda livre</small></span></summary><div class="plan-month-body">${breakdown(state,month)}</div></details>`;
  }).join('');
  if(openPlanMonths.size){for(const el of $('forecast').querySelectorAll('[data-plan-month]'))if(openPlanMonths.has(el.dataset.planMonth))el.open=true;}
@@ -305,6 +333,7 @@ async function init(){try{
  }
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentConfirmMonth').value=monthNow();
+ openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
  updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
@@ -323,6 +352,8 @@ $('exportPrevious').addEventListener('click',async()=>{const old=await read('sta
 for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).addEventListener('click',()=>{resetForms();render()});
 $('investmentConfirmMonth').addEventListener('change',()=>{updateInvestmentForm();renderInvestmentPanels()});
 $('investmentConfirmStatus').addEventListener('change',showInvestmentFields);
+$('themeToggle').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='pink'?'ocean':'pink'));
+$('investmentHistory').addEventListener('toggle',e=>{const el=e.target;if(!(el instanceof HTMLDetailsElement))return;if(el.dataset.historyYear){if(el.open)openHistoryYears.add(el.dataset.historyYear);else openHistoryYears.delete(el.dataset.historyYear)}if(el.dataset.historyMonth){if(el.open)openHistoryMonths.add(el.dataset.historyMonth);else openHistoryMonths.delete(el.dataset.historyMonth)}},true);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
 document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>s[field]=s[field].filter(x=>x.id!==id));return}}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==exp.dataset.deleteExpense));return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este investimento extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentConfirmMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
 init();

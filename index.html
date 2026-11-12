@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#081522">
+<meta name="theme-color" content="#081522" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Finanças">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.10.0">
+<link rel="stylesheet" href="./style.css?v=3.11.0">
 <title>Finanças</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda">ⓘ</button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></div></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema">◐</button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda">ⓘ</button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
 <section class="hero" aria-label="Saldo atual">
@@ -56,16 +56,16 @@
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
 <section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Compare os aportes planejados com o que realmente investiu.</p></div>
-<div class="surface"><h2>Investimento do mês</h2><form id="investmentConfirmForm">
+<div class="surface"><h2>Primeiro aporte do mês</h2><form id="investmentConfirmForm">
 <label for="investmentConfirmMonth">Mês</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentConfirmMonth" type="month" required></div>
 <div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
 <label for="investmentConfirmStatus">Situação</label><select id="investmentConfirmStatus"><option value="pending">Pendente</option><option value="done">Investi neste mês</option><option value="skipped">Não investi neste mês</option></select>
-<div id="investmentDoneFields"><label for="investmentConfirmAmount">Total investido neste mês (R$)</label><input id="investmentConfirmAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<div id="investmentDoneFields"><label for="investmentConfirmAmount">Total investido no mês (incluindo extras) (R$)</label><input id="investmentConfirmAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <p class="assistive">Informe o total efetivamente investido. Os aportes extras já cadastrados são incluídos nesse total, sem duplicar.</p>
 <label for="investmentConfirmDate">Data do aporte principal</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date" required></div></div>
-<button class="primary" type="submit">Salvar investimento do mês</button></form><div id="investmentMonthSummary" class="investment-month-summary"></div></div>
+<button class="primary" type="submit">Salvar aporte do mês</button></form><div id="investmentMonthSummary" class="investment-month-summary"></div></div>
 <div class="surface"><h2>Adicionar investimento extra</h2><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required><button class="secondary" type="submit">Registrar aporte extra</button></form><div id="extraInvestmentList"></div></div>
-<div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory"></div></div></section>
+<div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
 <details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
 <details class="surface settings-details"><summary>Renda e investimentos</summary><form id="baselineForm">
@@ -110,7 +110,7 @@
 <details class="surface settings-details"><summary>Investimentos extras</summary>
 <div class="help-item"><strong>Data do investimento</strong><p>Dia em que fez o aporte adicional.</p></div>
 <div class="help-item"><strong>Descrição</strong><p>Nome opcional para identificar o aporte no histórico.</p></div>
-<div class="help-item"><strong>Confirmação do investimento</strong><p>Na aba Investimentos, escolha o mês e informe quanto realmente aplicou. A meta continua registrada mesmo que não invista.</p></div><div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
+<div class="help-item"><strong>Confirmação do investimento</strong><p>Na aba Investimentos, confirme o primeiro aporte do mês e registre aportes adicionais separadamente. A meta continua registrada mesmo que não invista.</p></div><div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
 <details class="surface settings-details"><summary>Despesas fixas</summary>
 <div class="help-item"><strong>Descrição e valor mensal</strong><p>Nome e custo de uma obrigação recorrente, como plano de celular ou assinatura.</p></div>
 <div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
@@ -131,5 +131,5 @@
 </main></div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.10.0" defer></script>
+<script src="./app.js?v=3.11.0" defer></script>
 </body></html>

@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.9.0">
+<link rel="stylesheet" href="./style.css?v=3.10.0">
 <title>Finanças</title>
 </head>
 <body>
@@ -33,7 +33,7 @@
 <div class="next-payday">Próximo salário <strong id="paydayCaption">—</strong></div>
 <div class="mini-protections"><span>Investimento mensal <strong id="currentInvestment">—</strong></span><span>Margem protegida <strong id="currentMargin">—</strong></span></div>
 </section>
-<nav class="tabs" aria-label="Áreas do aplicativo"><button type="button" data-screen="week" class="active">Semana</button><button type="button" data-screen="installments">Parcelas</button><button type="button" data-screen="planning">Planejamento</button></nav>
+<nav class="tabs" aria-label="Áreas do aplicativo"><button type="button" data-screen="week" class="active">Semana</button><button type="button" data-screen="installments">Parcelas</button><button type="button" data-screen="planning">Planejamento</button><button type="button" data-screen="investments">Investimentos</button></nav>
 <main>
 <section id="screen-week" class="screen">
 <div class="section-heading"><div><h1>Movimentações</h1></div></div>
@@ -53,9 +53,19 @@
 <button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><div id="parcels"></div></div>
 </section>
-<section id="screen-planning" class="screen hidden"><div class="section-heading"><div><h1>Planejamento</h1></div></div>
-<div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast"></div></div>
-<div class="surface" id="detailCard"><div class="surface-heading"><h2>Composição do mês</h2><span id="selectedMonthLabel" class="month-label"></span></div><div id="monthBreakdown" class="breakdown"></div></div></section>
+<section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
+<div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
+<section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Compare os aportes planejados com o que realmente investiu.</p></div>
+<div class="surface"><h2>Investimento do mês</h2><form id="investmentConfirmForm">
+<label for="investmentConfirmMonth">Mês</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentConfirmMonth" type="month" required></div>
+<div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
+<label for="investmentConfirmStatus">Situação</label><select id="investmentConfirmStatus"><option value="pending">Pendente</option><option value="done">Investi neste mês</option><option value="skipped">Não investi neste mês</option></select>
+<div id="investmentDoneFields"><label for="investmentConfirmAmount">Total investido neste mês (R$)</label><input id="investmentConfirmAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<p class="assistive">Informe o total efetivamente investido. Os aportes extras já cadastrados são incluídos nesse total, sem duplicar.</p>
+<label for="investmentConfirmDate">Data do aporte principal</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date" required></div></div>
+<button class="primary" type="submit">Salvar investimento do mês</button></form><div id="investmentMonthSummary" class="investment-month-summary"></div></div>
+<div class="surface"><h2>Adicionar investimento extra</h2><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required><button class="secondary" type="submit">Registrar aporte extra</button></form><div id="extraInvestmentList"></div></div>
+<div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
 <details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
 <details class="surface settings-details"><summary>Renda e investimentos</summary><form id="baselineForm">
@@ -65,21 +75,8 @@
 <label for="margin">Margem de segurança mensal (R$)</label><input id="margin" type="number" min="0" step="0.01" required>
 <input id="started" type="hidden">
 <button class="primary" type="submit">Salvar configuração</button></form></details>
-<details class="surface settings-details"><summary>Investimento extra realizado</summary><form id="extraForm">
-<label for="extraDate">Data do investimento</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div>
-<label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte extra">
-<label for="extraAmount">Valor investido a mais (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required>
-<button class="primary" type="submit">Registrar investimento extra</button></form><div id="extraInvestmentList"></div>
-<div class="divider-soft"></div><h3>Antecipou o aporte mensal?</h3>
-<p class="assistive">O aporte mensal normalmente é estimado no dia 30. Se você já o fez antes, informe a data: será descontado nessa data e não novamente no dia 30. Não inclua aqui a parte extra.</p>
-<form id="monthlyPaidForm"><label for="monthlyPaidMonth">Mês do aporte</label><div class="calendar-field"><span class="calendar-label" data-for="monthlyPaidMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="monthlyPaidMonth" type="month" required></div>
-<label for="monthlyPaidDate">Data em que investiu</label><div class="calendar-field"><span class="calendar-label" data-for="monthlyPaidDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="monthlyPaidDate" type="date" required></div>
-<button class="secondary" type="submit">Registrar aporte mensal antecipado</button></form><div id="paidMonthlyList"></div>
-</details>
 <details class="surface settings-details"><summary>Despesas fixas<strong id="fixedSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="fixedList"></div><div id="itemPanels"><form id="fixedForm"><h3>Cadastrar ou editar despesa fixa</h3><label for="fixedName">Descrição</label><input id="fixedName" maxlength="120" placeholder="Ex.: Spotify" required><label for="fixedAmount">Valor mensal (R$)</label><input id="fixedAmount" type="number" min="0" step="0.01" required><label for="fixedDay">Dia de débito mensal</label><input id="fixedDay" type="number" min="1" max="31" step="1" value="5" required><div class="two-cols"><div><label for="fixedStart">Início</label><div class="calendar-field"><span class="calendar-label" data-for="fixedStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="fixedStart" type="month" required></div></div><div><label for="fixedEnd">Fim (opcional)</label><div class="calendar-field"><span class="calendar-label" data-for="fixedEnd">Sem término</span><span class="calendar-icon">▦</span><input id="fixedEnd" type="month"></div></div></div><button id="fixedSubmit" class="primary" type="submit">Adicionar despesa fixa</button><button id="fixedCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores<strong id="baseSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="baseList"></div><div id="baseEntry"><form id="baseForm"><h3>Cadastrar ou editar parcela anterior</h3><label for="baseName">Descrição</label><input id="baseName" maxlength="120" placeholder="Ex.: Hospedagem" required><label for="basePayment">Valor de cada parcela (R$)</label><input id="basePayment" type="number" min="0.01" step="0.01" required><div class="two-cols"><div><label for="baseRemaining">Parcelas restantes</label><input id="baseRemaining" type="number" min="1" max="240" step="1" required></div><div><label for="baseStart">Primeira fatura pendente</label><div class="calendar-field"><span class="calendar-label" data-for="baseStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="baseStart" type="month" required></div></div></div><button id="baseSubmit" class="primary" type="submit">Adicionar parcela antiga</button><button id="baseCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
-<details class="surface settings-details"><summary>Pagamentos realizados</summary><p class="assistive">Marque quando o débito realmente acontecer. A despesa continua no planejamento mesmo enquanto estiver pendente. O saldo estimado só é reduzido pelo pagamento confirmado; os valores pendentes continuam protegidos do orçamento de consumo.</p><div class="pay-month-bar"><button type="button" class="small-action" id="paidPrev">‹</button><strong id="paidMonthLabel"></strong><button type="button" class="small-action" id="paidNext">›</button></div><div id="paymentChecklist"></div></details>
-<details class="surface settings-details"><summary>Resumo do Baseline</summary><div class="detail-line"><span>Fixos neste mês</span><strong id="fixedSubtotalSummary"></strong></div><div class="detail-line"><span>Fatura-base neste mês</span><strong id="baseSubtotalSummary"></strong></div><div class="detail-line"><span>Investimentos neste mês</span><strong id="investmentSubtotal"></strong></div></details>
 <details class="surface settings-details"><summary>Backup e restauração</summary><button id="exportBackup" class="secondary" type="button">Exportar meus dados</button><label for="restoreFile" class="file-label">Importar backup</label><input id="restoreFile" class="file-input" type="file" accept=".json,application/json"><p class="assistive">O backup inclui cada item e movimentação, inclusive o histórico de vigência de renda, investimentos e margem de segurança.</p><button id="exportPrevious" type="button" class="text-button">Exportar versão anterior (se disponível)</button><button id="exportLegacy" class="text-button hidden" type="button">Exportar arquivo antigo das duas carteiras</button></details>
 </section>
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
@@ -107,18 +104,18 @@
 <details class="surface settings-details"><summary>Renda, investimentos e semanas</summary>
 <div class="help-item"><strong>Renda e aporte válidos a partir de</strong><p>Mês em que passam a valer a renda, o investimento padrão e a margem cadastrados. Configurações anteriores continuam aplicáveis aos meses anteriores.</p></div>
 <div class="help-item"><strong>Renda líquida mensal</strong><p>Salário após descontos. Na projeção do caixa é acrescentado automaticamente no dia 30 (ou no último dia de meses menores).</p></div>
-<div class="help-item"><strong>Investimento mensal protegido</strong><p>Valor recorrente destinado aos investimentos. Reduz o orçamento livre e é considerado na projeção do caixa no dia 30.</p></div>
+<div class="help-item"><strong>Investimento mensal protegido</strong><p>Meta de aporte recorrente que reduz o orçamento livre. A saída do caixa é registrada quando você confirma o investimento na aba Investimentos.</p></div>
 <div class="help-item"><strong>Margem de segurança mensal</strong><p>Quantia que você escolhe preservar, além do investimento padrão. Reduz a disponibilidade para consumo; não é um pagamento registrado na conta.</p></div>
 <div class="help-item"><strong>Início do controle (histórico)</strong><p>Data mantida por compatibilidade com backups antigos. Não interfere no novo orçamento diário ou no limite até domingo.</p></div></details>
 <details class="surface settings-details"><summary>Investimentos extras</summary>
 <div class="help-item"><strong>Data do investimento</strong><p>Dia em que fez o aporte adicional.</p></div>
 <div class="help-item"><strong>Descrição</strong><p>Nome opcional para identificar o aporte no histórico.</p></div>
-<div class="help-item"><strong>Aporte mensal antecipado</strong><p>Se realizou o aporte padrão antes do dia 30, marque o mês e a data. O aplicativo não fará um segundo desconto no dia 30.</p></div><div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
+<div class="help-item"><strong>Confirmação do investimento</strong><p>Na aba Investimentos, escolha o mês e informe quanto realmente aplicou. A meta continua registrada mesmo que não invista.</p></div><div class="help-item"><strong>Valor investido a mais</strong><p>Somente o valor adicional ao aporte mensal padrão. É descontado uma única vez, na data registrada.</p></div></details>
 <details class="surface settings-details"><summary>Despesas fixas</summary>
 <div class="help-item"><strong>Descrição e valor mensal</strong><p>Nome e custo de uma obrigação recorrente, como plano de celular ou assinatura.</p></div>
 <div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
 <div class="help-item"><strong>Fim (opcional)</strong><p>Último mês em que ela será cobrada. Deixe vazio se continuar por prazo indeterminado.</p></div>
-<div class="help-item"><strong>Dia de pagamento</strong><p>Na versão atual, despesas fixas são consideradas pagas no dia 5 para fins de saldo estimado, mesmo que o vencimento real seja diferente.</p></div></details>
+<div class="help-item"><strong>Dia de débito</strong><p>As despesas fixas são consideradas pagas automaticamente no dia configurado. O orçamento já as considera antes disso.</p></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores</summary>
 <div class="help-item"><strong>Descrição</strong><p>Nome da compra que já estava parcelada antes de começar o controle.</p></div>
 <div class="help-item"><strong>Valor de cada parcela</strong><p>Quanto você paga por mês; não é o valor total da compra.</p></div>
@@ -134,5 +131,5 @@
 </main></div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.9.0" defer></script>
+<script src="./app.js?v=3.10.0" defer></script>
 </body></html>

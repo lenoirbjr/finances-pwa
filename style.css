@@ -77,3 +77,35 @@
 .pay-row{display:flex!important;align-items:center;gap:12px;border-bottom:1px solid #294558;padding:12px 0;margin:0!important;color:#e5f2f6!important}
 .pay-row input[type=checkbox]{appearance:auto!important;-webkit-appearance:checkbox!important;width:21px!important;height:21px!important;flex-shrink:0;accent-color:#2bb9a3;padding:0!important}
 .pay-row .pay-text{flex:1;min-width:0;line-height:1.5}.pay-row .pay-text strong{display:block;font-size:13px}.pay-row small{display:block;font-size:11px;color:#a0b6c4}.pay-row b{font-size:13px;white-space:nowrap}
+
+/* v3.10 — meses com hierarquia de despesas e percentuais */
+.tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+.tabs button{font-size:clamp(10px,2.8vw,12px);padding:12px 1px}
+.plan-month{border-top:1px solid #2a485a;overflow:hidden}
+.plan-month:first-child{border-top:0}
+.plan-month>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;padding:18px 0;min-width:0}
+.plan-month>summary::-webkit-details-marker,.breakdown-group>summary::-webkit-details-marker{display:none}
+.plan-month>summary:before,.breakdown-group>summary:before{content:'›';color:#8fdccc;font-size:23px;transition:transform .16s ease;flex:none}
+.plan-month[open]>summary:before,.breakdown-group[open]>summary:before{transform:rotate(90deg)}
+.plan-month-name{font-size:16px;font-weight:750;text-transform:capitalize;flex:1;min-width:0}
+.plan-month-total{display:flex;flex-direction:column;align-items:flex-end;gap:5px;text-align:right;min-width:0}
+.plan-month-total strong{font-size:14px;white-space:nowrap}
+.plan-month-total small,.line-amount small,.group-money small{display:block;font-size:10px;color:#91b2c4;font-weight:500;white-space:nowrap}
+.plan-month-body{padding:3px 0 19px 14px}
+.plan-month .breakdown-group{border:1px solid #315166;border-radius:13px;margin:9px 0;background:#0b2335;padding:0 12px}
+.breakdown-group>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:13px 0;justify-content:space-between;font-size:13px;font-weight:680}
+.breakdown-group>summary>span:first-of-type{flex:1;min-width:0}
+.breakdown-group>summary small{font-size:10px;font-weight:400;color:#92afbf}
+.group-money{text-align:right;flex:none;display:grid;gap:4px}
+.group-money strong{font-size:12px;color:#edf9f7;white-space:nowrap}
+.breakdown-rows{border-top:1px solid #2b485a;margin-top:0}
+.detail-line.detail-percent{align-items:center;gap:10px}
+.detail-percent>.line-amount{flex:none;min-width:0;text-align:right}
+.detail-percent .line-amount strong{display:block;font-size:12px}
+.detail-percent .line-amount small{margin-top:5px}
+.detail-percent span small{display:block;color:#8eacbb;font-size:10px;margin-top:4px}
+.detail-total .line-amount strong{color:#99ead9;font-size:15px}
+.investment-target{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 0;border-bottom:1px solid #2a485a;font-size:13px}
+.investment-target span{color:#a8c1cf}
+.investment-month-summary{margin-top:15px}
+@media(max-width:375px){.plan-month-body{padding-left:4px}.plan-month-name{font-size:14px}.group-money strong{font-size:11px}.tabs button{font-size:10px}}

@@ -188,21 +188,15 @@ function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
 const THEME_KEY='finances-pwa-theme-v3.12';
-const ICONS={
- male:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10.2c.7-2.7 2.9-4.7 5.6-4.7s4.8 2 5.5 4.7"/><path d="M8 8.4 11 5.8 12.6 7.1 14.2 5.8 17.1 8.5"/><path d="M8.3 13.2c0 3 2 5.3 4.3 5.3s4.4-2.3 4.4-5.3"/><path d="M10 11.7h.01M15.1 11.7h.01"/><path d="M10.2 15.2c1 .9 1.7 1.3 2.4 1.3s1.4-.4 2.4-1.3"/><path d="M10.1 14.2c.5.5 1 .8 1.6.8.6 0 1.1-.3 1.6-.8"/><path d="M11.1 17.9h3"/></svg>`,
- female:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 11c.2-3.4 2.7-5.8 5.8-5.8 3.2 0 5.7 2.4 5.8 5.8"/><path d="M6 11.5c-.7.1-1.3.7-1.3 1.5 0 .7.5 1.3 1.1 1.5"/><path d="M18.1 11.5c.7.1 1.2.8 1.2 1.5 0 .7-.5 1.3-1.1 1.5"/><path d="M8 10c-.8-.8-1.5-1.5-2.3-2.5"/><path d="M16 10c.8-.8 1.5-1.5 2.3-2.5"/><path d="M8.2 12.9c0 3 1.8 5.1 3.8 5.1s3.8-2.1 3.8-5.1"/><path d="M10.1 12h.01M13.9 12h.01"/><path d="M10.3 15.2c.7.8 1.2 1.1 1.7 1.1s1-.3 1.7-1.1"/><path d="M7.2 16.4c-.6.9-1.4 1.6-2.4 2"/><path d="M16.8 16.4c.6.9 1.4 1.6 2.4 2"/></svg>`,
- info:`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.3"/><path d="M12 10.1h.01"/><path d="M12 12v3.6"/><path d="M12 3.3v1.6M12 19.1v1.6M3.3 12h1.6M19.1 12h1.6M5.8 5.8l1.1 1.1M17.1 17.1l1.1 1.1M18.2 5.8l-1.1 1.1M6.9 17.1l-1.1 1.1"/></svg>`,
- settings:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 3.8h5.6l.7 2.1 2 .8 2-1.1 2.8 4.8-1.6 1.5.1 2.2 1.6 1.5-2.8 4.8-2-1.1-2 .8-.7 2.1H9.2l-.7-2.1-2-.8-2 1.1-2.8-4.8 1.6-1.5-.1-2.2-1.6-1.5 2.8-4.8 2 1.1 2-.8z"/><circle cx="12" cy="12" r="2.6"/></svg>`
-};
 function refreshHeaderButtons(){
  const theme=document.documentElement.dataset.theme==='pink'?'pink':'ocean';
  const themeButton=$('themeToggle');
- themeButton.innerHTML=theme==='pink'?ICONS.female:ICONS.male;
+ themeButton.textContent=theme==='pink'?'👩🏽‍🦱':'👨🏻';
  themeButton.setAttribute('aria-label',theme==='pink'?'Ativar tema azul':'Ativar tema rosa');
  themeButton.title=theme==='pink'?'Usar tema azul':'Usar tema rosa';
- if(screen==='settings'){$('quickSettings').textContent='←';}else{$('quickSettings').innerHTML=ICONS.settings;}
+ $('quickSettings').textContent=screen==='settings'?'←':'⚙️';
  $('quickSettings').setAttribute('aria-label',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');
- if(screen==='info'){$('quickInfo').textContent='←';}else{$('quickInfo').innerHTML=ICONS.info;}
+ $('quickInfo').textContent=screen==='info'?'←':'ℹ️';
  $('quickInfo').setAttribute('aria-label',screen==='info'?'Voltar ao aplicativo':'Abrir informações');
 }
 function setTheme(theme){

@@ -1,4 +1,4 @@
-## Atualização 3.12.1
+## Atualização 3.12.2
 
 O seletor de quantidade de parcelas agora oferece todas as opções de 1x a 12x, removendo 18x e 24x da criação de novas compras. Compras antigas com outras quantidades permanecem preservadas e editáveis.
 
@@ -20,3 +20,7 @@ PWA local no IndexedDB, para GitHub Pages. Não publicar backups financeiros no 
 
 ## Correção 3.12
 Corrigida recursão involuntária em `monthTitle` que causava `Maximum call stack size exceeded` ao carregar ou importar backups. Nenhum dado local é apagado ou migrado. Cache de arquivos atualizado para v3.12.
+
+
+## Alteração 3.12.2
+O ícone da tela inicial agora utiliza o losango original do cabeçalho. Os controles de tema, ajuda e configurações usam emojis. Nenhuma alteração no IndexedDB, dados financeiros ou regras de parcelamento.

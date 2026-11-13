@@ -158,3 +158,9 @@ html[data-theme=pink] .hero-sub,html[data-theme=pink] .section-heading p,html[da
 html[data-theme=pink] .detail-line,html[data-theme=pink] .entry,html[data-theme=pink] .investment-event,html[data-theme=pink] .investment-history-year-content,html[data-theme=pink] .investment-history-month{border-color:#714766}
 html[data-theme=pink] .group-money strong,html[data-theme=pink] .detail-line strong,html[data-theme=pink] .investment-event strong,html[data-theme=pink] .investment-history-amount strong,html[data-theme=pink] .year-total,html[data-theme=pink] .investment-target strong{color:#fff2f8}
 html[data-theme=pink] .header-actions .icon-button{color:#fff2f8}
+
+/* 3.12.2: same original diamond logomark at app corner and home-screen icon; emoji actions. */
+.brand-icon{font-size:26px;font-weight:800;color:#09262d;background:linear-gradient(135deg,#1d9f94,#54d0af);line-height:1}
+.header-actions .icon-button{font-size:22px;line-height:1;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,"Apple Color Emoji",sans-serif}
+.header-actions .theme-button{font-size:21px}
+html[data-theme=pink] .brand-icon{background:linear-gradient(135deg,#ed79b0,#ffc0dc);color:#4a1835}

@@ -1,4 +1,8 @@
-# Finanças 3.11.2 — Histórico e temas
+## Atualização 3.12.1
+
+O seletor de quantidade de parcelas agora oferece todas as opções de 1x a 12x, removendo 18x e 24x da criação de novas compras. Compras antigas com outras quantidades permanecem preservadas e editáveis.
+
+# Finanças 3.12 — Histórico e temas
 
 PWA local no IndexedDB, para GitHub Pages. Não publicar backups financeiros no repositório.
 
@@ -14,5 +18,5 @@ PWA local no IndexedDB, para GitHub Pages. Não publicar backups financeiros no 
 - Antes de atualizar, exporte um backup. Não remova o PWA para forçar atualização.
 
 
-## Correção 3.11.2
-Corrigida recursão involuntária em `monthTitle` que causava `Maximum call stack size exceeded` ao carregar ou importar backups. Nenhum dado local é apagado ou migrado. Cache de arquivos atualizado para v3.11.2.
+## Correção 3.12
+Corrigida recursão involuntária em `monthTitle` que causava `Maximum call stack size exceeded` ao carregar ou importar backups. Nenhum dado local é apagado ou migrado. Cache de arquivos atualizado para v3.12.

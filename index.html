@@ -10,12 +10,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.11.2">
+<link rel="stylesheet" href="./style.css?v=3.12.1">
 <title>Finanças</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema">◐</button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda">ⓘ</button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button">⚙</button></div></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./icon-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
 <section class="hero" aria-label="Saldo atual">
@@ -48,23 +48,22 @@
 <section id="screen-installments" class="screen hidden"><div class="section-heading"><div><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
 <div class="surface"><h2>Nova compra</h2><form id="parcelForm"><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
 <label for="parcelTotal">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
-<div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="8">8x</option><option value="10">10x</option><option value="12">12x</option><option value="18">18x</option><option value="24">24x</option></select></div><div><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
+<div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
 <div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div>Parcela mensal adicionada à fatura <strong id="weeklyImpact">R$ 0,00</strong></div></div>
 <button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><div id="parcels"></div></div>
 </section>
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
-<section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Registre o primeiro aporte do mês, os aportes extras e acompanhe os totais por mês.</p></div>
-<div class="surface"><h2>Primeiro aporte do mês</h2><form id="investmentConfirmForm">
-<label for="investmentConfirmMonth">Mês</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentConfirmMonth" type="month" required></div>
-<div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
-<label for="investmentConfirmStatus">Situação</label><select id="investmentConfirmStatus"><option value="pending">Pendente</option><option value="done">Investi neste mês</option><option value="skipped">Não investi neste mês</option></select>
+<section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Acompanhe o total do mês, registre o primeiro aporte, adicione aportes extras e consulte o histórico.</p></div>
+<div class="surface"><h2>Total aportado no mês</h2><label for="investmentFocusMonth">Mês</label><div class="calendar-field"><span class="calendar-label" data-for="investmentFocusMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentFocusMonth" type="month" required></div><div class="investment-hero-card"><div class="investment-hero-overline">TOTAL INVESTIDO</div><div id="investmentBigTotal" class="investment-hero-number">R$ 0,00</div><div id="investmentBigMeta" class="investment-hero-meta">Meta R$ 0,00 · diferença R$ 0,00</div></div></div>
+<div class="surface"><h2>Primeiro aporte do mês</h2><p class="assistive investment-inline-note">Mês selecionado: <strong id="investmentSelectedMonth">—</strong></p><form id="investmentConfirmForm"><div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
+<label for="investmentConfirmStatus">Situação</label><select id="investmentConfirmStatus"><option value="pending">Pendente</option><option value="done">Fiz o primeiro aporte neste mês</option><option value="skipped">Não fiz primeiro aporte neste mês</option></select>
 <div id="investmentDoneFields"><label for="investmentConfirmAmount">Valor do primeiro aporte (R$)</label><input id="investmentConfirmAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required>
-<p class="assistive">Informe apenas o valor do primeiro aporte do mês. Os aportes extras são registrados separadamente logo abaixo.</p>
-<label for="investmentConfirmDate">Data do aporte principal</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date" required></div></div>
-<button class="primary" type="submit">Salvar primeiro aporte</button></form><div id="investmentMonthSummary" class="investment-month-summary"></div></div>
-<div class="surface"><h2>Adicionar investimento extra</h2><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required><button class="secondary" type="submit">Registrar aporte extra</button></form><div id="extraInvestmentList"></div></div>
+<p class="assistive">Informe somente o primeiro aporte do mês. Os aportes extras são lançados separadamente logo abaixo.</p>
+<label for="investmentConfirmDate">Data do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date" required></div></div>
+<button class="primary" type="submit">Salvar primeiro aporte</button></form></div>
+<div class="surface"><h2>Adicionar aporte extra</h2><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required><button class="secondary" type="submit">Registrar aporte extra</button></form><div id="extraInvestmentList"></div></div>
 <div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
 <details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
@@ -107,10 +106,10 @@
 <div class="help-item"><strong>Investimento mensal protegido</strong><p>Meta de aporte recorrente que reduz o orçamento livre. A saída do caixa é registrada quando você confirma o investimento na aba Investimentos.</p></div>
 <div class="help-item"><strong>Margem de segurança mensal</strong><p>Quantia que você escolhe preservar, além do investimento padrão. Reduz a disponibilidade para consumo; não é um pagamento registrado na conta.</p></div>
 <div class="help-item"><strong>Início do controle (histórico)</strong><p>Data mantida por compatibilidade com backups antigos. Não interfere no novo orçamento diário ou no limite até domingo.</p></div></details>
-<details class="surface settings-details"><summary>Investimentos extras</summary>
-<div class="help-item"><strong>Data do investimento</strong><p>Dia em que fez o aporte adicional.</p></div>
+<details class="surface settings-details"><summary>Aportes extras</summary>
+<div class="help-item"><strong>Data do aporte</strong><p>Dia em que fez o aporte adicional.</p></div>
 <div class="help-item"><strong>Descrição</strong><p>Nome opcional para identificar o aporte no histórico.</p></div>
-<div class="help-item"><strong>Confirmação do investimento</strong><p>Na aba Investimentos, registre o primeiro aporte do mês em um bloco próprio e os aportes extras em outro. O histórico mensal mostra o total somado de cada mês.</p></div><div class="help-item"><strong>Valor investido a mais</strong><p>Aporte adicional ao primeiro aporte do mês. Você pode registrar quantos quiser, inclusive no mesmo dia.</p></div></details>
+<div class="help-item"><strong>Confirmação do primeiro aporte</strong><p>Na aba Investimentos, registre o primeiro aporte do mês em um bloco próprio e os aportes extras em outro. O histórico mensal mostra o total somado de cada mês.</p></div><div class="help-item"><strong>Valor aportado a mais</strong><p>Aporte adicional ao primeiro aporte do mês. Você pode registrar quantos quiser, inclusive no mesmo dia.</p></div></details>
 <details class="surface settings-details"><summary>Despesas fixas</summary>
 <div class="help-item"><strong>Descrição e valor mensal</strong><p>Nome e custo de uma obrigação recorrente, como plano de celular ou assinatura.</p></div>
 <div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
@@ -131,5 +130,5 @@
 </main></div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.11.2" defer></script>
+<script src="./app.js?v=3.12.1" defer></script>
 </body></html>

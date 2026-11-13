@@ -1,26 +1,14 @@
-## Atualização 3.12.2
+# Finanças 3.12.3 — Proteção da próxima fatura
 
-O seletor de quantidade de parcelas agora oferece todas as opções de 1x a 12x, removendo 18x e 24x da criação de novas compras. Compras antigas com outras quantidades permanecem preservadas e editáveis.
+Atualização pontual do motor de orçamento, sem alteração do formato de backup (versão 8) ou IndexedDB.
 
-# Finanças 3.12 — Histórico e temas
+- A próxima fatura considera as parcelas antigas e novas do mês, os fixos pendentes desse mês, o investimento planejado e a margem protegida.
+- O próximo salário somente é usado na cobertura se ainda não tiver sido creditado na data da consulta.
+- Se os compromissos ultrapassarem essa renda, a diferença é reservada do saldo atual para os limites de consumo.
+- O **saldo estimado** permanece o caixa efetivo projetado, sem tratar a reserva como despesa paga.
+- O limite até o próximo salário, a referência diária e o orçamento até domingo obedecem ao novo teto.
+- A proteção de caixa por data e as demais regras da 3.12.2 permanecem como verificações adicionais.
 
-PWA local no IndexedDB, para GitHub Pages. Não publicar backups financeiros no repositório.
+Exemplo do backup de 12/11/2026: fatura 12/2026 = R$ 3.550,28; despesas fixas = R$ 842,00; aporte planejado = R$ 792,00; margem = R$ 264,00; salário 30/11 = R$ 5.274,46; reserva adicional = R$ 173,82.
 
-## Alterações
-- A aba Investimentos segue a ordem: Primeiro aporte do mês, Adicionar investimento extra, Histórico mensal.
-- Histórico agrupado por ano, com meses expansíveis e lançamentos individuais (aporte principal e extras). A expansão é visual e não altera os registros.
-- Datas de títulos usam "Novembro de 2026" (sem capitalizar a preposição).
-- Ícone alternador de tema ao lado de Informações: azul e rosa. Preferência de cor salva somente no dispositivo, sem alterar backups nem dados financeiros.
-- Estado do banco permanece na versão 8, compatível com a 3.10.
-
-## Notas
-- Confirmar aporte do mês informa o **total** investido, incluindo aportes extras. O aplicativo deduz os extras previamente registrados ao armazenar a parte principal.
-- Antes de atualizar, exporte um backup. Não remova o PWA para forçar atualização.
-
-
-## Correção 3.12
-Corrigida recursão involuntária em `monthTitle` que causava `Maximum call stack size exceeded` ao carregar ou importar backups. Nenhum dado local é apagado ou migrado. Cache de arquivos atualizado para v3.12.
-
-
-## Alteração 3.12.2
-O ícone da tela inicial agora utiliza o losango original do cabeçalho. Os controles de tema, ajuda e configurações usam emojis. Nenhuma alteração no IndexedDB, dados financeiros ou regras de parcelamento.
+Para atualizar: exporte backup no aplicativo, substitua os oito arquivos no GitHub Pages, aguarde a publicação e abra com internet para carregar o novo Service Worker. Não limpe os dados locais.

@@ -164,3 +164,7 @@ html[data-theme=pink] .header-actions .icon-button{color:#fff2f8}
 .header-actions .icon-button{font-size:22px;line-height:1;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,"Apple Color Emoji",sans-serif}
 .header-actions .theme-button{font-size:21px}
 html[data-theme=pink] .brand-icon{background:linear-gradient(135deg,#ed79b0,#ffc0dc);color:#4a1835}
+
+/* v3.12.3: aviso separado de reserva de compromissos sem alterar saldo real */
+.cash-reserve-note{margin-top:12px;padding-top:10px;border-top:1px solid #396073;color:#b3e6dd;font-size:12px;font-weight:650;line-height:1.45}
+html[data-theme=pink] .cash-reserve-note{color:#ffd3e6;border-color:#8c597f}

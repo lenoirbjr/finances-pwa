@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.12.2.2">
+<link rel="stylesheet" href="./style.css?v=3.12.3">
 <title>Finanças</title>
 </head>
 <body>
@@ -20,7 +20,7 @@
 <div id="app" hidden>
 <section class="hero" aria-label="Saldo atual">
 <div class="hero-overline">SALDO ESTIMADO</div><div class="hero-number" id="cashBalance">—</div>
-<div class="hero-sub">Dinheiro em conta conforme saldo inicial e movimentações registradas.</div></section>
+<div class="hero-sub">Dinheiro em conta conforme saldo inicial e movimentações registradas. As reservas abaixo não são descontadas do saldo.</div><div id="cashReserveNote" class="cash-reserve-note hidden"></div></section>
 <section class="week-summary" aria-label="Limites de consumo">
 <div class="week-overline">DISPONÍVEL ATÉ O PRÓXIMO SALÁRIO</div>
 <div class="week-number" id="cycleAvailable">—</div>
@@ -81,8 +81,8 @@
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
 <div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
-<div class="help-item"><strong>Saldo estimado</strong><p>Parte do saldo de abertura e inclui as entradas, gastos e pagamentos lançados ou automaticamente programados até hoje. Não consulta o banco.</p></div>
-<div class="help-item"><strong>Disponível até o próximo salário</strong><p>Valor máximo de consumo calculado com o caixa atual, margem protegida e compromissos até os próximos ciclos salariais. Não é dinheiro extra.</p></div>
+<div class="help-item"><strong>Saldo estimado</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
+<div class="help-item"><strong>Disponível até o próximo salário</strong><p>Valor máximo de consumo calculado com o caixa atual, a margem e os compromissos futuros. Se a próxima fatura, fixos, investimento planejado e margem ultrapassarem o salário que irá recebê-los, a diferença também fica reservada do caixa atual. Não é dinheiro extra.</p></div>
 <div class="help-item"><strong>Referência diária</strong><p>Distribui o dinheiro disponível pelos dias restantes, incluindo hoje, até o próximo salário. Recalcula com novas despesas, bônus e tempo transcorrido.</p></div>
 <div class="help-item"><strong>Até domingo</strong><p>Valor sugerido para os dias que faltam até domingo, sem ultrapassar o próximo salário ou o orçamento seguro. Não é uma cota adicional.</p></div>
 <div class="help-item"><strong>Investimento mensal</strong><p>Previsto no dia 30 e descontado só uma vez; pode ser marcado como realizado antecipadamente.</p></div>
@@ -130,5 +130,5 @@
 </main></div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.12.2.2" defer></script>
+<script src="./app.js?v=3.12.3" defer></script>
 </body></html>

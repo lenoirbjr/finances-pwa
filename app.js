@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.12: orçamento baseado no saldo existente e nos compromissos por data. */
+/* Finanças 3.12.3: orçamento baseado no saldo existente e nos compromissos por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -112,6 +112,28 @@ function addDays(date,n){const [y,m,d]=date.split('-').map(Number);return dateKe
 function daysBetween(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)}
 function nextPayday(date){const m=date.slice(0,7),pay=eventDate(m,30);return pay>date?pay:eventDate(shiftMonth(m,1),30)}
 function nextSunday(date){const d=new Date(date+'T12:00:00');return addDays(date,(7-d.getDay())%7)}
+// Reserva adicional para o fechamento mais próximo: não confundir superávit futuro
+// com dinheiro que já existe. Uma fatura que exceda o salário líquido do ciclo,
+// considerando fixos, aporte planejado e margem, consome parte do saldo atual.
+// A reserva não é saída de caixa: limita apenas os KPIs de consumo.
+function nextInvoiceCoverage(s,asOf){
+ const m=asOf.slice(0,7),thisDue=eventDate(m,5);
+ const invoiceMonth=thisDue>asOf?m:shiftMonth(m,1);
+ const invoiceDate=eventDate(invoiceMonth,5);
+ const salaryMonth=shiftMonth(invoiceMonth,-1),salaryDate=eventDate(salaryMonth,30);
+ const incomingSalary=salaryDate>asOf&&salaryDate<=invoiceDate?profile(s,salaryMonth).income:0;
+ const invoice=invoiceDate>asOf?round(baseAmount(s,invoiceMonth)+newAmount(s,invoiceMonth)):0;
+ const fixed=round(activeFixed(s,invoiceMonth).reduce((sum,item)=>{
+   const confirmed=confirmedFixed(s,item.id,invoiceMonth);
+   const paidDate=confirmed?.date||fixedDate(s,item,invoiceMonth);
+   return sum+(paidDate>asOf?confirmed?confirmed.amount:item.amount:0);
+ },0));
+ const paid=settled(s,invoiceMonth);
+ const investment=(skipped(s,invoiceMonth)||(paid&&paid.date<=asOf))?0:paid?paid.amount:investmentAmount(s,invoiceMonth);
+ const margin=profile(s,invoiceMonth).margin;
+ const obligations=round(invoice+fixed+investment+margin);
+ return {invoiceMonth,invoiceDate,salaryDate,incomingSalary,invoice,fixed,investment,margin,obligations,shortfall:round(Math.max(0,obligations-incomingSalary))};
+}
 // Avalia os compromissos até o terceiro próximo crédito mensal.
 // A margem é um piso de caixa, e não uma saída bancária nem um valor somado todos os meses.
 function cycleBudget(s,asOf=today()){
@@ -135,12 +157,17 @@ function cycleBudget(s,asOf=today()){
    const value=cashForecast(s,d,asOf)-profile(s,d.slice(0,7)).margin-reserve;
    if(value<minimum){minimum=value;lowestDate=d}
  }
- const available=round(Math.max(0,Math.min(current,minimum)));
+ // O teste da liquidez por data não mede sozinho o déficit do orçamento
+ // seguinte: o salário do dia 30 pode pagar a fatura do dia 5 e ainda assim
+ // faltar dinheiro para o aporte e a margem do mês. Protegemos essa diferença.
+ const coverage=nextInvoiceCoverage(s,asOf);
+ const cashAfterProtected=round(current-profile(s,asOf.slice(0,7)).margin-reserve-coverage.shortfall);
+ const available=round(Math.max(0,Math.min(current,minimum,cashAfterProtected)));
  const daily=round(available/days);
  const sunday=nextSunday(asOf);
  const remaining=Math.min(days,daysBetween(asOf,sunday)+1);
  const week=round(Math.min(available,available/days*remaining));
- return {ready:true,current,next,days,sunday,remaining,available,daily,week,minimum:round(minimum),lowestDate,horizon,margin:profile(s,asOf.slice(0,7)).margin};
+ return {ready:true,current,next,days,sunday,remaining,available,daily,week,minimum:round(minimum),lowestDate,horizon,margin:profile(s,asOf.slice(0,7)).margin,coverage};
 }
 
 function profile(s,m){return s.profiles.filter(p=>p.from<=m).sort((a,b)=>b.from.localeCompare(a.from))[0]||s.profiles.slice().sort((a,b)=>a.from.localeCompare(b.from))[0]}
@@ -270,13 +297,15 @@ function renderInvestmentPanels(){
 function render(){const m=monthNow(),x=monthly(state,m),calc=cycleBudget(state);$('monthCaption').textContent=monthTitle(m);
 $('cashBalance').textContent=calc.ready?money(calc.current):'—';
 $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
+const cashReserveNote=$('cashReserveNote');
+if(cashReserveNote){const gap=calc.ready?calc.coverage.shortfall:0;cashReserveNote.classList.toggle('hidden',!(gap>0));cashReserveNote.textContent=gap>0?`A preservar para os compromissos de ${monthTitle(calc.coverage.invoiceMonth)}: ${money(gap)}`:'';}
 $('cycleAvailable').textContent=calc.ready?money(calc.available):'—';
 $('dayReference').textContent=calc.ready?money(calc.daily):'—';
 $('sundayReference').textContent=calc.ready?money(calc.week):'—';
 $('paydayCaption').textContent=calc.ready?calc.next.split('-').reverse().join('/'):'—';
 $('daysCaption').textContent=calc.ready?`${calc.days} dia(s) até o salário`:'—';
 $('sundayCaption').textContent=calc.ready?`Até ${calc.sunday.split('-').reverse().join('/')} · ${calc.remaining} dia(s)`:'—';
-$('cycleDetail').textContent=!calc.ready?calc.reason:calc.minimum<0?'Atenção: os compromissos projetados ultrapassam o caixa protegido. Confira o planejamento.':'Após a margem e os pagamentos previstos, sem antecipar salários futuros.';
+$('cycleDetail').textContent=!calc.ready?calc.reason:calc.minimum<0?'Atenção: os compromissos projetados ultrapassam o caixa protegido. Confira o planejamento.':calc.coverage.shortfall>0?`Após margem e reserva de ${money(calc.coverage.shortfall)} para cobrir a diferença dos compromissos de ${monthTitle(calc.coverage.invoiceMonth)}.`:'Após a margem e os pagamentos previstos, sem antecipar salários futuros.';
 $('currentMargin').textContent=money(profile(state,m).margin);
 $('currentInvestment').textContent=money(investmentAmount(state,m));
 const ex=state.expenses.slice().sort((a,b)=>b.date.localeCompare(a.date));$('expenseCount').textContent=String(ex.length);$('expenses').innerHTML=ex.length?ex.map(e=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${e.date.split('-').reverse().join('/')}</div></div><div class="entry-right"><span class="entry-price">${money(e.amount)}</span><button class="entry-remove" type="button" data-delete-expense="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`).join(''):'<p class="empty">Nenhum gasto registrado.</p>';

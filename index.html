@@ -3,39 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#081522" id="appThemeColor">
+<meta name="theme-color" content="#0b1424" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Finanças">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.12.3">
-<title>Finanças</title>
+<link rel="stylesheet" href="./style.css?v=3.13.0">
+<title>Finanças de Casal</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./icon-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Finanças</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./icon-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Finanças de Casal</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
-<section class="hero" aria-label="Saldo atual">
-<div class="hero-overline">SALDO ESTIMADO</div><div class="hero-number" id="cashBalance">—</div>
-<div class="hero-sub">Dinheiro em conta conforme saldo inicial e movimentações registradas. As reservas abaixo não são descontadas do saldo.</div><div id="cashReserveNote" class="cash-reserve-note hidden"></div></section>
-<section class="week-summary" aria-label="Limites de consumo">
-<div class="week-overline">DISPONÍVEL ATÉ O PRÓXIMO SALÁRIO</div>
-<div class="week-number" id="cycleAvailable">—</div>
-<div class="week-description" id="cycleDetail">Após os compromissos programados.</div>
-<div class="hero-divider"></div>
-<div class="stats three-kpis">
-<div><div class="stat-label">Referência diária</div><div id="dayReference" class="stat-value">—</div><div id="daysCaption" class="stat-note">—</div></div>
-<div><div class="stat-label">Até domingo</div><div id="sundayReference" class="stat-value">—</div><div id="sundayCaption" class="stat-note">—</div></div>
-</div>
-<div class="next-payday">Próximo salário <strong id="paydayCaption">—</strong></div>
-<div class="mini-protections"><span>Investimento mensal <strong id="currentInvestment">—</strong></span><span>Margem protegida <strong id="currentMargin">—</strong></span></div>
-</section>
-<nav class="tabs" aria-label="Áreas do aplicativo"><button type="button" data-screen="week" class="active">Semana</button><button type="button" data-screen="installments">Parcelas</button><button type="button" data-screen="planning">Planejamento</button><button type="button" data-screen="investments">Investimentos</button></nav>
 <main>
-<section id="screen-week" class="screen">
+<section id="screen-home" class="screen dashboard" aria-label="Início">
+<div class="week-badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span id="weekRange">—</span></div>
+<section class="balance-card" aria-labelledby="balance-title">
+<h1 id="balance-title">Saldo até domingo</h1>
+<div id="sundayReference" class="balance-amount">—</div>
+<p id="sundayCaption" class="dashboard-note">—</p>
+<figure id="weekTrend" class="week-figure hidden" aria-hidden="true">
+<svg class="week-trend" viewBox="0 0 300 44" preserveAspectRatio="none" focusable="false"><path class="trend-grid" d="M1 43H299 M1 0V43 M150 0V43 M299 0V43"/><path id="trendArea" class="trend-area"/><path id="trendLine" class="trend-line"/><circle id="trendEnd" class="trend-end" r="3"/></svg>
+<figcaption><span id="trendStart">Hoje</span><span>Limite acumulado</span><span id="trendLast">Dom</span></figcaption>
+</figure>
+</section>
+<div id="preInvestmentCard" class="dashboard-tile">
+<span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 8V6a2 2 0 0 0-2-2H6a3 3 0 0 0 0 6h14a1 1 0 0 1 1 1v7a2 2 0 0 1-2 2H6a3 3 0 0 1-3-3V7m18 6h-5a2 2 0 1 0 0 4h5"/></svg></span><div class="tile-copy"><span>Saldo antes de investir</span><strong id="preInvestmentBalance">—</strong><small id="preInvestmentDate">—</small></div>
+</div>
+<section aria-labelledby="upcoming-title">
+<h2 id="upcoming-title" class="dashboard-heading">Próximos lançamentos</h2>
+<div id="upcomingRows" class="dashboard-events">
+<div id="salaryRow" class="event-row"><span class="tile-icon income-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg></span><span>Salário</span><time id="paydayCaption">—</time></div>
+<div id="invoiceRow" class="event-row"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span><span>Fatura do cartão</span><time id="invoiceCaption">—</time></div>
+</div>
+</section>
+<div class="dashboard-actions">
+<button type="button" class="dashboard-tile" data-screen="investments" id="homeInvestments"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16M7 15v-3m5 3V9m5 6V5m0 0h-4m4 0v4"/></svg></span><span class="tile-copy"><span>Investimento do mês</span><strong id="homeInvestmentTotal">—</strong></span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
+<button type="button" class="dashboard-tile" data-screen="investments" id="homeExtras"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M8 12h8m-4-4v8"/></svg></span><span class="tile-copy"><span>Aportes extras</span><strong id="homeExtraTotal">—</strong></span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
+</div>
+<details class="home-details"><summary>Entenda o saldo e as reservas</summary>
+<div class="home-ledger"><div><span>Saldo estimado em conta</span><strong id="cashBalance">—</strong></div><div><span>Disponível até o próximo salário</span><strong id="cycleAvailable">—</strong></div><div><span>Referência diária</span><strong id="dayReference">—</strong><small id="daysCaption">—</small></div><div><span>Investimento mensal protegido</span><strong id="currentInvestment">—</strong></div><div><span>Margem protegida</span><strong id="currentMargin">—</strong></div></div>
+<p id="cycleDetail" class="dashboard-note">Após os compromissos programados.</p><p id="cashReserveNote" class="cash-reserve-note hidden"></p>
+</details>
+</section>
+<nav id="launch-tabs" class="subtabs hidden" aria-label="Tipos de lançamento"><button data-screen="week" type="button">Movimentações</button><button data-screen="installments" type="button">Parcelas</button></nav>
+<nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
+<section id="screen-week" class="screen hidden">
 <div class="section-heading"><div><h1>Movimentações</h1></div></div>
 <div class="surface"><div class="surface-heading"><h2>Entrada extra</h2></div><form id="incomeExtraForm"><label for="incomeExtraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="incomeExtraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="incomeExtraDate" type="date" required></div><label for="incomeExtraName">Descrição (opcional)</label><input id="incomeExtraName" maxlength="120" placeholder="Ex.: Bônus"><label for="incomeExtraAmount">Valor recebido (R$)</label><input id="incomeExtraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Registrar entrada</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
@@ -81,6 +97,7 @@
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
 <div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
+<div class="help-item"><strong>Saldo antes de investir</strong><p>Projeção do caixa na data do próximo salário, antes do aporte mensal ainda não registrado. Não é o saldo de hoje nem o limite disponível para gastar. O cartão só aparece quando há aporte previsto naquela data.</p></div>
 <div class="help-item"><strong>Saldo estimado</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
 <div class="help-item"><strong>Disponível até o próximo salário</strong><p>Valor máximo de consumo calculado com o caixa atual, a margem e os compromissos futuros. Se a próxima fatura, fixos, investimento planejado e margem ultrapassarem o salário que irá recebê-los, a diferença também fica reservada do caixa atual. Não é dinheiro extra.</p></div>
 <div class="help-item"><strong>Referência diária</strong><p>Distribui o dinheiro disponível pelos dias restantes, incluindo hoje, até o próximo salário. Recalcula com novas despesas, bônus e tempo transcorrido.</p></div>
@@ -127,8 +144,14 @@
 <div class="help-item"><strong>Importar backup</strong><p>Restaura os registros do arquivo escolhido, substituindo os dados locais existentes. Faça uma exportação antes de restaurar.</p></div>
 <div class="help-item"><strong>Atualização automática</strong><p>O aplicativo funciona sem internet após carregar seus arquivos. Os dados são mantidos localmente, mas ainda é importante realizar backups periódicos.</p></div></details>
 </section>
-</main></div>
+</main>
+<nav class="tabs bottom-nav" aria-label="Áreas do aplicativo">
+<button type="button" data-screen="home" data-area="home" class="active" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-7h6v7"/></svg><span>Início</span></button>
+<button type="button" data-screen="week" data-area="week"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg><span>Lançamentos</span></button>
+<button type="button" data-screen="planning" data-area="planning"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span>Planejamento</span></button>
+</nav>
+</div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.12.3" defer></script>
+<script src="./app.js?v=3.13.0" defer></script>
 </body></html>

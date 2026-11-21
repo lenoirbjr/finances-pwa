@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.12.3: orçamento baseado no saldo existente e nos compromissos por data. */
+/* Finanças 3.13.0: interface renovada, com o mesmo orçamento por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -196,7 +196,7 @@ function toV5(v){
  }
  x.mode='items';x.version=5;return x;
 }
-let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),screen='week',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,viewMonth=monthNow();
+let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),screen='home',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,viewMonth=monthNow();
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
@@ -215,20 +215,27 @@ function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
 const THEME_KEY='finances-pwa-theme-v3.12';
+const HEADER_ICONS={
+  moon:'<path d="M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/>',
+  settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" class="settings-knob"/><circle cx="15" cy="12" r="2" class="settings-knob"/><circle cx="10" cy="18" r="2" class="settings-knob"/>',
+  back:'<path d="M20 12H4m8-8-8 8 8 8"/>'
+};
+function setHeaderIcon(button,icon,label){
+ if(button.dataset.icon!==icon){button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${HEADER_ICONS[icon]}</svg>`;button.dataset.icon=icon;}
+ button.setAttribute('aria-label',label);
+ button.title=label;
+}
 function refreshHeaderButtons(){
- const theme=document.documentElement.dataset.theme==='pink'?'pink':'ocean';
- const themeButton=$('themeToggle');
- themeButton.textContent=theme==='pink'?'👩🏽‍🦱':'👨🏻';
- themeButton.setAttribute('aria-label',theme==='pink'?'Ativar tema azul':'Ativar tema rosa');
- themeButton.title=theme==='pink'?'Usar tema azul':'Usar tema rosa';
- $('quickSettings').textContent=screen==='settings'?'←':'⚙️';
- $('quickSettings').setAttribute('aria-label',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');
- $('quickInfo').textContent=screen==='info'?'←':'ℹ️';
- $('quickInfo').setAttribute('aria-label',screen==='info'?'Voltar ao aplicativo':'Abrir informações');
+ const pink=document.documentElement.dataset.theme==='pink';
+ setHeaderIcon($('themeToggle'),pink?'moon':'sun',pink?'Ativar Azul Noturno':'Ativar Rosé Claro');
+ setHeaderIcon($('quickSettings'),screen==='settings'?'back':'settings',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');
+ setHeaderIcon($('quickInfo'),screen==='info'?'back':'info',screen==='info'?'Voltar ao aplicativo':'Abrir informações');
 }
 function setTheme(theme){
  const next=theme==='pink'?'pink':'ocean';document.documentElement.dataset.theme=next;
- const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#251222':'#081522';
+ const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#fcf7f8':'#0b1424';
  refreshHeaderButtons();
  try{localStorage.setItem(THEME_KEY,next)}catch{}
 }
@@ -294,7 +301,46 @@ function renderInvestmentPanels(){
    return `<details class="investment-history-year" data-history-year="${year}" ${openHistoryYears.has(year)?'open':''}><summary><strong>${year}</strong><span><strong class="year-total">${money(yearAmount)}</strong><small>${entries.length} ${entries.length===1?'mês':'meses'}</small></span></summary><div class="investment-history-year-content">${rendered}</div></details>`;
  }).join('');
 }
-function render(){const m=monthNow(),x=monthly(state,m),calc=cycleBudget(state);$('monthCaption').textContent=monthTitle(m);
+const dayAndMonth=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'});
+const dayOfWeek=new Intl.DateTimeFormat('pt-BR',{weekday:'short'});
+const shortDate=date=>dayAndMonth.format(new Date(date+'T12:00:00')).replace(' de ',' ').replace('.','');
+const shortDay=date=>dayOfWeek.format(new Date(date+'T12:00:00')).replace('.','');
+function renderDashboard(asOf,calc,m){
+ const since=monday(new Date(asOf+'T12:00:00')), sunday=nextSunday(asOf);
+ $('weekRange').textContent=since.slice(0,7)===sunday.slice(0,7)?`${since.slice(-2)}–${shortDate(sunday)}`:`${shortDate(since)} – ${shortDate(sunday)}`;
+ const next=nextPayday(asOf),invoiceDate=nextInvoiceCoverage(state,asOf).invoiceDate;
+ for(const [id,day] of [['paydayCaption',next],['invoiceCaption',invoiceDate]]){
+   $(id).dateTime=day;$(id).textContent=shortDate(day);
+ }
+ const first=next<=invoiceDate?$('salaryRow'):$('invoiceRow');
+ if($('upcomingRows').firstElementChild!==first)$('upcomingRows').prepend(first);
+ const nextMonth=next.slice(0,7);
+ const upcomingContribution=!settled(state,nextMonth)&&!skipped(state,nextMonth)&&investmentAmount(state,nextMonth)>0;
+ $('preInvestmentCard').classList.toggle('hidden',!calc.ready||!upcomingContribution);
+ if(calc.ready&&upcomingContribution){
+   const before=cashAt(state,next);
+   $('preInvestmentBalance').textContent=money(before);
+   $('preInvestmentBalance').classList.toggle('negative',before<0);
+   $('preInvestmentDate').textContent=`Projeção em ${shortDate(next)}`;
+ }
+ const invested=investmentsStatus(state,m);
+ $('homeInvestmentTotal').textContent=money(invested.total);
+ $('homeExtraTotal').textContent=money(invested.extra);
+ // Show the protected cumulative allowance, not a bank-balance history or forecast.
+ const dates=daysBetween(asOf,sunday)+1,showTrend=calc.ready&&calc.week>0&&dates>1;
+ $('weekTrend').classList.toggle('hidden',!showTrend);
+ if(showTrend){
+   const points=Array.from({length:dates},(_,i)=>[1+298*i/(dates-1),43-37*Math.min(i+1,calc.remaining)/calc.remaining]);
+   const line=points.map(([x,y],i)=>`${i?'L':'M'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+   $('trendLine').setAttribute('d',line);
+   $('trendArea').setAttribute('d',`${line} L299 44 H1 Z`);
+   $('trendEnd').setAttribute('cx','299');
+   $('trendEnd').setAttribute('cy',points[points.length-1][1]);
+   $('trendStart').textContent=shortDay(asOf);
+   $('trendLast').textContent=shortDay(sunday);
+ }
+}
+function render(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);
 $('cashBalance').textContent=calc.ready?money(calc.current):'—';
 $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
 const cashReserveNote=$('cashReserveNote');
@@ -302,9 +348,8 @@ if(cashReserveNote){const gap=calc.ready?calc.coverage.shortfall:0;cashReserveNo
 $('cycleAvailable').textContent=calc.ready?money(calc.available):'—';
 $('dayReference').textContent=calc.ready?money(calc.daily):'—';
 $('sundayReference').textContent=calc.ready?money(calc.week):'—';
-$('paydayCaption').textContent=calc.ready?calc.next.split('-').reverse().join('/'):'—';
 $('daysCaption').textContent=calc.ready?`${calc.days} dia(s) até o salário`:'—';
-$('sundayCaption').textContent=calc.ready?`Até ${calc.sunday.split('-').reverse().join('/')} · ${calc.remaining} dia(s)`:'—';
+$('sundayCaption').textContent=calc.ready?'Disponível para gastar após as reservas.':calc.reason;
 $('cycleDetail').textContent=!calc.ready?calc.reason:calc.minimum<0?'Atenção: os compromissos projetados ultrapassam o caixa protegido. Confira o planejamento.':calc.coverage.shortfall>0?`Após margem e reserva de ${money(calc.coverage.shortfall)} para cobrir a diferença dos compromissos de ${monthTitle(calc.coverage.invoiceMonth)}.`:'Após a margem e os pagamentos previstos, sem antecipar salários futuros.';
 $('currentMargin').textContent=money(profile(state,m).margin);
 $('currentInvestment').textContent=money(investmentAmount(state,m));
@@ -320,7 +365,22 @@ $('forecast').innerHTML=Array.from({length:12},(_,i)=>{
 $('started').value=state.started;const editingMonth=$('effectiveMonth').value||m;$('effectiveMonth').value=editingMonth;fillProfileInputs();
 $('exportLegacy').classList.toggle('hidden',!archived);
 previewParcel();calendarLabels();showScreenNoScroll()}
-function showScreenNoScroll(){const auxiliary=screen==='settings'||screen==='info';document.body.classList.toggle('settings-view',auxiliary);$('quickSettings').classList.toggle('hidden',screen==='info');$('quickInfo').classList.toggle('hidden',screen==='settings');refreshHeaderButtons();for(const n of ['week','installments','planning','investments','settings','info']){$('screen-'+n).classList.toggle('hidden',n!==screen);const button=document.querySelector(`[data-screen="${n}"]`);if(button)button.classList.toggle('active',n===screen)}}
+function showScreenNoScroll(){
+ const auxiliary=screen==='settings'||screen==='info',launch=screen==='week'||screen==='installments',plan=screen==='planning'||screen==='investments';
+ document.body.classList.toggle('settings-view',auxiliary);
+ $('quickSettings').classList.toggle('hidden',screen==='info');
+ $('quickInfo').classList.toggle('hidden',screen==='settings');
+ $('launch-tabs').classList.toggle('hidden',!launch);
+ $('plan-tabs').classList.toggle('hidden',!plan);
+ refreshHeaderButtons();
+ for(const name of ['home','week','installments','planning','investments','settings','info'])$('screen-'+name).classList.toggle('hidden',name!==screen);
+ const area=launch?'week':plan?'planning':screen;
+ for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button')){
+   const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
+   button.classList.toggle('active',active);
+   if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+ }
+}
 function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
 async function saveExpense(e){e.preventDefault();const name=$('expenseName').value.trim(),value=amount('expenseAmount'),date=$('expenseDate').value;if(!name||!(value>0)||!isDate(date))return notice('Informe data, descrição e valor positivo.','warning');if(await update(s=>s.expenses.push({id:newId(),name,amount:round(value),date}))){$('expenseName').value='';$('expenseAmount').value=''}}
 async function saveNew(e){e.preventDefault();const name=$('parcelName').value.trim(),total=amount('parcelTotal'),count=Number($('parcelCount').value),start=$('parcelStart').value;if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120)return notice('Confira os campos da compra.','warning');if(await update(s=>{const item={id:editingNew||newId(),name,total:round(total),payment:round(total/count),count,start};if(editingNew)s.parcels=s.parcels.map(p=>p.id===editingNew?item:p);else s.parcels.push(item)})){editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden')}}
@@ -376,9 +436,15 @@ async function init(){try{
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
 document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',calendarLabels);el.addEventListener('change',calendarLabels)});
-document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>showScreen(b.dataset.screen)));
-$('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'week':'settings'));
-$('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'week':'info'));
+document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>{
+ showScreen(b.dataset.screen);
+ if(b.id==='homeExtras'||b.id==='homeInvestments'){
+   $('investmentFocusMonth').value=monthNow();updateInvestmentForm();renderInvestmentPanels();
+   if(b.id==='homeExtras')$('extraForm').closest('.surface')?.scrollIntoView({block:'start'});
+ }
+}));
+$('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
+$('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);

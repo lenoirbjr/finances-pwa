@@ -376,20 +376,3 @@ html body .surface.contribution-card .investment-target,html[data-theme=pink] bo
 .monthly-extras .entry-title,.monthly-extras .entry-price{font-size:.78rem}
 .monthly-extras .entry-description{display:block;font-size:.68rem;margin-top:3px}
 .monthly-extras .entry-remove{height:44px;min-width:40px}
-
-/* 3.15 — divisão de despesas e registro dos valores adiantados. */
-#launch-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
-#launch-tabs button{font-size:clamp(.69rem,2.8vw,.81rem)}
-.share-preview{margin:12px 0 0}
-.share-installments{margin-top:9px}
-.share-preview strong,.share-installments strong{overflow-wrap:anywhere;white-space:normal;text-align:right}
-.surface .share-note{margin-top:7px}
-.share-detail{line-height:1.4}
-.history-entry .entry-right{gap:6px}
-.partner-month-summary{align-items:flex-start}
-.partner-month-summary small{display:block;margin-top:4px;color:var(--muted);line-height:1.45}
-.partner-month-summary strong{flex:none}
-@media(max-width:375px){
- .history-entry{align-items:flex-start}
- .history-entry .entry-right{gap:4px}
-}

@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.15.0: divisão de despesas por porcentagem. */
+/* Finanças 3.14.1: históricos mensais recolhíveis. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -16,26 +16,9 @@ const monthDiff=(a,b)=>{const [y,m]=a.split('-').map(Number),[y2,m2]=b.split('-'
 const isDate=s=>/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(s)&&dateKey(new Date(s+'T12:00:00'))===s;
 const isMonth=s=>/^\d{4}-(0[1-9]|1[0-2])$/.test(s);
 const amount=id=>{const raw=$(id).value.trim().replace(',','.');return raw===''?NaN:Number(raw)};
-const cents=value=>Math.round(value*100);
-const MAX_SPLIT_GROSS=9999999999.99;
-function splitAmounts(gross,percent,{allowZero=false}={}){
- if(!Number.isFinite(gross)||gross<(allowZero?0:0.01)||gross>MAX_SPLIT_GROSS||cents(gross)/100!==gross||
-    !Number.isFinite(percent)||percent<0||percent>100||cents(percent)/100!==percent)return null;
- const grossCents=cents(gross),mineCents=Number((BigInt(grossCents)*BigInt(cents(percent))+5000n)/10000n);
- return {gross,percent,mine:mineCents/100,other:(grossCents-mineCents)/100};
-}
-const allocatedPartCents=(total,count,i)=>Math.floor(total/count)+(i<total%count?1:0);
-function validStoredShare(item,key,{allowZero=false,installment=false}={}){
- if(!Object.hasOwn(item,'split'))return Number.isFinite(item[key])&&(allowZero?item[key]>=0:item[key]>0);
- const split=item.split;
- if(!split||typeof split!=='object'||Array.isArray(split)||(Object.hasOwn(split,'fronted')&&typeof split.fronted!=='boolean'))return false;
- const values=splitAmounts(split.gross,split.percent,{allowZero});
- return Boolean(values&&(!split.fronted||values.other>0)&&item[key]===values.mine&&(!installment||
-   (Number.isInteger(item.count)&&item.count>0&&item.payment===allocatedPartCents(cents(values.mine),item.count,0)/100)));
-}
 const newId=()=>crypto.randomUUID();
 const empty=()=>({version:8,fixedPaid:[],monthlyPaid:[],investmentSkipped:[],opening:null,extraIncome:[],cashEntries:[],mode:'items',income:0,legacyFixed:0,legacyInvoices:{},fixedItems:[],baseParcels:[],investments:0,investmentOverrides:{},investmentLowerLegacy:{},extraInvestments:[],profiles:[{from:'2000-01',income:0,investments:0,margin:0}],expenses:[],parcels:[],started:monday(new Date())});
-function validLegacyShape(s){return !!(s&&s.version===5&&s.mode==='items'&&Number.isFinite(s.income)&&s.income>=0&&Number.isFinite(s.legacyFixed)&&s.legacyFixed>=0&&isDate(s.started)&&Number.isFinite(s.investments)&&s.investments>=0&&s.legacyInvoices&&typeof s.legacyInvoices==='object'&&!Array.isArray(s.legacyInvoices)&&Object.entries(s.legacyInvoices).every(([m,v])=>isMonth(m)&&Number.isFinite(v)&&v>=0)&&s.investmentOverrides&&Object.entries(s.investmentOverrides).every(([m,v])=>isMonth(m)&&Number.isFinite(v)&&v>=0)&&Array.isArray(s.fixedItems)&&s.fixedItems.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&validStoredShare(e,'amount',{allowZero:true})&&isMonth(e.start)&&(!e.end||isMonth(e.end)))&&Array.isArray(s.baseParcels)&&s.baseParcels.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&validStoredShare(e,'payment')&&isMonth(e.start)&&Number.isInteger(e.remaining)&&e.remaining>0&&e.remaining<=240)&&Array.isArray(s.expenses)&&s.expenses.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&validStoredShare(e,'amount')&&isDate(e.date))&&Array.isArray(s.parcels)&&s.parcels.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isMonth(e.start)&&Number.isInteger(e.count)&&e.count>0&&e.count<=120&&validStoredShare(e,'total',{installment:true})&&Number.isFinite(e.payment)&&e.payment>=0));}
+function validLegacyShape(s){return !!(s&&s.version===5&&s.mode==='items'&&Number.isFinite(s.income)&&s.income>=0&&Number.isFinite(s.legacyFixed)&&s.legacyFixed>=0&&isDate(s.started)&&Number.isFinite(s.investments)&&s.investments>=0&&s.legacyInvoices&&typeof s.legacyInvoices==='object'&&!Array.isArray(s.legacyInvoices)&&Object.entries(s.legacyInvoices).every(([m,v])=>isMonth(m)&&Number.isFinite(v)&&v>=0)&&s.investmentOverrides&&Object.entries(s.investmentOverrides).every(([m,v])=>isMonth(m)&&Number.isFinite(v)&&v>=0)&&Array.isArray(s.fixedItems)&&s.fixedItems.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&Number.isFinite(e.amount)&&e.amount>=0&&isMonth(e.start)&&(!e.end||isMonth(e.end)))&&Array.isArray(s.baseParcels)&&s.baseParcels.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&Number.isFinite(e.payment)&&e.payment>0&&isMonth(e.start)&&Number.isInteger(e.remaining)&&e.remaining>0&&e.remaining<=240)&&Array.isArray(s.expenses)&&s.expenses.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&Number.isFinite(e.amount)&&e.amount>0&&isDate(e.date))&&Array.isArray(s.parcels)&&s.parcels.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isMonth(e.start)&&Number.isInteger(e.count)&&e.count>0&&e.count<=120&&Number.isFinite(e.total)&&e.total>0&&Number.isFinite(e.payment)&&e.payment>=0));}
 
 function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
@@ -48,7 +31,6 @@ function valid(s){
  if(s.investmentSkipped!==undefined&&(!Array.isArray(s.investmentSkipped)||!s.investmentSkipped.every(m=>isMonth(m))||new Set(s.investmentSkipped).size!==s.investmentSkipped.length))return false;
  if(s.fixedPaid!==undefined&&(!Array.isArray(s.fixedPaid)||!s.fixedPaid.every(e=>typeof e.id==='string'&&isMonth(e.month)&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>=0)))return false;
  if(!s.fixedItems.every(e=>e.day===undefined||(Number.isInteger(e.day)&&e.day>=1&&e.day<=31)))return false;
- if(!validReimbursements(s))return false;
  return s.extraInvestments.every(x=>typeof x.id==='string'&&typeof x.name==='string'&&x.name.length<=120&&isDate(x.date)&&Number.isFinite(x.amount)&&x.amount>0)&&s.monthlyPaid.every(x=>isMonth(x.month)&&isDate(x.date)&&x.date.slice(0,7)===x.month&&Number.isFinite(x.amount)&&x.amount>=0)&&new Set(s.monthlyPaid.map(x=>x.month)).size===s.monthlyPaid.length;
 }
 function toV6(v){
@@ -76,7 +58,7 @@ function skipped(s,m){return (s.investmentSkipped||[]).includes(m)}
 function eventDate(m,day){const [y,mo]=m.split('-').map(Number),last=new Date(y,mo,0).getDate();return `${m}-${pad(Math.min(day,last))}`}
 function fixedDate(s,item,m){return eventDate(m,item.day||5)}
 function confirmedFixed(s,id,m){return (s.fixedPaid||[]).find(x=>x.id===id&&x.month===m)||null}
-function cashAt(s,end,asOf=today()){
+function cashAt(s,end){
  if(!s.opening)return null;
  const start=s.opening.date;
  if(end<start)return round(s.opening.amount);
@@ -85,26 +67,25 @@ function cashAt(s,end,asOf=today()){
    const p=profile(s,m),salaryDay=eventDate(m,30),invoiceDay=eventDate(m,5),paid=settled(s,m);
    if(salaryDay>start&&salaryDay<=end)projected+=p.income;
    if(paid&&paid.date>=start&&paid.date<=end)projected-=paid.amount;
-   if(invoiceDay>start&&invoiceDay<=end)projected-=invoiceCashAmount(s,m);
+   if(invoiceDay>start&&invoiceDay<=end)projected-=baseAmount(s,m)+newAmount(s,m);
  }
  // Fixos são debitados automaticamente no dia configurado. Pagamentos históricos já confirmados prevalecem.
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
    for(const item of activeFixed(s,m)){
      const confirmed=confirmedFixed(s,item.id,m);
      if(confirmed){if(confirmed.date>start&&confirmed.date<=end)projected-=confirmed.amount;}
-     else {const due=fixedDate(s,item,m);if(due>start&&due<=end)projected-=fronted(item)?item.split.gross:item.amount;}
+     else {const due=fixedDate(s,item,m);if(due>start&&due<=end)projected-=item.amount;}
    }
  }
  projected+=s.extraIncome.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
- projected-=s.expenses.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+(fronted(e)?e.split.gross:e.amount),0);
+ projected-=s.expenses.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
  projected-=s.extraInvestments.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
- projected+=receivedBetween(s,start,end<asOf?end:asOf);
  return round(projected);
 }
 // Previsão separada: futuros pagamentos são assumidos, mas nunca debitados do caixa atual
 // antes de serem marcados como realizados. Pendências vencidas continuam protegidas.
 function cashForecast(s,end,asOf=today()){
- let projected=cashAt(s,end,asOf);
+ let projected=cashAt(s,end);
  if(projected===null)return null;
  const start=s.opening.date;
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
@@ -141,11 +122,11 @@ function nextInvoiceCoverage(s,asOf){
  const invoiceDate=eventDate(invoiceMonth,5);
  const salaryMonth=shiftMonth(invoiceMonth,-1),salaryDate=eventDate(salaryMonth,30);
  const incomingSalary=salaryDate>asOf&&salaryDate<=invoiceDate?profile(s,salaryMonth).income:0;
- const invoice=invoiceDate>asOf?invoiceCashAmount(s,invoiceMonth):0;
+ const invoice=invoiceDate>asOf?round(baseAmount(s,invoiceMonth)+newAmount(s,invoiceMonth)):0;
  const fixed=round(activeFixed(s,invoiceMonth).reduce((sum,item)=>{
    const confirmed=confirmedFixed(s,item.id,invoiceMonth);
    const paidDate=confirmed?.date||fixedDate(s,item,invoiceMonth);
-   return sum+(paidDate>asOf?(confirmed?confirmed.amount:fronted(item)?item.split.gross:item.amount):0);
+   return sum+(paidDate>asOf?confirmed?confirmed.amount:item.amount:0);
  },0));
  const paid=settled(s,invoiceMonth);
  const investment=(skipped(s,invoiceMonth)||(paid&&paid.date<=asOf))?0:paid?paid.amount:investmentAmount(s,invoiceMonth);
@@ -157,7 +138,7 @@ function nextInvoiceCoverage(s,asOf){
 // A margem é um piso de caixa, e não uma saída bancária nem um valor somado todos os meses.
 function cycleBudget(s,asOf=today()){
  const next=nextPayday(asOf), days=Math.max(1,daysBetween(asOf,next));
- const current=s.opening&&s.opening.date<=asOf?cashAt(s,asOf,asOf):null;
+ const current=s.opening&&s.opening.date<=asOf?cashAt(s,asOf):null;
  if(current===null)return {ready:false,reason:'Configure um saldo de abertura com data igual ou anterior a hoje.'};
  const horizon=nextPayday(nextPayday(next));
  const checkpoints=new Set([asOf,next,horizon]);
@@ -215,7 +196,7 @@ function toV5(v){
  }
  x.mode='items';x.version=5;return x;
 }
-let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),openExpenseMonths=new Set(),openParcelMonths=new Set(),screen='home',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,editingExpense=null,viewMonth=monthNow();
+let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),openExpenseMonths=new Set(),openParcelMonths=new Set(),screen='home',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,viewMonth=monthNow();
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
@@ -226,147 +207,8 @@ function fixedAmount(s,m){return s.mode==='legacy'?s.legacyFixed:round(activeFix
 function oldParts(s,m){return s.baseParcels.filter(e=>{const d=monthDiff(e.start,m);return d>=0&&d<e.remaining})}
 function baseAmount(s,m){return s.mode==='legacy'?(s.legacyInvoices[m]??0):round(oldParts(s,m).reduce((a,e)=>a+e.payment,0))}
 const newBaseAmount=baseAmount;
-function newPartAmount(e,m){
- const off=monthDiff(e.start,m);if(off<0||off>=e.count)return 0;
- const total=cents(e.total),unit=cents(e.payment);
- return (e.split?allocatedPartCents(total,e.count,off):off===e.count-1?total-unit*(e.count-1):unit)/100;
-}
-function newOtherPartAmount(e,m){
- const off=monthDiff(e.start,m);if(!e.split||off<0||off>=e.count)return 0;
- return (allocatedPartCents(cents(e.split.gross),e.count,off)-allocatedPartCents(cents(e.total),e.count,off))/100;
-}
-function otherShare(item,key){return item.split?(cents(item.split.gross)-cents(item[key]))/100:0;}
-function monthlyOtherShare(s,m){
- const parts=[
-  ...activeFixed(s,m).map(x=>otherShare(x,'amount')),
-  ...oldParts(s,m).map(x=>otherShare(x,'payment')),
-  ...s.parcels.map(x=>newOtherPartAmount(x,m)),
-  ...s.expenses.filter(x=>x.date.slice(0,7)===m).map(x=>otherShare(x,'amount'))
- ];
- return parts.reduce((total,value)=>total+cents(value),0)/100;
-}
+function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.count)return 0;const cents=Math.round(e.total*100),unit=Math.round(e.payment*100);return (off===e.count-1?cents-unit*(e.count-1):unit)/100}
 function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+newPartAmount(e,m),0))}
-function fronted(item){return item.split?.fronted===true;}
-function invoiceCashAmount(s,m){
- const oldExtra=s.mode==='legacy'?0:oldParts(s,m).reduce((sum,item)=>sum+(fronted(item)?cents(otherShare(item,'payment')):0),0);
- const newExtra=s.parcels.reduce((sum,item)=>sum+(fronted(item)?cents(newOtherPartAmount(item,m)):0),0);
- return round(baseAmount(s,m)+newAmount(s,m)+(oldExtra+newExtra)/100);
-}
-const SHARED_COLLECTION={expense:'expenses',fixed:'fixedItems',base:'baseParcels',new:'parcels'};
-function sharedOccurrence(item,kind,month=''){
- const key=kind==='expense'?`expense:${item.id}`:`${kind}:${item.id}:${month}`;
- const date=kind==='expense'?item.date:kind==='fixed'?fixedDate(null,item,month):eventDate(month,5);
- const own=kind==='new'?newPartAmount(item,month):kind==='base'?item.payment:item.amount;
- const other=kind==='new'?newOtherPartAmount(item,month):otherShare(item,kind==='base'?'payment':'amount');
- const detail=kind==='new'?`Parcela ${monthDiff(item.start,month)+1}/${item.count}`:kind==='base'?`Parcela restante ${monthDiff(item.start,month)+1}/${item.remaining}`:undefined;
- return {key,name:item.name,date,kind,detail,own,other,gross:round(own+other),fronted:fronted(item)};
-}
-function occurrenceFromKey(s,key){
- const endType=key.indexOf(':'),kind=key.slice(0,endType),group=Object.hasOwn(SHARED_COLLECTION,kind)?SHARED_COLLECTION[kind]:null;
- if(!group)return null;
- const month=kind==='expense'?'':key.slice(-7),id=kind==='expense'?key.slice(endType+1):key.slice(endType+1,-8);
- if(kind!=='expense'&&(!isMonth(month)||key.at(-8)!==':'))return null;
- const item=s[group].find(x=>x.id===id);
- if(!item?.split)return null;
- if(kind==='fixed'&&(month<item.start||(item.end&&month>item.end)))return null;
- if(kind==='base'||kind==='new'){
-   const offset=monthDiff(item.start,month),count=kind==='base'?item.remaining:item.count;
-   if(offset<0||offset>=count)return null;
- }
- const entry=sharedOccurrence(item,kind,month);
- if(kind==='fixed')entry.date=confirmedFixed(s,item.id,month)?.date||entry.date;
- return entry;
-}
-function validReimbursements(s){
- if(!Object.hasOwn(s,'reimbursements'))return true;
- const all=s.reimbursements;
- if(!all||typeof all!=='object'||Array.isArray(all))return false;
- const allIds=new Set();
- for(const [key,records] of Object.entries(all)){
-   const entry=occurrenceFromKey(s,key);
-   if(!entry?.fronted||entry.other<=0||!Array.isArray(records)||!records.length)return false;
-   let total=0;
-   for(const payment of records){
-     if(!payment||typeof payment.id!=='string'||!payment.id||allIds.has(payment.id)||!isDate(payment.date)||
-        !Number.isFinite(payment.amount)||payment.amount<=0||cents(payment.amount)/100!==payment.amount)return false;
-     allIds.add(payment.id);total+=cents(payment.amount);
-   }
-   if(total>cents(entry.other))return false;
- }
- return true;
-}
-function receivedBetween(s,start,end){
- if(end<start)return 0;
- return Object.values(s.reimbursements||{}).flat().reduce((sum,item)=>sum+(item.date>=start&&item.date<=end?cents(item.amount):0),0)/100;
-}
-function sharedRows(s,asOf=today()){
- const rows=new Map(),payments=s.reimbursements||{};
- const include=entry=>{if(entry&&entry.other>0)rows.set(entry.key,{...entry,payments:payments[entry.key]||[]})};
- for(const item of s.expenses)if(item.split)include(sharedOccurrence(item,'expense'));
- for(const kind of ['new','base']){
-  for(const item of s[SHARED_COLLECTION[kind]])if(item.split){
-   const count=kind==='new'?item.count:item.remaining;
-   for(let offset=0;offset<count;offset++)include(sharedOccurrence(item,kind,shiftMonth(item.start,offset)));
-  }
- }
- // For recurring bills without a set end, preview through the next 12 months.
- // Stored receipts remain accessible even if they are outside the preview window.
- const horizon=shiftMonth(asOf.slice(0,7),12);
- for(const item of s.fixedItems)if(item.split){
-   const end=item.end&&item.end<horizon?item.end:horizon;
-   const count=monthDiff(item.start,end);
-   if(count<0){include(occurrenceFromKey(s,`fixed:${item.id}:${item.start}`));continue;}
-   for(let offset=0;offset<=count;offset++)include(occurrenceFromKey(s,`fixed:${item.id}:${shiftMonth(item.start,offset)}`));
- }
- for(const key of Object.keys(payments))if(!rows.has(key))include(occurrenceFromKey(s,key));
- return [...rows.values()];
-}
-function itemHasPayments(kind,id){
- const prefix=kind==='expense'?`expense:${id}`:`${kind}:${id}:`;
- return Object.keys(state.reimbursements||{}).some(key=>kind==='expense'?key===prefix:key.startsWith(prefix)&&isMonth(key.slice(prefix.length)));
-}
-function checkSharedChange(kind,id,candidate){
- if(!id||!itemHasPayments(kind,id))return true;
- const existing=state[SHARED_COLLECTION[kind]].find(item=>item.id===id);
- const oldSplit=existing?.split,newSplit=candidate?.split;
- const fields={expense:['amount','date'],fixed:['amount','day','start','end'],base:['payment','remaining','start'],new:['total','payment','count','start']}[kind];
- if(candidate&&oldSplit?.gross===newSplit?.gross&&oldSplit?.percent===newSplit?.percent&&
-    fronted(existing)===fronted(candidate)&&fields.every(field=>(existing[field]??null)===(candidate[field]??null)))return true;
- notice('Este gasto tem reembolsos registrados. Corrija ou remova os recebimentos em Gastos conjuntos antes de alterar ou excluir o gasto.','warning');
- return false;
-}
-function sharedPaymentError(message){return {ok:false,error:message};}
-async function writeSharedPayment(key,id,date,amount){
- const entry=occurrenceFromKey(state,key);
- if(!entry?.fronted||entry.other<=0)return sharedPaymentError('Este lançamento não tem reembolso a administrar.');
- if(!isDate(date)||date>today()||!Number.isFinite(amount)||amount<=0||cents(amount)/100!==amount)return sharedPaymentError('Informe uma data de recebimento até hoje e um valor positivo com até dois decimais.');
- const payments=state.reimbursements?.[key]||[];
- if(id&&!payments.some(item=>item.id===id))return sharedPaymentError('Recebimento não encontrado.');
- const available=cents(entry.other)-payments.filter(item=>item.id!==id).reduce((sum,item)=>sum+cents(item.amount),0);
- if(cents(amount)>available)return sharedPaymentError('O valor ultrapassa o que falta receber.');
- const payment={id:id||newId(),date,amount};
- const ok=await update(s=>{
-   if(!s.reimbursements)s.reimbursements={};
-   s.reimbursements[key]=[...(s.reimbursements[key]||[]).filter(item=>item.id!==id),payment].sort((a,b)=>a.date.localeCompare(b.date));
- });
- return ok?{ok:true}:sharedPaymentError('Não foi possível salvar o recebimento.');
-}
-const addSharedPayment=(key,date,amount)=>writeSharedPayment(key,null,date,amount);
-const editSharedPayment=(key,id,date,amount)=>writeSharedPayment(key,id,date,amount);
-async function removeSharedPayment(key,id){
- if(!state.reimbursements?.[key]?.some(item=>item.id===id))return sharedPaymentError('Recebimento não encontrado.');
- const ok=await update(s=>{
-   const next=s.reimbursements[key].filter(item=>item.id!==id);
-   if(next.length)s.reimbursements[key]=next;
-   else delete s.reimbursements[key];
- });
- return ok?{ok:true}:sharedPaymentError('Não foi possível remover o recebimento.');
-}
-function refreshSharedScreen(){
- if(screen!=='shared'||!state||typeof window.SharedExpenses?.render!=='function')return;
- const asOf=today();
- window.SharedExpenses.render({rows:sharedRows(state,asOf),today:asOf,addPayment:addSharedPayment,editPayment:editSharedPayment,removePayment:removeSharedPayment});
-}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
 function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),base=newBaseAmount(s,m),extra=newAmount(s,m),investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-base-extra-applied-p.margin)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
@@ -398,37 +240,7 @@ function setTheme(theme){
  try{localStorage.setItem(THEME_KEY,next)}catch{}
 }
 function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
-function partRange(total,count){
- if(count===1)return money(total);
- const values=Array.from({length:count},(_,i)=>allocatedPartCents(cents(total),count,i)/100);
- return displayRange(values);
-}
-function displayRange(values){
- const min=Math.min(...values),max=Math.max(...values);
- return min===max?money(min):`${money(min)} a ${money(max)}`;
-}
-function otherPartRange(gross,mine,count){
- return displayRange(Array.from({length:count},(_,i)=>(allocatedPartCents(cents(gross),count,i)-allocatedPartCents(cents(mine),count,i))/100));
-}
-function splitDescription(item,key,type){
- if(!item.split||item.split.percent===100)return '';
- const pct=item.split.percent.toLocaleString('pt-BR',{maximumFractionDigits:2}),other=otherShare(item,key);
- if(type==='new')return `${fronted(item)?'Adiantado por mim · ':''}Cheio: ${money(item.split.gross)} · Minha parte (${pct}%): ${money(item[key])} · Outra: ${money(other)} total; ${otherPartRange(item.split.gross,item[key],item.count)} por parcela`;
- const unit=type==='fixed'?' por mês':type==='base'?' por parcela':'';
- return `${fronted(item)?'Adiantado por mim · ':''}Cheio: ${money(item.split.gross)} · Minha parte: ${pct}% · Outra: ${money(other)}${unit}${type==='base'?`; ${money(round(other*item.remaining))} nas parcelas restantes`:''}`;
-}
-function rows(items,type){
- if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';
- return items.map(e=>{
-  const key=type==='fixed'?'amount':type==='base'?'payment':'total';
-  let extra='';
-  if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}`;
-  if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;
-  if(type==='new')extra=e.split?`${e.count}x de ${partRange(e.total,e.count)} · desde ${e.start}`:`${e.count}x · ${money(e.total)} · desde ${e.start}`;
-  const split=splitDescription(e,key,type);
-  return `<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div>${split?`<div class="entry-description share-detail">${esc(split)}</div>`:''}</div><div class="entry-right"><button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`;
- }).join('');
-}
+function rows(items,type){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right"><button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
 function pct(amount,income){return income>0?`${(100*amount/income).toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})}%`:'—'}
 function breakdown(s,m){
  const z=monthly(s,m),income=z.income;
@@ -447,11 +259,10 @@ function breakdown(s,m){
  else investmentItems.push({name:'Meta de investimento mensal',amount:z.investment,meta:'Pendente'});
  investmentItems.push(...s.extraInvestments.filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.amount,meta:e.date.split('-').reverse().join('/')})));
  const extras=s.extraIncome.filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.amount}));
- const extraTotal=round(extras.reduce((sum,e)=>sum+e.amount,0)),partner=monthlyOtherShare(s,m);
+ const extraTotal=round(extras.reduce((sum,e)=>sum+e.amount,0));
  return `<div class="detail-line detail-percent"><span>Renda líquida</span><div class="line-amount"><strong>${money(income)}</strong><small>100% da renda</small></div></div>`+
  group('Despesas fixas',fixed)+group('Parcelas anteriores',base)+group('Compras parceladas novas',newer)+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
  line('Margem protegida',z.margin)+
- (partner>0?`<div class="detail-line partner-month-summary"><span>Parte da outra pessoa <small>Inclui gastos do mês e despesas previstas, sem descontar o que já foi reembolsado. Para ver valores a receber, consulte Gastos conjuntos.</small></span><strong>${money(partner)}</strong></div>`:'')+
  `<div class="detail-line detail-total detail-percent"><span>Livre no mês (planejado)</span><div class="line-amount"><strong>${z.known?money(round(z.available+extraTotal)):'—'}</strong><small>${z.known?pct(round(z.available+extraTotal),income):'—'} da renda</small></div></div>`;
 }
 function investmentsStatus(s,m){const paid=settled(s,m),extra=extraInvested(s,m),plan=investmentAmount(s,m);return {paid,extra,plan,total:round((paid?paid.amount:0)+extra),status:paid?'done':skipped(s,m)?'skipped':'pending'};}
@@ -516,7 +327,7 @@ function renderDashboard(asOf,calc,m){
  const upcomingContribution=!settled(state,nextMonth)&&!skipped(state,nextMonth)&&investmentAmount(state,nextMonth)>0;
  $('preInvestmentCard').classList.toggle('hidden',!calc.ready||!upcomingContribution);
  if(calc.ready&&upcomingContribution){
-   const before=cashAt(state,next,asOf);
+   const before=cashAt(state,next);
    $('preInvestmentBalance').textContent=money(before);
    $('preInvestmentBalance').classList.toggle('negative',before<0);
    $('preInvestmentDate').textContent=`Projeção em ${shortDate(next)}`;
@@ -555,8 +366,8 @@ function renderExpenseHistory(){
  const entries=[...expenses,...income].sort((a,b)=>b.date.localeCompare(a.date));
  $('expenseCount').textContent=`${entries.length} ${entries.length===1?'lançamento':'lançamentos'}`;
  const row=entry=>{
-   const incoming=entry.direction==='in',split=incoming?'':splitDescription(entry,'amount','expense');
-   return `<div class="entry history-entry"><div class="entry-main"><div class="entry-title">${esc(entry.name)}</div><time class="entry-description" datetime="${entry.date}">${readableDate(entry.date)}</time>${split?`<div class="entry-description share-detail">${esc(split)}</div>`:''}</div><div class="entry-right"><span class="entry-price ${incoming?'entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</span>${incoming?'':`<button class="small-action" type="button" data-edit-expense="${esc(entry.id)}" aria-label="Editar ${esc(entry.name)}">Editar</button><button class="entry-remove" type="button" data-delete-expense="${esc(entry.id)}" aria-label="Excluir ${esc(entry.name)}">×</button>`}</div></div>`;
+   const incoming=entry.direction==='in';
+   return `<div class="entry history-entry"><div class="entry-main"><div class="entry-title">${esc(entry.name)}</div><time class="entry-description" datetime="${entry.date}">${readableDate(entry.date)}</time></div><div class="entry-right"><span class="entry-price ${incoming?'entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</span>${incoming?'':`<button class="entry-remove" type="button" data-delete-expense="${esc(entry.id)}" aria-label="Excluir ${esc(entry.name)}">×</button>`}</div></div>`;
  };
  $('expenses').innerHTML=byMonth(entries,item=>item.date).map(([month,items])=>
    `<details class="history-month-fold" data-expense-month="${month}" ${openExpenseMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><small>${items.length} ${items.length===1?'lançamento':'lançamentos'}</small></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`).join('')||'<p class="empty">Nenhum lançamento registrado.</p>';
@@ -593,103 +404,30 @@ $('forecast').innerHTML=Array.from({length:12},(_,i)=>{
  renderInvestmentPanels();
 $('started').value=state.started;const editingMonth=$('effectiveMonth').value||m;$('effectiveMonth').value=editingMonth;fillProfileInputs();
 $('exportLegacy').classList.toggle('hidden',!archived);
-for(const key of Object.keys(SPLIT_FIELDS))previewSplit(key);calendarLabels();showScreenNoScroll()}
+previewParcel();calendarLabels();showScreenNoScroll()}
 function showScreenNoScroll(){
- const auxiliary=screen==='settings'||screen==='info',launch=screen==='week'||screen==='installments'||screen==='shared',plan=screen==='planning'||screen==='investments';
+ const auxiliary=screen==='settings'||screen==='info',launch=screen==='week'||screen==='installments',plan=screen==='planning'||screen==='investments';
  document.body.classList.toggle('settings-view',auxiliary);
  $('quickSettings').classList.toggle('hidden',screen==='info');
  $('quickInfo').classList.toggle('hidden',screen==='settings');
  $('launch-tabs').classList.toggle('hidden',!launch);
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
- for(const name of ['home','week','installments','shared','planning','investments','settings','info'])$('screen-'+name).classList.toggle('hidden',name!==screen);
+ for(const name of ['home','week','installments','planning','investments','settings','info'])$('screen-'+name).classList.toggle('hidden',name!==screen);
  const area=launch?'week':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
    button.classList.toggle('active',active);
    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
  }
- refreshSharedScreen();
 }
-const SPLIT_FIELDS={expense:'expenseAmount',fixed:'fixedAmount',base:'basePayment',parcel:'parcelTotal'};
-function readSplitForm(key){
- const values=splitAmounts(amount(SPLIT_FIELDS[key]),amount(key+'Share'),{allowZero:key==='fixed'});
- return values?{...values,fronted:values.other>0&&$(key+'Fronted').checked}:null;
-}
-const metadata=(values,always=false)=>always||values.percent!==100?{split:{gross:values.gross,percent:values.percent,...(values.fronted?{fronted:true}:{})}}:{};
-function previewSplit(key){
- const result=readSplitForm(key),toggle=$(key+'Fronted');
- toggle.disabled=!(result&&result.other>0);
- $(key+'Mine').textContent=result?money(result.mine):'—';
- $(key+'Other').textContent=result?money(result.other):'—';
- if(key!=='parcel')return;
- const count=Number($('parcelCount').value);
- const validCount=Number.isInteger(count)&&count>=1&&count<=120;
- const before=state?.parcels.find(item=>item.id===editingNew);
- const old=before&&!before.split&&result?.percent===100&&result.mine===before.total&&count===before.count;
- $('parcelPreview').textContent=!result||!validCount?'—':old?money(before.payment):partRange(result.mine,count);
- $('weeklyImpact').textContent=result&&validCount?otherPartRange(result.gross,result.mine,count):'—';
-}
-function fillSplitForm(key,item,oldValue){
- $(SPLIT_FIELDS[key]).value=item.split?.gross??oldValue;
- $(key+'Share').value=item.split?.percent??100;
- $(key+'Fronted').checked=fronted(item);
-}
-function resetExpenseForm(){
- editingExpense=null;$('expenseForm').reset();$('expenseDate').value=today();
- $('expenseSubmit').textContent='Adicionar gasto';$('expenseCancel').classList.add('hidden');
- previewSplit('expense');calendarLabels();
-}
-async function saveExpense(e){
- e.preventDefault();const name=$('expenseName').value.trim(),value=readSplitForm('expense'),date=$('expenseDate').value,id=editingExpense;
- if(!name||!value||!isDate(date))return notice('Informe data, descrição, valor cheio e percentual de 0 a 100.','warning');
- const item={id:id||newId(),name,amount:value.mine,date,...metadata(value)};
- if(!checkSharedChange('expense',id,item))return;
- if(await update(s=>{
-   if(id)s.expenses=s.expenses.map(x=>x.id===id?item:x);else s.expenses.push(item);
-   openExpenseMonths.add(date.slice(0,7));
- }))resetExpenseForm();
-}
-async function saveNew(e){
- e.preventDefault();const name=$('parcelName').value.trim(),value=readSplitForm('parcel'),count=Number($('parcelCount').value),start=$('parcelStart').value,id=editingNew;
- if(!name||!value||!isMonth(start)||!Number.isInteger(count)||count<1||count>120)return notice('Confira o valor cheio, o percentual e os campos da compra.','warning');
- const before=state.parcels.find(x=>x.id===id),legacy=before&&!before.split&&value.percent===100&&value.mine===before.total&&count===before.count;
- const item={id:id||newId(),name,total:value.mine,payment:legacy?before.payment:allocatedPartCents(cents(value.mine),count,0)/100,count,start,...(legacy?{}:metadata(value,true))};
- if(!checkSharedChange('new',id,item))return;
- if(await update(s=>{
-   if(id)s.parcels=s.parcels.map(x=>x.id===id?item:x);else s.parcels.push(item);
-   openParcelMonths.add(start);
- })){
-   editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelShare').value='100';$('parcelFronted').checked=false;
-   $('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');previewSplit('parcel');
- }
-}
+function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
+async function saveExpense(e){e.preventDefault();const name=$('expenseName').value.trim(),value=amount('expenseAmount'),date=$('expenseDate').value;if(!name||!(value>0)||!isDate(date))return notice('Informe data, descrição e valor positivo.','warning');if(await update(s=>s.expenses.push({id:newId(),name,amount:round(value),date}))){$('expenseName').value='';$('expenseAmount').value=''}}
+async function saveNew(e){e.preventDefault();const name=$('parcelName').value.trim(),total=amount('parcelTotal'),count=Number($('parcelCount').value),start=$('parcelStart').value;if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120)return notice('Confira os campos da compra.','warning');if(await update(s=>{const item={id:editingNew||newId(),name,total:round(total),payment:round(total/count),count,start};if(editingNew)s.parcels=s.parcels.map(p=>p.id===editingNew?item:p);else s.parcels.push(item)})){editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden')}}
 function fillProfileInputs(){if(!state)return;const p=profile(state,$('effectiveMonth').value||monthNow());$('income').value=p.income;$('investment').value=p.investments;$('margin').value=p.margin}
 async function saveBaseline(e){e.preventDefault();const income=amount('income'),investment=amount('investment'),margin=amount('margin'),date=$('started').value,from=$('effectiveMonth').value;if(![income,investment,margin].every(v=>Number.isFinite(v)&&v>=0)||!isDate(date)||!isMonth(from))return notice('Confira os valores e as datas.','warning');await update(s=>{const p={from,income:round(income),investments:round(investment),margin:round(margin)};s.profiles=s.profiles.filter(x=>x.from!==from);s.profiles.push(p);s.profiles.sort((a,b)=>a.from.localeCompare(b.from));s.started=monday(new Date(date+'T12:00:00'))})}
-async function saveFixed(e){
- e.preventDefault();const name=$('fixedName').value.trim(),value=readSplitForm('fixed'),start=$('fixedStart').value,end=$('fixedEnd').value,day=Number($('fixedDay').value),id=editingFixed;
- if(!name||!value||!Number.isInteger(day)||day<1||day>31||!isMonth(start)||(end&&(!isMonth(end)||end<start)))return notice('Confira o valor cheio, o percentual e os dados da despesa fixa.','warning');
- const item={id:id||newId(),name,amount:value.mine,day,start,end:end||null,...metadata(value)};
- if(!checkSharedChange('fixed',id,item))return;
- if(await update(s=>{
-   if(id)s.fixedItems=s.fixedItems.map(x=>x.id===id?item:x);else s.fixedItems.push(item);
- })){
-   editingFixed=null;$('fixedForm').reset();$('fixedStart').value=monthNow();$('fixedDay').value='5';
-   $('fixedSubmit').textContent='Adicionar despesa fixa';$('fixedCancel').classList.add('hidden');previewSplit('fixed');calendarLabels();
- }
-}
-async function saveBase(e){
- e.preventDefault();const name=$('baseName').value.trim(),value=readSplitForm('base'),remaining=Number($('baseRemaining').value),start=$('baseStart').value,id=editingBase;
- if(!name||!value||!Number.isInteger(remaining)||remaining<1||remaining>240||!isMonth(start))return notice('Confira o valor cheio, o percentual e a parcela antiga.','warning');
- const item={id:id||newId(),name,payment:value.mine,remaining,start,...metadata(value)};
- if(!checkSharedChange('base',id,item))return;
- if(await update(s=>{
-   if(id)s.baseParcels=s.baseParcels.map(x=>x.id===id?item:x);else s.baseParcels.push(item);
- })){
-   editingBase=null;$('baseForm').reset();$('baseStart').value=monthNow();
-   $('baseSubmit').textContent='Adicionar parcela antiga';$('baseCancel').classList.add('hidden');previewSplit('base');calendarLabels();
- }
-}
+async function saveFixed(e){e.preventDefault();const name=$('fixedName').value.trim(),value=amount('fixedAmount'),start=$('fixedStart').value,end=$('fixedEnd').value;if(!name||!Number.isFinite(value)||value<0||!Number.isInteger(Number($('fixedDay').value))||Number($('fixedDay').value)<1||Number($('fixedDay').value)>31||!isMonth(start)||(end&&!isMonth(end))||(end&&end<start))return notice('Confira os dados da despesa fixa.','warning');if(await update(s=>{const item={id:editingFixed||newId(),name,amount:round(value),day:Number($('fixedDay').value),start,end:end||null};if(editingFixed)s.fixedItems=s.fixedItems.map(p=>p.id===editingFixed?item:p);else s.fixedItems.push(item)})){editingFixed=null;$('fixedForm').reset();$('fixedStart').value=monthNow();$('fixedDay').value='5';$('fixedSubmit').textContent='Adicionar despesa fixa';$('fixedCancel').classList.add('hidden');calendarLabels()}}
+async function saveBase(e){e.preventDefault();const name=$('baseName').value.trim(),payment=amount('basePayment'),remaining=Number($('baseRemaining').value),start=$('baseStart').value;if(!name||!(payment>0)||!Number.isInteger(remaining)||remaining<1||remaining>240||!isMonth(start))return notice('Confira a parcela antiga.','warning');if(await update(s=>{const item={id:editingBase||newId(),name,payment:round(payment),remaining,start};if(editingBase)s.baseParcels=s.baseParcels.map(p=>p.id===editingBase?item:p);else s.baseParcels.push(item)})){editingBase=null;$('baseForm').reset();$('baseStart').value=monthNow();$('baseSubmit').textContent='Adicionar parcela antiga';$('baseCancel').classList.add('hidden');calendarLabels()}}
 async function saveExtraInvestment(e){e.preventDefault();const date=$('extraDate').value,name=$('extraName').value.trim()||'Aporte extra',v=amount('extraAmount');if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Informe data e valor positivo.','warning');if(await update(s=>s.extraInvestments.push({id:newId(),date,name,amount:round(v)}))){$('extraAmount').value='';$('extraName').value=''}}
 
 
@@ -714,14 +452,8 @@ async function saveMonthlyContribution(status){
 async function saveOpening(e){e.preventDefault();const date=$('openingDate').value,v=amount('openingAmount');if(!isDate(date)||!Number.isFinite(v)||v<0)return notice('Informe data e saldo de abertura válidos.','warning');if(state.opening&&!confirm('Alterar o saldo de abertura recalculará o caixa. Deseja continuar?'))return;await update(s=>{s.opening={date,amount:round(v)}})}
 async function saveExtraIncome(e){e.preventDefault();const date=$('incomeExtraDate').value,name=$('incomeExtraName').value.trim()||'Entrada extra',v=amount('incomeExtraAmount');if(!isDate(date)||!(v>0))return notice('Confira a data e o valor da entrada extra.','warning');if(await update(s=>s.extraIncome.push({id:newId(),date,name,amount:round(v)}))){$('incomeExtraName').value='';$('incomeExtraAmount').value=''}}
 
-function resetForms(){resetExpenseForm();editingFixed=editingBase=editingNew=null;for(const key of ['fixed','base','parcel']){$(key+'Share').value='100';$(key+'Fronted').checked=false;}for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
-function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;fillSplitForm('fixed',v,v.amount);$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;fillSplitForm('base',v,v.payment);$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelName').value=v.name;fillSplitForm('parcel',v,v.total);$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}previewSplit(kind==='new'?'parcel':kind);calendarLabels()}
-function editExpense(id){
- const item=state.expenses.find(e=>e.id===id);if(!item)return;
- editingExpense=id;$('expenseName').value=item.name;$('expenseDate').value=item.date;fillSplitForm('expense',item,item.amount);
- $('expenseSubmit').textContent='Salvar gasto';$('expenseCancel').classList.remove('hidden');previewSplit('expense');calendarLabels();
- showScreen('week');$('expenseForm').scrollIntoView({behavior:'smooth'});
-}
+function resetForms(){editingFixed=editingBase=editingNew=null;for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
+function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Backup preparado. Confirme se ele foi salvo no aplicativo Arquivos.','warning')}
 async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write(RECORD,incoming);state=incoming;resetForms();updateInvestmentForm();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
@@ -759,11 +491,7 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click'
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
-for(const [key,input] of Object.entries(SPLIT_FIELDS)){
- $(input).addEventListener('input',()=>previewSplit(key));$(key+'Share').addEventListener('input',()=>previewSplit(key));
-}
-$('parcelCount').addEventListener('change',()=>previewSplit('parcel'));
-$('expenseCancel').addEventListener('click',resetExpenseForm);
+$('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);
 
 
@@ -789,6 +517,6 @@ rememberAccordion('parcels','parcelMonth',openParcelMonths);
 rememberAccordion('investmentHistory','historyYear',openHistoryYears);
 rememberAccordion('investmentHistory','historyMonth',openHistoryMonths);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
-document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){const id=del.getAttribute(`data-delete-${kind}`);if(!checkSharedChange(kind,id,null)||!confirm('Excluir este item do planejamento?'))return;const field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>s[field]=s[field].filter(x=>x.id!==id));return}}const editExp=target.closest('[data-edit-expense]');if(editExp){editExpense(editExp.dataset.editExpense);return}const exp=target.closest('[data-delete-expense]');if(exp){if(checkSharedChange('expense',exp.dataset.deleteExpense,null)&&confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==exp.dataset.deleteExpense));return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
+document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>s[field]=s[field].filter(x=>x.id!==id));return}}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==exp.dataset.deleteExpense));return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
 init();
 if('serviceWorker' in navigator){let reloading=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload()});window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});reg.update().catch(()=>{})}catch{}})}

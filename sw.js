@@ -1,5 +1,5 @@
-const CACHE='finances-pwa-shell-v3.14.1';
-const ASSETS=['./','./index.html','./app.js?v=3.14.1','./style.css?v=3.14.1','./manifest.webmanifest','./icon-v2-192.png','./icon-v2-512.png','./apple-touch-icon-v2.png'];
+const CACHE='finances-pwa-shell-v3.15.0';
+const ASSETS=['./','./index.html','./app.js?v=3.15.0','./style.css?v=3.15.0','./shared-expenses.js?v=3.15.0','./shared-expenses.css?v=3.15.0','./manifest.webmanifest','./icon-v2-192.png','./icon-v2-512.png','./apple-touch-icon-v2.png'];
 const scopedAssets=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('finances-pwa-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

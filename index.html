@@ -11,7 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./apple-touch-icon-v2.png" sizes="180x180">
 <link rel="icon" href="./icon-v2-192.png" type="image/png">
-<link rel="stylesheet" href="./style.css?v=3.14.1">
+<link rel="stylesheet" href="./style.css?v=3.15.0">
+<link rel="stylesheet" href="./shared-expenses.css?v=3.15.0">
 <title>Finanças de Casal</title>
 </head>
 <body>
@@ -54,7 +55,7 @@
 <p id="cycleDetail" class="dashboard-note">Após os compromissos programados.</p><p id="cashReserveNote" class="cash-reserve-note hidden"></p>
 </details>
 </section>
-<nav id="launch-tabs" class="subtabs hidden" aria-label="Tipos de lançamento"><button data-screen="week" type="button">Movimentações</button><button data-screen="installments" type="button">Parcelas</button></nav>
+<nav id="launch-tabs" class="subtabs hidden" aria-label="Tipos de lançamento"><button data-screen="week" type="button">Movimentações</button><button data-screen="installments" type="button">Parcelas</button><button data-screen="shared" type="button">Gastos conjuntos</button></nav>
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
 <div class="section-heading"><div><h1>Movimentações</h1></div></div>
@@ -62,21 +63,28 @@
 <div class="surface"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
 <label for="expenseDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="expenseDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseDate" type="date" required></div>
 <label for="expenseName">Descrição</label><input id="expenseName" type="text" maxlength="120" placeholder="Ex.: Jantar" required>
-<label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
-<button class="primary" type="submit">Adicionar gasto</button></form></div>
+<label for="expenseAmount">Valor cheio (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<label for="expenseShare">Minha parte (%)</label><input id="expenseShare" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="100" required>
+<div class="preview share-preview" aria-live="polite"><div>Minha parte<strong id="expenseMine">—</strong></div><div>Outra parte<strong id="expenseOther">—</strong></div></div>
+<label class="contribution-check shared-fronted"><input type="checkbox" id="expenseFronted"><span>Eu adianto o valor total</span></label>
+<p class="assistive share-note">Sem marcar, só a sua parte sai do caixa. Se você adiantar tudo, o caixa considera o valor cheio e só libera o reembolso depois do recebimento registrado.</p><button class="primary" id="expenseSubmit" type="submit">Adicionar gasto</button><button class="text-button hidden" id="expenseCancel" type="button">Cancelar edição</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div>
 <p class="assistive">Gastos e entradas extras por mês de lançamento.</p>
 <div id="expenses"></div></div>
 </section>
 <section id="screen-installments" class="screen hidden"><div class="section-heading"><div><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
 <div class="surface"><h2>Nova compra</h2><form id="parcelForm"><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
-<label for="parcelTotal">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<label for="parcelTotal">Valor cheio da compra (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
-<div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div>Parcela mensal adicionada à fatura <strong id="weeklyImpact">R$ 0,00</strong></div></div>
+<label for="parcelShare">Minha parte (%)</label><input id="parcelShare" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="100" required>
+<div class="preview share-preview" aria-live="polite"><div>Minha parte total<strong id="parcelMine">—</strong></div><div>Outra parte total<strong id="parcelOther">—</strong></div></div>
+<label class="contribution-check shared-fronted"><input type="checkbox" id="parcelFronted"><span>Eu adianto o valor total</span></label>
+<p class="assistive share-note">Sem marcar, só a sua parte sai do caixa. Se você adiantar tudo, o caixa considera o valor cheio e só libera o reembolso depois do recebimento registrado.</p><div class="preview share-installments" aria-live="polite"><div>Minha parte por parcela <strong id="parcelPreview">—</strong></div><div>Outra parte por parcela <strong id="weeklyImpact">—</strong></div></div>
 <button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><p class="assistive">Agrupadas pelo mês da primeira fatura.</p><div id="parcels"></div></div>
 </section>
-<section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
+<section id="screen-shared" class="screen hidden"><div id="sharedExpenses"></div></section>
+<section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Veja o custo da sua parte. O saldo na tela inicial também considera adiantamentos e reembolsos já recebidos.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
 <section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Confirme sua meta e registre aportes extras no mesmo lugar.</p></div>
 <div class="surface contribution-card">
@@ -101,15 +109,21 @@
 <label for="margin">Margem de segurança mensal (R$)</label><input id="margin" type="number" min="0" step="0.01" required>
 <input id="started" type="hidden">
 <button class="primary" type="submit">Salvar configuração</button></form></details>
-<details class="surface settings-details"><summary>Despesas fixas<strong id="fixedSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="fixedList"></div><div id="itemPanels"><form id="fixedForm"><h3>Cadastrar ou editar despesa fixa</h3><label for="fixedName">Descrição</label><input id="fixedName" maxlength="120" placeholder="Ex.: Spotify" required><label for="fixedAmount">Valor mensal (R$)</label><input id="fixedAmount" type="number" min="0" step="0.01" required><label for="fixedDay">Dia de débito mensal</label><input id="fixedDay" type="number" min="1" max="31" step="1" value="5" required><div class="two-cols"><div><label for="fixedStart">Início</label><div class="calendar-field"><span class="calendar-label" data-for="fixedStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="fixedStart" type="month" required></div></div><div><label for="fixedEnd">Fim (opcional)</label><div class="calendar-field"><span class="calendar-label" data-for="fixedEnd">Sem término</span><span class="calendar-icon">▦</span><input id="fixedEnd" type="month"></div></div></div><button id="fixedSubmit" class="primary" type="submit">Adicionar despesa fixa</button><button id="fixedCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
-<details class="surface settings-details"><summary>Parcelas anteriores<strong id="baseSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="baseList"></div><div id="baseEntry"><form id="baseForm"><h3>Cadastrar ou editar parcela anterior</h3><label for="baseName">Descrição</label><input id="baseName" maxlength="120" placeholder="Ex.: Hospedagem" required><label for="basePayment">Valor de cada parcela (R$)</label><input id="basePayment" type="number" min="0.01" step="0.01" required><div class="two-cols"><div><label for="baseRemaining">Parcelas restantes</label><input id="baseRemaining" type="number" min="1" max="240" step="1" required></div><div><label for="baseStart">Primeira fatura pendente</label><div class="calendar-field"><span class="calendar-label" data-for="baseStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="baseStart" type="month" required></div></div></div><button id="baseSubmit" class="primary" type="submit">Adicionar parcela antiga</button><button id="baseCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
+<details class="surface settings-details"><summary>Despesas fixas<strong id="fixedSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="fixedList"></div><div id="itemPanels"><form id="fixedForm"><h3>Cadastrar ou editar despesa fixa</h3><label for="fixedName">Descrição</label><input id="fixedName" maxlength="120" placeholder="Ex.: Spotify" required><label for="fixedAmount">Valor cheio mensal (R$)</label><input id="fixedAmount" type="number" min="0" step="0.01" inputmode="decimal" required><label for="fixedShare">Minha parte (%)</label><input id="fixedShare" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="100" required>
+<div class="preview share-preview" aria-live="polite"><div>Minha parte por mês<strong id="fixedMine">—</strong></div><div>Outra parte por mês<strong id="fixedOther">—</strong></div></div>
+<label class="contribution-check shared-fronted"><input type="checkbox" id="fixedFronted"><span>Eu adianto o valor total</span></label>
+<p class="assistive share-note">Sem marcar, só a sua parte sai do caixa. Se você adiantar tudo, o caixa considera o valor cheio e só libera o reembolso depois do recebimento registrado.</p><label for="fixedDay">Dia de débito mensal</label><input id="fixedDay" type="number" min="1" max="31" step="1" value="5" required><div class="two-cols"><div><label for="fixedStart">Início</label><div class="calendar-field"><span class="calendar-label" data-for="fixedStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="fixedStart" type="month" required></div></div><div><label for="fixedEnd">Fim (opcional)</label><div class="calendar-field"><span class="calendar-label" data-for="fixedEnd">Sem término</span><span class="calendar-icon">▦</span><input id="fixedEnd" type="month"></div></div></div><button id="fixedSubmit" class="primary" type="submit">Adicionar despesa fixa</button><button id="fixedCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
+<details class="surface settings-details"><summary>Parcelas anteriores<strong id="baseSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="baseList"></div><div id="baseEntry"><form id="baseForm"><h3>Cadastrar ou editar parcela anterior</h3><label for="baseName">Descrição</label><input id="baseName" maxlength="120" placeholder="Ex.: Hospedagem" required><label for="basePayment">Valor cheio de cada parcela (R$)</label><input id="basePayment" type="number" min="0.01" step="0.01" inputmode="decimal" required><label for="baseShare">Minha parte (%)</label><input id="baseShare" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="100" required>
+<div class="preview share-preview" aria-live="polite"><div>Minha parte por parcela<strong id="baseMine">—</strong></div><div>Outra parte por parcela<strong id="baseOther">—</strong></div></div>
+<label class="contribution-check shared-fronted"><input type="checkbox" id="baseFronted"><span>Eu adianto o valor total</span></label>
+<p class="assistive share-note">Sem marcar, só a sua parte sai do caixa. Se você adiantar tudo, o caixa considera o valor cheio e só libera o reembolso depois do recebimento registrado.</p><div class="two-cols"><div><label for="baseRemaining">Parcelas restantes</label><input id="baseRemaining" type="number" min="1" max="240" step="1" required></div><div><label for="baseStart">Primeira fatura pendente</label><div class="calendar-field"><span class="calendar-label" data-for="baseStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="baseStart" type="month" required></div></div></div><button id="baseSubmit" class="primary" type="submit">Adicionar parcela antiga</button><button id="baseCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details"><summary>Backup e restauração</summary><button id="exportBackup" class="secondary" type="button">Exportar meus dados</button><label for="restoreFile" class="file-label">Importar backup</label><input id="restoreFile" class="file-input" type="file" accept=".json,application/json"><p class="assistive">O backup inclui cada item e movimentação, inclusive o histórico de vigência de renda, investimentos e margem de segurança.</p><button id="exportPrevious" type="button" class="text-button">Exportar versão anterior (se disponível)</button><button id="exportLegacy" class="text-button hidden" type="button">Exportar arquivo antigo das duas carteiras</button></details>
 </section>
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
 <div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
 <div class="help-item"><strong>Saldo antes de investir</strong><p>Projeção do caixa na data do próximo salário, antes do aporte mensal ainda não registrado. Não é o saldo de hoje nem o limite disponível para gastar. O cartão só aparece quando há aporte previsto naquela data.</p></div>
-<div class="help-item"><strong>Saldo atual (estimado)</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
+<div class="help-item"><strong>Saldo atual (estimado)</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Em gastos adiantados, considera o valor cheio pago e soma os reembolsos nas datas em que foram recebidos. Não consulta o banco.</p></div>
 <div class="help-item"><strong>Disponível até o próximo salário</strong><p>Valor máximo de consumo calculado com o caixa atual, a margem e os compromissos futuros. Se a próxima fatura, fixos, investimento planejado e margem ultrapassarem o salário que irá recebê-los, a diferença também fica reservada do caixa atual. Não é dinheiro extra.</p></div>
 <div class="help-item"><strong>Referência diária</strong><p>Distribui o dinheiro disponível pelos dias restantes, incluindo hoje, até o próximo salário. Recalcula com novas despesas, bônus e tempo transcorrido.</p></div>
 <div class="help-item"><strong>Até domingo</strong><p>Valor sugerido para os dias que faltam até domingo, sem ultrapassar o próximo salário ou o orçamento seguro. Não é uma cota adicional.</p></div>
@@ -118,7 +132,8 @@
 <details class="surface settings-details"><summary>Movimentações</summary>
 <div class="help-item"><strong>Data</strong><p>Dia da entrada extra ou da compra à vista. Afeta o saldo estimado e o controle da semana correspondente.</p></div>
 <div class="help-item"><strong>Descrição</strong><p>Nome usado para reconhecer a movimentação no histórico; opcional apenas para renda extra.</p></div>
-<div class="help-item"><strong>Valor</strong><p>Valor efetivamente recebido ou gasto. Registre somente sua parte de uma compra compartilhada.</p></div>
+<div class="help-item"><strong>Valor</strong><p>Valor efetivamente recebido ou gasto. Em um gasto compartilhado, informe o valor cheio e a sua porcentagem. Em registros antigos, o total já lançado continua valendo integralmente até você editar.</p></div>
+<div class="help-item"><strong>Divisão de gastos</strong><p>Seu custo pessoal é a sua parte. Se você adiantar o valor total, o aplicativo reserva o valor cheio até o vencimento e só considera o reembolso no caixa depois que você registrar o recebimento em Gastos conjuntos. Não registre o mesmo reembolso como entrada extra.</p></div>
 <div class="help-item"><strong>Compra parcelada</strong><p>Cadastre na aba Parcelas, não novamente como gasto à vista, para evitar dupla contagem.</p></div></details>
 <details class="surface settings-details"><summary>Compras parceladas</summary>
 <div class="help-item"><strong>Descrição</strong><p>Nome da compra para identificá-la na composição da fatura.</p></div>
@@ -164,5 +179,6 @@
 </div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.14.1" defer></script>
+<script src="./shared-expenses.js?v=3.15.0" defer></script>
+<script src="./app.js?v=3.15.0" defer></script>
 </body></html>

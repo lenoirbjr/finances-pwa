@@ -9,13 +9,14 @@
 <meta name="apple-mobile-web-app-title" content="Finanças">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="stylesheet" href="./style.css?v=3.13.0">
+<link rel="apple-touch-icon" href="./apple-touch-icon-v2.png" sizes="180x180">
+<link rel="icon" href="./icon-v2-192.png" type="image/png">
+<link rel="stylesheet" href="./style.css?v=3.14.0">
 <title>Finanças de Casal</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./icon-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Finanças de Casal</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./icon-v2-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Finanças de Casal</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
 <main>
@@ -29,6 +30,10 @@
 <svg class="week-trend" viewBox="0 0 300 44" preserveAspectRatio="none" focusable="false"><path class="trend-grid" d="M1 43H299 M1 0V43 M150 0V43 M299 0V43"/><path id="trendArea" class="trend-area"/><path id="trendLine" class="trend-line"/><circle id="trendEnd" class="trend-end" r="3"/></svg>
 <figcaption><span id="trendStart">Hoje</span><span>Limite acumulado</span><span id="trendLast">Dom</span></figcaption>
 </figure>
+</section>
+<section class="dashboard-kpis" aria-label="Saldo atual e limite até o salário">
+<div class="dashboard-kpi"><h2>Saldo atual</h2><strong id="cashBalance">—</strong><time id="cashBalanceDate">—</time></div>
+<div class="dashboard-kpi"><h2>Disponível até o próximo salário</h2><strong id="cycleAvailable">—</strong><time id="cycleAvailableDate">—</time></div>
 </section>
 <div id="preInvestmentCard" class="dashboard-tile">
 <span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 8V6a2 2 0 0 0-2-2H6a3 3 0 0 0 0 6h14a1 1 0 0 1 1 1v7a2 2 0 0 1-2 2H6a3 3 0 0 1-3-3V7m18 6h-5a2 2 0 1 0 0 4h5"/></svg></span><div class="tile-copy"><span>Saldo antes de investir</span><strong id="preInvestmentBalance">—</strong><small id="preInvestmentDate">—</small></div>
@@ -45,7 +50,7 @@
 <button type="button" class="dashboard-tile" data-screen="investments" id="homeExtras"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M8 12h8m-4-4v8"/></svg></span><span class="tile-copy"><span>Aportes extras</span><strong id="homeExtraTotal">—</strong></span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
 </div>
 <details class="home-details"><summary>Entenda o saldo e as reservas</summary>
-<div class="home-ledger"><div><span>Saldo estimado em conta</span><strong id="cashBalance">—</strong></div><div><span>Disponível até o próximo salário</span><strong id="cycleAvailable">—</strong></div><div><span>Referência diária</span><strong id="dayReference">—</strong><small id="daysCaption">—</small></div><div><span>Investimento mensal protegido</span><strong id="currentInvestment">—</strong></div><div><span>Margem protegida</span><strong id="currentMargin">—</strong></div></div>
+<div class="home-ledger"><div><span>Referência diária</span><strong id="dayReference">—</strong><small id="daysCaption">—</small></div><div><span>Investimento mensal protegido</span><strong id="currentInvestment">—</strong></div><div><span>Margem protegida</span><strong id="currentMargin">—</strong></div></div>
 <p id="cycleDetail" class="dashboard-note">Após os compromissos programados.</p><p id="cashReserveNote" class="cash-reserve-note hidden"></p>
 </details>
 </section>
@@ -59,7 +64,9 @@
 <label for="expenseName">Descrição</label><input id="expenseName" type="text" maxlength="120" placeholder="Ex.: Jantar" required>
 <label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <button class="primary" type="submit">Adicionar gasto</button></form></div>
-<div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div><div id="expenses"></div></div>
+<div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div>
+<div class="history-toolbar"><label for="expenseGrouping">Agrupar por</label><select id="expenseGrouping"><option value="day">Dia</option><option value="week">Semana</option><option value="month">Mês</option><option value="none">Sem agrupar</option></select></div>
+<div id="expenses"></div></div>
 </section>
 <section id="screen-installments" class="screen hidden"><div class="section-heading"><div><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
 <div class="surface"><h2>Nova compra</h2><form id="parcelForm"><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
@@ -71,15 +78,19 @@
 </section>
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
-<section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Acompanhe o total do mês, registre o primeiro aporte, adicione aportes extras e consulte o histórico.</p></div>
-<div class="surface"><h2>Total aportado no mês</h2><label for="investmentFocusMonth">Mês</label><div class="calendar-field"><span class="calendar-label" data-for="investmentFocusMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentFocusMonth" type="month" required></div><div class="investment-hero-card"><div class="investment-hero-overline">TOTAL INVESTIDO</div><div id="investmentBigTotal" class="investment-hero-number">R$ 0,00</div><div id="investmentBigMeta" class="investment-hero-meta">Meta R$ 0,00 · diferença R$ 0,00</div></div></div>
-<div class="surface"><h2>Primeiro aporte do mês</h2><p class="assistive investment-inline-note">Mês selecionado: <strong id="investmentSelectedMonth">—</strong></p><form id="investmentConfirmForm"><div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
-<label for="investmentConfirmStatus">Situação</label><select id="investmentConfirmStatus"><option value="pending">Pendente</option><option value="done">Fiz o primeiro aporte neste mês</option><option value="skipped">Não fiz primeiro aporte neste mês</option></select>
-<div id="investmentDoneFields"><label for="investmentConfirmAmount">Valor do primeiro aporte (R$)</label><input id="investmentConfirmAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required>
-<p class="assistive">Informe somente o primeiro aporte do mês. Os aportes extras são lançados separadamente logo abaixo.</p>
-<label for="investmentConfirmDate">Data do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date" required></div></div>
-<button class="primary" type="submit">Salvar primeiro aporte</button></form></div>
-<div class="surface"><h2>Adicionar aporte extra</h2><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" required><button class="secondary" type="submit">Registrar aporte extra</button></form><div id="extraInvestmentList"></div></div>
+<section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Confirme sua meta e registre aportes extras no mesmo lugar.</p></div>
+<div class="surface contribution-card">
+<h2>Aportes</h2>
+<label for="investmentFocusMonth">Mês do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentFocusMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentFocusMonth" type="month" required></div>
+<form id="investmentConfirmForm">
+<div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
+<label for="investmentDone" class="contribution-check"><input id="investmentDone" type="checkbox"><span>Fiz o primeiro aporte do mês<small id="investmentStatusNote">Pendente</small></span></label>
+<div id="investmentDoneFields" class="hidden"><label for="investmentConfirmAmount">Valor do primeiro aporte (R$)</label><input id="investmentConfirmAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00">
+<label for="investmentConfirmDate">Data do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date"></div></div>
+<div class="contribution-actions"><button class="primary" id="saveFirstContribution" type="submit">Salvar primeiro aporte</button><button id="skipFirstContribution" class="text-button" type="button">Marcar como não feito</button></div>
+</form>
+<div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="secondary" type="submit">Registrar aporte extra</button></form><details class="recorded-extras"><summary>Aportes extras registrados</summary><div id="extraInvestmentList"></div></details></div>
+</div>
 <div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
 <details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
@@ -98,7 +109,7 @@
 <div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
 <div class="help-item"><strong>Saldo antes de investir</strong><p>Projeção do caixa na data do próximo salário, antes do aporte mensal ainda não registrado. Não é o saldo de hoje nem o limite disponível para gastar. O cartão só aparece quando há aporte previsto naquela data.</p></div>
-<div class="help-item"><strong>Saldo estimado</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
+<div class="help-item"><strong>Saldo atual (estimado)</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
 <div class="help-item"><strong>Disponível até o próximo salário</strong><p>Valor máximo de consumo calculado com o caixa atual, a margem e os compromissos futuros. Se a próxima fatura, fixos, investimento planejado e margem ultrapassarem o salário que irá recebê-los, a diferença também fica reservada do caixa atual. Não é dinheiro extra.</p></div>
 <div class="help-item"><strong>Referência diária</strong><p>Distribui o dinheiro disponível pelos dias restantes, incluindo hoje, até o próximo salário. Recalcula com novas despesas, bônus e tempo transcorrido.</p></div>
 <div class="help-item"><strong>Até domingo</strong><p>Valor sugerido para os dias que faltam até domingo, sem ultrapassar o próximo salário ou o orçamento seguro. Não é uma cota adicional.</p></div>
@@ -153,5 +164,5 @@
 </div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.13.0" defer></script>
+<script src="./app.js?v=3.14.0" defer></script>
 </body></html>

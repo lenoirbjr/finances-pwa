@@ -11,7 +11,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./apple-touch-icon-v2.png" sizes="180x180">
 <link rel="icon" href="./icon-v2-192.png" type="image/png">
-<link rel="stylesheet" href="./style.css?v=3.14.0">
+<link rel="stylesheet" href="./style.css?v=3.14.1">
 <title>Finanças de Casal</title>
 </head>
 <body>
@@ -65,7 +65,7 @@
 <label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <button class="primary" type="submit">Adicionar gasto</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div>
-<div class="history-toolbar"><label for="expenseGrouping">Agrupar por</label><select id="expenseGrouping"><option value="day">Dia</option><option value="week">Semana</option><option value="month">Mês</option><option value="none">Sem agrupar</option></select></div>
+<p class="assistive">Gastos e entradas extras por mês de lançamento.</p>
 <div id="expenses"></div></div>
 </section>
 <section id="screen-installments" class="screen hidden"><div class="section-heading"><div><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
@@ -74,7 +74,7 @@
 <div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
 <div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div>Parcela mensal adicionada à fatura <strong id="weeklyImpact">R$ 0,00</strong></div></div>
 <button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button></form></div>
-<div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><div id="parcels"></div></div>
+<div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><p class="assistive">Agrupadas pelo mês da primeira fatura.</p><div id="parcels"></div></div>
 </section>
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
@@ -89,7 +89,7 @@
 <label for="investmentConfirmDate">Data do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date"></div></div>
 <div class="contribution-actions"><button class="primary" id="saveFirstContribution" type="submit">Salvar primeiro aporte</button><button id="skipFirstContribution" class="text-button" type="button">Marcar como não feito</button></div>
 </form>
-<div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="secondary" type="submit">Registrar aporte extra</button></form><details class="recorded-extras"><summary>Aportes extras registrados</summary><div id="extraInvestmentList"></div></details></div>
+<div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="secondary" type="submit">Registrar aporte extra</button></form></div>
 </div>
 <div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
@@ -164,5 +164,5 @@
 </div>
 <div id="loading" class="loading">Abrindo suas finanças…</div>
 </div>
-<script src="./app.js?v=3.14.0" defer></script>
+<script src="./app.js?v=3.14.1" defer></script>
 </body></html>

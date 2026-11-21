@@ -309,13 +309,6 @@ html body .negative{color:var(--negative)!important}
 .dashboard-kpi time{color:var(--muted);font-size:.72rem}
 @media (min-width:570px){.dashboard-kpis{gap:13px}.dashboard-kpi{padding:16px}.dashboard-kpi h2{line-height:1.3}}
 
-.history-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:0 0 16px}
-.surface .history-toolbar label{margin:0;line-height:1.4;font-size:.8rem}
-.surface .history-toolbar select{min-width:116px;width:auto;height:44px;font-size:1rem;appearance:auto;-webkit-appearance:auto}
-.history-date-group{margin-top:11px}
-html body .surface .history-date-group h3,html[data-theme=pink] body .surface .history-date-group h3{
- margin:0;padding:7px 9px;border-radius:8px;background:var(--surface-alt);color:var(--muted);font-size:.75rem;font-variant-numeric:tabular-nums
-}
 .history-entry .entry-price{font-variant-numeric:tabular-nums}
 .history-entry .entry-credit,.investment-above{color:var(--income)}
 .history-entry .entry-description{display:block}
@@ -343,19 +336,43 @@ html body .surface .contribution-check input[type=checkbox],html[data-theme=pink
 .contribution-actions .text-button{min-height:44px;padding:7px 0}
 .contribution-extra{border-top:1px solid var(--edge);margin-top:16px;padding-top:16px;scroll-margin-top:12px}
 .contribution-extra h3{margin:0;font-size:1rem}
-.recorded-extras{margin-top:12px}
-.recorded-extras summary{cursor:pointer;min-height:44px;align-content:center;color:var(--muted);font-size:.8rem;font-weight:650}
-.investment-month-row{border-bottom:1px solid var(--edge);padding:7px 0 11px}
-.investment-month-row:last-child{border-bottom:0}
-.investment-month-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.investment-month-title>strong{font-size:.88rem}
-.investment-month-edit{min-height:36px}
+.investment-month-edit{min-height:40px}
 .investment-month-values{display:grid;grid-template-columns:1.22fr 1fr 1fr;gap:7px}
 .investment-month-values>div{display:grid;align-content:start;gap:4px;min-width:0;overflow-wrap:anywhere}
 .investment-month-values small{color:var(--muted);font-size:.67rem;line-height:1.2}
 .investment-month-values strong{font-size:.76rem;line-height:1.17;font-variant-numeric:tabular-nums}
 @media(min-width:570px){
- .investment-month-row{display:grid;grid-template-columns:minmax(132px,.68fr) 2fr;align-items:center;gap:16px}
  .investment-month-values small{font-size:.74rem}
  .investment-month-values strong{font-size:.85rem}
 }
+
+/* 3.14.1 — same monthly accordion pattern across movements, installments and investments. */
+.history-month-fold{border-top:1px solid var(--edge);overflow:hidden}
+.history-month-fold:first-child{border-top:0}
+.history-month-fold>summary{
+ display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:52px;
+ list-style:none;cursor:pointer;color:var(--text);font-size:.91rem;font-weight:740
+}
+.history-month-fold>summary::-webkit-details-marker{display:none}
+.history-month-fold>summary::before{
+ content:'›';color:var(--accent);font-size:22px;line-height:1;flex:none
+}
+.history-month-fold[open]>summary::before{transform:rotate(90deg)}
+.history-month-fold>summary>span{flex:1;min-width:0}
+.history-month-fold>summary>small{color:var(--muted);font-size:.72rem;font-weight:550;text-align:right}
+.history-month-content{padding:0 0 7px 12px;border-top:1px solid var(--edge)}
+.history-month-content .entry{margin:0}
+html body .surface.contribution-card .investment-target,html[data-theme=pink] body .surface.contribution-card .investment-target{
+ background:var(--surface);color:var(--text);border-color:var(--edge)
+}
+.investment-month-fold>summary{min-height:55px;padding:12px 0}
+.investment-month-fold .month-big-total{
+ color:var(--text);font-size:clamp(1.1rem,5vw,1.48rem);font-weight:820;line-height:1.15;
+ letter-spacing:-.04em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;max-width:55%;text-align:right
+}
+.investment-month-content{padding:6px 0 11px 4px}
+.monthly-extras{margin-top:2px;border-top:1px solid var(--edge)}
+.monthly-extras .entry{padding:7px 0;gap:7px}
+.monthly-extras .entry-title,.monthly-extras .entry-price{font-size:.78rem}
+.monthly-extras .entry-description{display:block;font-size:.68rem;margin-top:3px}
+.monthly-extras .entry-remove{height:44px;min-width:40px}

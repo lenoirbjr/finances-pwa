@@ -1,0 +1,39 @@
+/* Gastos conjuntos: estilo local, alinhado aos tokens dos dois temas. */
+.shared-screen :is(input,select,button,summary){min-height:44px}
+.shared-screen :is(.shared-tools,.shared-payment-fields){display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.shared-screen :is(.shared-tools,.shared-payment-fields)>div{min-width:0}
+.shared-screen .shared-tools label,.shared-screen .shared-payment-fields label{margin:0 0 5px;font-size:.78rem}
+.shared-screen :is(input,select){width:100%;min-width:0}
+.shared-screen :is(.shared-totals,.shared-row-metrics){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:14px 0}
+.shared-screen :is(.shared-totals,.shared-row-metrics)>div{min-width:0}
+.shared-screen .shared-totals>div{padding:10px 8px;border:1px solid var(--edge);border-radius:12px;background:var(--surface-alt)}
+.shared-screen :is(dt,.shared-small,.shared-row-title p,.shared-month summary span,.shared-receipt time){color:var(--muted,inherit);font-size:.73rem;line-height:1.25}
+.shared-screen dd{margin:5px 0 0;overflow-wrap:anywhere;font-weight:780;color:var(--text);font-variant-numeric:tabular-nums}
+.shared-screen .shared-totals dd{font-size:clamp(.88rem,3.65vw,1.25rem);letter-spacing:-.025em}
+.shared-screen .shared-help{margin:12px 0 5px}
+.shared-screen .shared-feedback{font-size:.82rem;color:var(--accent);margin:8px 0}
+.shared-screen .shared-feedback:empty{display:none}
+.shared-screen .shared-month{border-top:1px solid var(--edge);margin-top:8px}
+.shared-screen .shared-month>summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer}
+.shared-screen .shared-month>summary::-webkit-details-marker{display:none}
+.shared-screen .shared-month>summary::before{content:'›';font-weight:800;font-size:1.25rem;color:var(--accent)}
+.shared-screen .shared-month[open]>summary::before{transform:rotate(90deg)}
+.shared-screen .shared-month>summary span{margin-left:auto;white-space:nowrap}
+.shared-screen .shared-row{border-top:1px solid var(--edge);padding:12px 0}
+.shared-screen .shared-row-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.shared-screen .shared-row-title>div{min-width:0}
+.shared-screen .shared-row-title h3{margin:0;overflow-wrap:anywhere;font-size:.96rem}
+.shared-screen .shared-row-title p{margin:5px 0 0}
+.shared-screen .shared-badge{max-width:40%;border:1px solid var(--edge);padding:4px 7px;border-radius:9px;color:var(--muted);font-weight:700;font-size:.72rem;line-height:1.16;text-align:center}
+.shared-screen .shared-badge[data-status=paid]{color:var(--income)}
+.shared-screen .shared-badge[data-status=pending]{color:var(--text)}
+.shared-screen .shared-row-metrics{row-gap:12px;margin:12px 0}
+.shared-screen .shared-row-metrics dd{font-size:.84rem}
+.shared-screen .shared-ledger summary{cursor:pointer;display:list-item;align-content:center;font-size:.81rem;color:var(--muted)}
+.shared-screen .shared-receipt{display:flex;flex-wrap:wrap;align-items:center;column-gap:12px;row-gap:1px;border-top:1px solid var(--edge);font-size:.78rem}
+.shared-screen .shared-action{width:auto;margin:0;font-size:.8rem}
+.shared-screen .shared-payment-form{padding:12px;border:1px solid var(--edge);border-radius:12px;background:var(--surface-alt);margin:8px 0 0}
+.shared-screen .shared-payment-form .shared-small{margin:7px 0 5px}
+.shared-screen .shared-form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.shared-screen .shared-form-actions button{width:auto;margin:0}
+@media (max-width:340px){.shared-screen :is(.shared-tools,.shared-payment-fields){grid-template-columns:1fr}}

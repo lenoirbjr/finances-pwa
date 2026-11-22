@@ -1,5 +1,5 @@
 'use strict';
-/* Finanças 3.14.1: históricos mensais recolhíveis. */
+/* Diário Financeiro 3.14.2: identidade visual, cálculos preservados. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -228,14 +228,14 @@ function setHeaderIcon(button,icon,label){
  button.title=label;
 }
 function refreshHeaderButtons(){
- const pink=document.documentElement.dataset.theme==='pink';
- setHeaderIcon($('themeToggle'),pink?'moon':'sun',pink?'Ativar Azul Noturno':'Ativar Rosé Claro');
+ const dark=document.documentElement.dataset.theme==='ocean';
+ setHeaderIcon($('themeToggle'),dark?'sun':'moon',dark?'Ativar modo claro':'Ativar modo noturno');
  setHeaderIcon($('quickSettings'),screen==='settings'?'back':'settings',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');
  setHeaderIcon($('quickInfo'),screen==='info'?'back':'info',screen==='info'?'Voltar ao aplicativo':'Abrir informações');
 }
 function setTheme(theme){
  const next=theme==='pink'?'pink':'ocean';document.documentElement.dataset.theme=next;
- const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#fcf7f8':'#0b1424';
+ const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#f8f5ed':'#10231c';
  refreshHeaderButtons();
  try{localStorage.setItem(THEME_KEY,next)}catch{}
 }
@@ -475,7 +475,7 @@ async function init(){try{
  }
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
- openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
+ openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'pink')}catch{setTheme('pink')}
  updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }

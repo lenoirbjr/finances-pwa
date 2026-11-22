@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 3.14.2: identidade visual, cálculos preservados. */
+/* Diário Financeiro 3.14.3: Azul marinho e Rosa noturno. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -216,6 +216,7 @@ function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
 const THEME_KEY='finances-pwa-theme-v3.12';
 const HEADER_ICONS={
+  palette:'<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/>',
   moon:'<path d="M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z"/>',
   sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/>',
@@ -228,15 +229,16 @@ function setHeaderIcon(button,icon,label){
  button.title=label;
 }
 function refreshHeaderButtons(){
- const dark=document.documentElement.dataset.theme==='ocean';
- setHeaderIcon($('themeToggle'),dark?'sun':'moon',dark?'Ativar modo claro':'Ativar modo noturno');
+ const pink=document.documentElement.dataset.theme==='pink';
+ setHeaderIcon($('themeToggle'),'palette',pink?'Usar tema Azul marinho':'Usar tema Rosa noturno');
  setHeaderIcon($('quickSettings'),screen==='settings'?'back':'settings',screen==='settings'?'Voltar ao aplicativo':'Abrir ajustes');
  setHeaderIcon($('quickInfo'),screen==='info'?'back':'info',screen==='info'?'Voltar ao aplicativo':'Abrir informações');
 }
 function setTheme(theme){
  const next=theme==='pink'?'pink':'ocean';document.documentElement.dataset.theme=next;
- const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#f8f5ed':'#10231c';
+ const meta=$('appThemeColor');if(meta)meta.content=next==='pink'?'#1c121e':'#0a1323';
  refreshHeaderButtons();
+ for(const button of document.querySelectorAll('[data-theme-choice]'))button.setAttribute('aria-pressed',String(button.dataset.themeChoice===next));
  try{localStorage.setItem(THEME_KEY,next)}catch{}
 }
 function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
@@ -475,7 +477,7 @@ async function init(){try{
  }
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
- openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'pink')}catch{setTheme('pink')}
+ openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
  updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
@@ -505,6 +507,7 @@ $('skipFirstContribution').addEventListener('click',()=>{
  if(isMonth(month))saveMonthlyContribution(skipped(state,month)?'pending':'skipped');
 });
 $('themeToggle').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='pink'?'ocean':'pink'));
+for(const button of document.querySelectorAll('[data-theme-choice]'))button.addEventListener('click',()=>setTheme(button.dataset.themeChoice));
 function rememberAccordion(container,key,opened){
  $(container).addEventListener('toggle',e=>{
    const el=e.target;

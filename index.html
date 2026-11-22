@@ -3,27 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f8f5ed" id="appThemeColor">
+<meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Diário Financeiro">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./diario-touch-180.png" sizes="180x180">
-<link rel="icon" href="./diario-icon-192.png" type="image/png">
-<link rel="stylesheet" href="./style.css?v=3.14.2">
+<link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
+<link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css?v=3.14.3">
 <title>Diário Financeiro</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./diario-icon-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Diário <strong>Financeiro</strong></div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar modo noturno" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 40 40" focusable="false"><path class="mark-outline" d="M11 8h14a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H11a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4Z"/><path class="mark-line" d="m12 25 6-6 4 3 10-10m-6 0h6v6"/></svg></span><div><div class="brand-name">Diário <strong>Financeiro</strong></div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Usar tema Rosa noturno" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
 <main>
 <section id="screen-home" class="screen dashboard" aria-label="Início">
-<div class="week-badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span id="weekRange">—</span></div>
+<div class="home-intro"><div><span class="screen-kicker">PAINEL PESSOAL</span><h1>Visão geral</h1></div><div class="week-badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span id="weekRange">—</span></div></div>
 <section class="balance-card" aria-labelledby="balance-title">
-<h1 id="balance-title">Saldo até domingo</h1>
+<h2 id="balance-title">Saldo até domingo</h2>
 <div id="sundayReference" class="balance-amount">—</div>
 <p id="sundayCaption" class="dashboard-note">—</p>
 <figure id="weekTrend" class="week-figure hidden" aria-hidden="true">
@@ -45,10 +45,10 @@
 <div id="invoiceRow" class="event-row"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span><span>Fatura do cartão</span><time id="invoiceCaption">—</time></div>
 </div>
 </section>
-<div class="dashboard-actions">
+<section class="home-investments" aria-labelledby="home-investments-title"><h2 id="home-investments-title" class="dashboard-heading">Investimentos</h2><div class="dashboard-actions">
 <button type="button" class="dashboard-tile" data-screen="investments" id="homeInvestments"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16M7 15v-3m5 3V9m5 6V5m0 0h-4m4 0v4"/></svg></span><span class="tile-copy"><span>Investimento do mês</span><strong id="homeInvestmentTotal">—</strong></span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
 <button type="button" class="dashboard-tile" data-screen="investments" id="homeExtras"><span class="tile-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M8 12h8m-4-4v8"/></svg></span><span class="tile-copy"><span>Aportes extras</span><strong id="homeExtraTotal">—</strong></span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
-</div>
+</div></section>
 <details class="home-details"><summary>Entenda o saldo e as reservas</summary>
 <div class="home-ledger"><div><span>Referência diária</span><strong id="dayReference">—</strong><small id="daysCaption">—</small></div><div><span>Investimento mensal protegido</span><strong id="currentInvestment">—</strong></div><div><span>Margem protegida</span><strong id="currentMargin">—</strong></div></div>
 <p id="cycleDetail" class="dashboard-note">Após os compromissos programados.</p><p id="cashReserveNote" class="cash-reserve-note hidden"></p>
@@ -57,7 +57,7 @@
 <nav id="launch-tabs" class="subtabs hidden" aria-label="Tipos de lançamento"><button data-screen="week" type="button">Movimentações</button><button data-screen="installments" type="button">Parcelas</button></nav>
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
-<div class="section-heading"><div><h1>Movimentações</h1></div></div>
+<div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Movimentações</h1></div></div>
 <div class="surface"><div class="surface-heading"><h2>Entrada extra</h2></div><form id="incomeExtraForm"><label for="incomeExtraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="incomeExtraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="incomeExtraDate" type="date" required></div><label for="incomeExtraName">Descrição (opcional)</label><input id="incomeExtraName" maxlength="120" placeholder="Ex.: Bônus"><label for="incomeExtraAmount">Valor recebido (R$)</label><input id="incomeExtraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Registrar entrada</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
 <label for="expenseDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="expenseDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseDate" type="date" required></div>
@@ -68,7 +68,7 @@
 <p class="assistive">Gastos e entradas extras por mês de lançamento.</p>
 <div id="expenses"></div></div>
 </section>
-<section id="screen-installments" class="screen hidden"><div class="section-heading"><div><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
+<section id="screen-installments" class="screen hidden"><div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Compras parceladas</h1><p>Planeje o impacto nas próximas faturas.</p></div></div>
 <div class="surface"><h2>Nova compra</h2><form id="parcelForm"><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
 <label for="parcelTotal">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
@@ -76,9 +76,9 @@
 <button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><p class="assistive">Agrupadas pelo mês da primeira fatura.</p><div id="parcels"></div></div>
 </section>
-<section id="screen-planning" class="screen hidden"><div class="section-heading"><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
+<section id="screen-planning" class="screen hidden"><div class="section-heading"><span class="screen-kicker">PROJEÇÕES</span><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
-<section id="screen-investments" class="screen hidden"><div class="section-heading"><h1>Investimentos</h1><p>Confirme sua meta e registre aportes extras no mesmo lugar.</p></div>
+<section id="screen-investments" class="screen hidden"><div class="section-heading"><span class="screen-kicker">APORTES</span><h1>Investimentos</h1><p>Confirme sua meta e registre aportes extras no mesmo lugar.</p></div>
 <div class="surface contribution-card">
 <h2>Aportes</h2>
 <label for="investmentFocusMonth">Mês do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentFocusMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentFocusMonth" type="month" required></div>
@@ -92,7 +92,12 @@
 <div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="secondary" type="submit">Registrar aporte extra</button></form></div>
 </div>
 <div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
-<section id="screen-settings" class="screen hidden"><div class="section-heading"><div><h1>Ajustes</h1></div></div>
+<section id="screen-settings" class="screen hidden"><div class="section-heading"><div><span class="screen-kicker">PREFERÊNCIAS</span><h1>Ajustes</h1></div></div>
+<section class="surface theme-panel" aria-labelledby="theme-panel-title"><h2 id="theme-panel-title">Aparência</h2>
+<p>Escolha o tema deste dispositivo.</p><div class="theme-choices" role="group" aria-label="Tema do diário">
+<button type="button" data-theme-choice="ocean" aria-pressed="true"><span class="theme-swatch navy-swatch" aria-hidden="true"></span>Azul marinho</button>
+<button type="button" data-theme-choice="pink" aria-pressed="false"><span class="theme-swatch rose-swatch" aria-hidden="true"></span>Rosa noturno</button>
+</div></section>
 <details class="surface settings-details"><summary>Saldo de abertura</summary><form id="openingForm"><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
 <details class="surface settings-details"><summary>Renda e investimentos</summary><form id="baselineForm">
 <label for="effectiveMonth">Renda e aporte válidos a partir de</label><div class="calendar-field"><span class="calendar-label" data-for="effectiveMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="effectiveMonth" type="month" required></div>
@@ -106,7 +111,7 @@
 <details class="surface settings-details"><summary>Backup e restauração</summary><button id="exportBackup" class="secondary" type="button">Exportar meus dados</button><label for="restoreFile" class="file-label">Importar backup</label><input id="restoreFile" class="file-input" type="file" accept=".json,application/json"><p class="assistive">O backup inclui cada item e movimentação, inclusive o histórico de vigência de renda, investimentos e margem de segurança.</p><button id="exportPrevious" type="button" class="text-button">Exportar versão anterior (se disponível)</button><button id="exportLegacy" class="text-button hidden" type="button">Exportar arquivo antigo das duas carteiras</button></details>
 </section>
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
-<div class="section-heading"><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
+<div class="section-heading"><span class="screen-kicker">GUIA DO DIÁRIO</span><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
 <div class="help-item"><strong>Saldo antes de investir</strong><p>Projeção do caixa na data do próximo salário, antes do aporte mensal ainda não registrado. Não é o saldo de hoje nem o limite disponível para gastar. O cartão só aparece quando há aporte previsto naquela data.</p></div>
 <div class="help-item"><strong>Saldo atual (estimado)</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
@@ -164,5 +169,5 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./app.js?v=3.14.2" defer></script>
+<script src="./app.js?v=3.14.3" defer></script>
 </body></html>

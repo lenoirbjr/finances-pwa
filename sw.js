@@ -1,8 +1,21 @@
-const CACHE='finances-pwa-shell-v3.14.1';
-const ASSETS=['./','./index.html','./app.js?v=3.14.1','./style.css?v=3.14.1','./manifest.webmanifest','./icon-v2-192.png','./icon-v2-512.png','./apple-touch-icon-v2.png'];
+const SCOPE=new URL(self.registration.scope);
+const LEGACY_PREFIX='finances-pwa-shell-';
+const PREFIX='diario-financeiro-shell:'+SCOPE.pathname+':';
+const CACHE=PREFIX+'3.14.2';
+const ASSETS=['./','./index.html','./app.js?v=3.14.2','./style.css?v=3.14.2','./manifest.webmanifest','./diario-icon-192.png','./diario-icon-512.png','./diario-touch-180.png'];
 const scopedAssets=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('finances-pwa-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(async key=>{
+ if(key.startsWith(PREFIX))return caches.delete(key);
+ if(!key.startsWith(LEGACY_PREFIX))return;
+ const old=await caches.open(key);
+ if(!await old.match(new URL('./index.html',SCOPE).href))return;
+ const entries=await old.keys();
+ if(entries.every(request=>{
+  const url=new URL(request.url);
+  return url.origin===SCOPE.origin&&url.pathname.startsWith(SCOPE.pathname);
+ }))return caches.delete(key);
+}))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
  const req=event.request,url=new URL(req.url);
  if(req.method!=='GET'||url.origin!==self.location.origin||!url.pathname.startsWith(new URL(self.registration.scope).pathname))return;

@@ -376,3 +376,60 @@ html body .surface.contribution-card .investment-target,html[data-theme=pink] bo
 .monthly-extras .entry-title,.monthly-extras .entry-price{font-size:.78rem}
 .monthly-extras .entry-description{display:block;font-size:.68rem;margin-top:3px}
 .monthly-extras .entry-remove{height:44px;min-width:40px}
+
+/* 3.14.2 — look compartilhado com o Diário Nutri; preferências anteriores continuam válidas. */
+:root,html[data-theme=pink]{
+ color-scheme:light;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ --canvas:#f8f5ed;--surface:#fffdf8;--surface-alt:#e5eee3;--edge:#d9ddcf;--text:#213229;--muted:#526458;
+ --accent:#1e5b48;--accent-strong:#1e5b48;--accent-on:#ffffff;--accent-wash:#e5eee3;
+ --hero-a:#20624d;--hero-b:#153d31;--hero-edge:#47836c;--hero-text:#fffdf8;--hero-muted:#e2f0e4;
+ --hero-number:#dbef9e;--hero-graph:#bbdfae;--chart-fill:#dbef9e20;--negative:#9a3623;--income:#235e45;--income-bg:#e5eee3;
+ --nav:#fffdf8;--shadow:#183e2d24;--focus:#26735e;
+ --notice:#214e3d;--notice-bg:#e5eee3;--notice-border:#aac8b5;
+ --warning:#6b451c;--warning-bg:#fff1d6;--warning-border:#dab889;
+ --error:#7c2c19;--error-bg:#fff0e6;--error-border:#e8c1b0
+}
+/* “pink” and “ocean” are kept only as legacy storage/class identifiers. */
+html[data-theme=ocean]{
+ color-scheme:dark;
+ --canvas:#10231c;--surface:#172d24;--surface-alt:#1f382e;--edge:#345145;--text:#eef6ed;--muted:#b4caba;
+ --accent:#c4e6b0;--accent-strong:#c4e6b0;--accent-on:#193a28;--accent-wash:#254638;
+ --hero-a:#205342;--hero-b:#10352a;--hero-edge:#4d886e;--hero-text:#f1fbef;--hero-muted:#dfefe0;
+ --hero-number:#dbef9e;--hero-graph:#badca6;--chart-fill:#bde7aa20;--negative:#ffbda9;--income:#ade0a9;--income-bg:#254638;
+ --nav:#172d24;--shadow:#07191265;--focus:#bfe5a7;
+ --notice:#dbf0db;--notice-bg:#254638;--notice-border:#4c755f;
+ --warning:#ffe4b9;--warning-bg:#49391e;--warning-border:#81653e;
+ --error:#ffd3c9;--error-bg:#442b24;--error-border:#86564b
+}
+.brand-name{font-weight:600;letter-spacing:-.065em;line-height:1.06;font-size:clamp(17px,5.3vw,26px)}
+.brand-name strong{font-weight:820}
+.brand-caption{margin-top:5px;font-weight:600}
+.brand-icon{background:#1e5b48;box-shadow:none}
+html[data-theme=pink] .brand-icon{background:#1e5b48}
+.balance-card{
+ position:relative;isolation:isolate;overflow:hidden;
+ border-radius:22px;background:
+ radial-gradient(circle at 94% 38%,transparent 0 23px,#bddab537 24px 25px,transparent 26px 41px,#bddab52e 42px 43px,transparent 44px 60px,#bddab526 61px 62px,transparent 63px),
+ linear-gradient(140deg,var(--hero-a),var(--hero-b) 88%);
+}
+.balance-amount{color:var(--hero-number);letter-spacing:-.066em}
+.balance-card .week-figure{color:var(--hero-graph)}
+.dashboard-kpi,.dashboard-tile,.dashboard-events,.home-details,.surface{box-shadow:none}
+.dashboard-kpi h2{font-weight:720}
+.dashboard-heading,.section-heading h1{letter-spacing:-.045em}
+.bottom-nav button[aria-current]{font-weight:780}
+.notice{color:var(--notice);border-color:var(--notice-border);background:var(--notice-bg)}
+.notice.error{color:var(--error);border-color:var(--error-border);background:var(--error-bg)}
+.notice.warning{color:var(--warning);border-color:var(--warning-border);background:var(--warning-bg)}
+html body .surface .entry-remove,html[data-theme=pink] body .surface .entry-remove{color:var(--error)}
+html body .surface .calendar-field input[type=date],html body .surface .calendar-field input[type=month]{color-scheme:light}
+html[data-theme=ocean] body .surface .calendar-field input[type=date],html[data-theme=ocean] body .surface .calendar-field input[type=month]{color-scheme:dark}
+html body .surface :is(.breakdown-rows,.detail-line,.group-money,.help-item){border-color:var(--edge)}
+html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body .surface .breakdown-rows .detail-line small{color:var(--muted)}
+.surface .contribution-check,.surface .recorded-extras{border-color:var(--edge)}
+.surface .contribution-check:focus-within{outline:2px solid var(--focus);outline-offset:2px}
+html body .surface .file-label:focus-visible,html[data-theme=pink] body .surface .file-label:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.loading{color:var(--muted)}
+/* Preserve native keyboard access to the file chooser behind its visible label. */
+.surface .file-input{display:block!important;position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0;margin:0}
+.surface:has(.file-input:focus-visible) .file-label{outline:2px solid var(--focus);outline-offset:3px}

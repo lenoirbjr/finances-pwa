@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1424" id="appThemeColor">
+<meta name="theme-color" content="#f8f5ed" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Finanças">
+<meta name="apple-mobile-web-app-title" content="Diário Financeiro">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./apple-touch-icon-v2.png" sizes="180x180">
-<link rel="icon" href="./icon-v2-192.png" type="image/png">
-<link rel="stylesheet" href="./style.css?v=3.14.1">
-<title>Finanças de Casal</title>
+<link rel="apple-touch-icon" href="./diario-touch-180.png" sizes="180x180">
+<link rel="icon" href="./diario-icon-192.png" type="image/png">
+<link rel="stylesheet" href="./style.css?v=3.14.2">
+<title>Diário Financeiro</title>
 </head>
 <body>
 <div class="app-shell">
-<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./icon-v2-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Finanças de Casal</div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar tema rosa" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
+<header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true"><img src="./diario-icon-192.png" alt="" class="brand-icon-image"></span><div><div class="brand-name">Diário <strong>Financeiro</strong></div><div class="brand-caption" id="monthCaption">Planejamento pessoal</div></div></div><div class="header-actions"><button id="themeToggle" class="icon-button theme-button" aria-label="Ativar modo noturno" type="button" title="Alternar tema"></button><button id="quickInfo" class="icon-button" aria-label="Informações e ajuda" type="button" title="Ajuda"></button><button id="quickSettings" class="icon-button" aria-label="Abrir ajustes" type="button"></button></div></header>
 <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 <div id="app" hidden>
 <main>
@@ -162,7 +162,7 @@
 <button type="button" data-screen="planning" data-area="planning"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span>Planejamento</span></button>
 </nav>
 </div>
-<div id="loading" class="loading">Abrindo suas finanças…</div>
+<div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./app.js?v=3.14.1" defer></script>
+<script src="./app.js?v=3.14.2" defer></script>
 </body></html>

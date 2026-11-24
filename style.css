@@ -492,3 +492,7 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
  .dashboard{gap:16px}.surface{padding:18px}.balance-card{padding:23px}
  .dashboard-kpi{padding:15px}.theme-choices{max-width:340px}
 }
+
+/* Keep edit and delete controls tappable on the extra-income history row. */
+.income-history-edit{min-height:44px;padding-inline:5px}
+.history-entry [data-delete-income-extra]{min-height:44px;min-width:32px}

@@ -377,7 +377,7 @@ html body .surface.contribution-card .investment-target,html[data-theme=pink] bo
 .monthly-extras .entry-description{display:block;font-size:.68rem;margin-top:3px}
 .monthly-extras .entry-remove{height:44px;min-width:40px}
 
-/* 3.14.3 — editorial rhythm shared with Diário Nutri, in two dark palettes. */
+/* 3.14.5 — editorial rhythm shared with Diário Nutri, in two dark palettes. */
 :root,html[data-theme=ocean]{
  color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
  --canvas:#0a1323;--surface:#101e32;--surface-alt:#172741;--edge:#293c59;--text:#eff5ff;--muted:#a9bbd5;
@@ -492,7 +492,3 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
  .dashboard{gap:16px}.surface{padding:18px}.balance-card{padding:23px}
  .dashboard-kpi{padding:15px}.theme-choices{max-width:340px}
 }
-
-/* Keep edit and delete controls tappable on the extra-income history row. */
-.income-history-edit{min-height:44px;padding-inline:5px}
-.history-entry [data-delete-income-extra]{min-height:44px;min-width:32px}

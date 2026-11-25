@@ -11,7 +11,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=3.14.4">
+<link rel="stylesheet" href="./style.css?v=3.14.5">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -58,7 +58,7 @@
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
 <div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Movimentações</h1></div></div>
-<div class="surface"><div class="surface-heading"><h2 id="incomeExtraTitle">Entrada extra</h2></div><form id="incomeExtraForm"><label for="incomeExtraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="incomeExtraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="incomeExtraDate" type="date" required></div><label for="incomeExtraName">Descrição (opcional)</label><input id="incomeExtraName" maxlength="120" placeholder="Ex.: Bônus"><label for="incomeExtraAmount">Valor recebido (R$)</label><input id="incomeExtraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button id="incomeExtraSubmit" class="primary" type="submit">Registrar entrada</button><button id="incomeExtraCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div>
+<div class="surface"><div class="surface-heading"><h2>Entrada extra</h2></div><form id="incomeExtraForm"><label for="incomeExtraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="incomeExtraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="incomeExtraDate" type="date" required></div><label for="incomeExtraName">Descrição (opcional)</label><input id="incomeExtraName" maxlength="120" placeholder="Ex.: Bônus"><label for="incomeExtraAmount">Valor recebido (R$)</label><input id="incomeExtraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Registrar entrada</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
 <label for="expenseDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="expenseDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseDate" type="date" required></div>
 <label for="expenseName">Descrição</label><input id="expenseName" type="text" maxlength="120" placeholder="Ex.: Jantar" required>
@@ -169,5 +169,5 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./app.js?v=3.14.4" defer></script>
+<script src="./app.js?v=3.14.5" defer></script>
 </body></html>

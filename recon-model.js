@@ -107,14 +107,21 @@ function reconRawRows(s,m){
  const {normalized,groups,ambiguous}=reconStatementLinks(statements,s.reconciliation?.receipts??[]);
  const rowWithSeries=x=>{const g=groups.get(x);return g?{...x,seriesKey:g.key,seriesAliases:g.aliases}:ambiguous.has(x)?{...x,forecastKey:x.seriesKey,seriesKey:undefined}:x};
  const exact=statements.find(x=>x.month===m);
+ const manualRows=linked=>s.parcels.flatMap(e=>{
+  const cents=Math.round(newPartAmount(e,m)*100);
+  return linked.has(e.id)||cents<=0?[]:[{id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'manual'}];
+ });
  if(exact){
-  const manual=[];
-  const linked=new Set(exact.rows.flatMap(x=>x.legacyIds??[]));
-  for(const e of s.parcels){
-   const cents=Math.round(newPartAmount(e,m)*100);
-   if(e.cardAdded&&!linked.has(e.id)&&cents>0)manual.push({id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'manual'});
+  const imported=normalized.get(m).map(rowWithSeries);
+  const linked=new Set(imported.flatMap(x=>[x.id,...(x.legacyIds??[])]));
+  // A known CSV series can carry a local association from a different statement.
+  // Do not guess from name or amount: different purchases may look identical.
+  const keys=new Set(imported.filter(x=>x.seriesKey).map(reconSeriesId));
+  if(keys.size)for(const rows of normalized.values())for(const raw of rows){
+   const x=rowWithSeries(raw);
+   if(x.seriesKey&&keys.has(reconSeriesId(x)))for(const id of x.legacyIds??[])linked.add(id);
   }
-  return [...normalized.get(m).map(rowWithSeries),...manual];
+  return [...imported,...manualRows(linked)];
  }
  const prior=statements.filter(x=>x.month<m).sort((a,b)=>b.month.localeCompare(a.month));
  const covered=new Set(), projected=[], seen=new Set();
@@ -123,13 +130,12 @@ function reconRawRows(s,m){
   for(const raw of normalized.get(st.month)){
    const x=rowWithSeries(raw);
    if(x.kind!=='charge'||!x.count)continue;
-   const aliases=x.legacyIds??[];
+   const aliases=[x.id,...(x.legacyIds??[])];
    const key=x.forecastKey??reconSeriesId(x);
    const group=groups.get(raw);
-   if(group)for(const id of aliases)covered.add(id);
+   for(const id of aliases)covered.add(id);
    if(seen.has(key))continue;
    seen.add(key);
-   for(const id of aliases)covered.add(id);
    if(x.number+off<=x.count){
     const pinned=group?.byId.get(group.pinned.get(m));
     projected.push({...x,...(pinned&&{id:pinned.id,cents:pinned.cents,label:pinned.label,parts:pinned.parts}),number:x.number+off,source:'forecast'});
@@ -137,11 +143,7 @@ function reconRawRows(s,m){
   }
  }
  for(const e of oldParts(s,m))if(!covered.has(e.id))projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents:Math.round(e.payment*100),kind:'charge',count:e.remaining,number:monthDiff(e.start,m)+1,source:'legacy'});
- for(const e of s.parcels){
-  const cents=Math.round(newPartAmount(e,m)*100);
-  if(!covered.has(e.id)&&cents>0)projected.push({id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:e.cardAdded?'manual':'legacy'});
- }
- return projected;
+ return [...projected,...manualRows(covered)];
 }
 function reconRows(s,m,includePreviousCredit=false){
  const overrides=s.reconciliation?.overrides??[];

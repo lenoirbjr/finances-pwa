@@ -301,7 +301,7 @@ window.ReconUI=(()=>{
     }
   });
  }
- return {render(options){
+ return {selectBill(month){if(!safeMonth(month))return;period=month;tab='bill';billFilter='all';editing=null;formKind='';personFilter='';},render(options){
    const dom=$('#reconUI');if(!dom)return;api=options;if(root!==dom){root=dom;bind(dom);}paint();
  }};
 })();

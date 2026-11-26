@@ -69,3 +69,67 @@
 .recon-allocation-summary{padding:8px 9px;margin:9px 0 0;border-radius:8px;background:var(--surface);color:var(--text);font-size:.76rem;line-height:1.4}
 @media(max-width:420px){.recon-pix-fields{grid-template-columns:minmax(0,1fr);gap:0}}
 @media(max-width:350px){.recon-month-controls{gap:7px}.recon-receipt-form{padding:10px}}
+
+/* Compact classification inside the amount column. */
+.recon-screen .recon-card-line{align-items:start;grid-template-columns:minmax(0,1fr) minmax(0,max-content)}
+.recon-screen .recon-card-line .recon-row-amount{max-width:clamp(88px,37vw,220px);min-width:0}
+.recon-screen .recon-row button.recon-classification{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px;max-width:100%;min-height:34px;width:auto;margin:0;padding:4px 0;border:0;background:transparent;color:var(--accent);font-size:.72rem;line-height:1.2;overflow-wrap:anywhere}
+.recon-screen .recon-row button.recon-classification.is-unclassified{padding-inline:6px;border:1px solid var(--edge);border-radius:7px;background:var(--surface-alt)}
+.recon-person-chip{display:inline-block;padding:3px 6px;border-radius:6px;max-width:100%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;color:hsl(var(--person-hue, 215) 74% 76%);background:hsl(var(--person-hue, 215) 72% 58% / .15);border:1px solid hsl(var(--person-hue, 215) 72% 58% / .25)}
+html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84%);background:hsl(var(--person-hue, 215) 78% 57% / .18);border-color:hsl(var(--person-hue, 215) 78% 65% / .37)}
+.recon-divided{display:flex;flex-wrap:wrap;gap:8px 18px;border:0;padding:0;margin:10px 0}
+.recon-divided legend{padding:0;color:var(--muted);font-size:.78rem}
+.recon-edit .recon-divided label{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:0}
+.recon-edit .recon-divided input[type=radio]{appearance:auto;width:18px;min-height:18px;flex:none;accent-color:var(--accent);margin:0}
+.recon-owner-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center}
+.recon-owner-control button{width:auto;margin:0}
+
+/* Palette classes keep colors compatible with the strict Content Security Policy. */
+.recon-person-chip[data-person-color="0"]{--person-hue:0}
+.recon-person-chip[data-person-color="1"]{--person-hue:8}
+.recon-person-chip[data-person-color="2"]{--person-hue:15}
+.recon-person-chip[data-person-color="3"]{--person-hue:22}
+.recon-person-chip[data-person-color="4"]{--person-hue:30}
+.recon-person-chip[data-person-color="5"]{--person-hue:38}
+.recon-person-chip[data-person-color="6"]{--person-hue:45}
+.recon-person-chip[data-person-color="7"]{--person-hue:52}
+.recon-person-chip[data-person-color="8"]{--person-hue:60}
+.recon-person-chip[data-person-color="9"]{--person-hue:68}
+.recon-person-chip[data-person-color="10"]{--person-hue:75}
+.recon-person-chip[data-person-color="11"]{--person-hue:82}
+.recon-person-chip[data-person-color="12"]{--person-hue:90}
+.recon-person-chip[data-person-color="13"]{--person-hue:98}
+.recon-person-chip[data-person-color="14"]{--person-hue:105}
+.recon-person-chip[data-person-color="15"]{--person-hue:112}
+.recon-person-chip[data-person-color="16"]{--person-hue:120}
+.recon-person-chip[data-person-color="17"]{--person-hue:128}
+.recon-person-chip[data-person-color="18"]{--person-hue:135}
+.recon-person-chip[data-person-color="19"]{--person-hue:142}
+.recon-person-chip[data-person-color="20"]{--person-hue:150}
+.recon-person-chip[data-person-color="21"]{--person-hue:158}
+.recon-person-chip[data-person-color="22"]{--person-hue:165}
+.recon-person-chip[data-person-color="23"]{--person-hue:172}
+.recon-person-chip[data-person-color="24"]{--person-hue:180}
+.recon-person-chip[data-person-color="25"]{--person-hue:188}
+.recon-person-chip[data-person-color="26"]{--person-hue:195}
+.recon-person-chip[data-person-color="27"]{--person-hue:202}
+.recon-person-chip[data-person-color="28"]{--person-hue:210}
+.recon-person-chip[data-person-color="29"]{--person-hue:218}
+.recon-person-chip[data-person-color="30"]{--person-hue:225}
+.recon-person-chip[data-person-color="31"]{--person-hue:232}
+.recon-person-chip[data-person-color="32"]{--person-hue:240}
+.recon-person-chip[data-person-color="33"]{--person-hue:248}
+.recon-person-chip[data-person-color="34"]{--person-hue:255}
+.recon-person-chip[data-person-color="35"]{--person-hue:262}
+.recon-person-chip[data-person-color="36"]{--person-hue:270}
+.recon-person-chip[data-person-color="37"]{--person-hue:278}
+.recon-person-chip[data-person-color="38"]{--person-hue:285}
+.recon-person-chip[data-person-color="39"]{--person-hue:292}
+.recon-person-chip[data-person-color="40"]{--person-hue:300}
+.recon-person-chip[data-person-color="41"]{--person-hue:308}
+.recon-person-chip[data-person-color="42"]{--person-hue:315}
+.recon-person-chip[data-person-color="43"]{--person-hue:322}
+.recon-person-chip[data-person-color="44"]{--person-hue:330}
+.recon-person-chip[data-person-color="45"]{--person-hue:338}
+.recon-person-chip[data-person-color="46"]{--person-hue:345}
+.recon-person-chip[data-person-color="47"]{--person-hue:352}

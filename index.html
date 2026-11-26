@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.1">
-<link rel="stylesheet" href="./recon.css?v=4.0.1">
+<link rel="stylesheet" href="./style.css?v=4.0.2">
+<link rel="stylesheet" href="./recon.css?v=4.0.2">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -59,13 +59,15 @@
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
 <div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Movimentações</h1></div></div>
-<div class="surface"><div class="surface-heading"><h2>Entrada extra</h2></div><form id="incomeExtraForm"><label for="incomeExtraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="incomeExtraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="incomeExtraDate" type="date" required></div><label for="incomeExtraName">Descrição (opcional)</label><input id="incomeExtraName" maxlength="120" placeholder="Ex.: Bônus"><label for="incomeExtraAmount">Valor recebido (R$)</label><input id="incomeExtraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Registrar entrada</button></form></div>
-<div class="surface"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
+<div class="subtabs movements-switch" role="group" aria-label="Tipo de movimentação">
+ <button id="movementExpenseTab" type="button" class="active" aria-pressed="true" aria-controls="movementExpensePanel">Novo gasto</button>
+ <button id="movementIncomeTab" type="button" aria-pressed="false" aria-controls="movementIncomePanel">Entrada extra</button>
+</div>
+<div class="surface hidden" id="movementIncomePanel"><div class="surface-heading"><h2>Entrada extra</h2></div><form id="incomeExtraForm"><label for="incomeExtraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="incomeExtraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="incomeExtraDate" type="date" required></div><label for="incomeExtraName">Descrição (opcional)</label><input id="incomeExtraName" maxlength="120" placeholder="Ex.: Bônus"><label for="incomeExtraAmount">Valor recebido (R$)</label><input id="incomeExtraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="primary" type="submit">Registrar entrada</button></form></div>
+<div class="surface" id="movementExpensePanel"><div class="surface-heading"><h2>Novo gasto</h2></div><form id="expenseForm">
 <label for="expenseDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="expenseDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseDate" type="date" required></div>
 <label for="expenseName">Descrição</label><input id="expenseName" type="text" maxlength="120" placeholder="Ex.: Jantar" required>
 <label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
-<label for="expenseMethod">Forma de pagamento</label><select id="expenseMethod"><option value="cash">Pix, débito ou dinheiro</option><option value="credit">Cartão de crédito</option></select>
-<div id="expenseCardFields" class="hidden"><label for="expenseCardMonth">Mês da fatura</label><div class="calendar-field"><span class="calendar-label" data-for="expenseCardMonth" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseCardMonth" type="month" disabled></div><p class="assistive">A compra entra na fatura escolhida, sem baixar o caixa hoje.</p></div>
 <button class="primary" type="submit">Adicionar gasto</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div>
 <p class="assistive">Gastos e entradas extras por mês de lançamento.</p>
@@ -175,7 +177,7 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.1" defer></script>
-<script src="./recon-ui.js?v=4.0.1" defer></script>
-<script src="./app.js?v=4.0.1" defer></script>
+<script src="./recon-model.js?v=4.0.2" defer></script>
+<script src="./recon-ui.js?v=4.0.2" defer></script>
+<script src="./app.js?v=4.0.2" defer></script>
 </body></html>

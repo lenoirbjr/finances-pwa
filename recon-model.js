@@ -32,11 +32,19 @@ function reconScale(parts,label,basis,to){
  for(const p of [...scaled].sort((a,b)=>b.r-a.r||a.i-b.i)){if(left<=0)break;p.cents++;left--}
  return scaled.filter(x=>x.person&&x.cents>0).map(({person,cents})=>({person,cents}));
 }
+// Preserva o caixa e os Pix vinculados a movimentos em crédito da 4.0.1,
+ // sem voltar a mostrá-los como compras da fatura.
+function reconPreviousCreditRows(s,m){
+ return s.expenses.filter(e=>e.cardMonth===m).map(e=>({id:'cashcard:'+e.id,name:e.name,date:e.date,cents:Math.round(e.amount*100),kind:'charge',source:'movement'}));
+}
+function reconPreviousCredit(s,m){
+ return reconPreviousCreditRows(s,m).reduce((n,x)=>n+x.cents,0)/100;
+}
 function reconRawRows(s,m){
  const statements=s.reconciliation?.statements??[];
  const exact=statements.find(x=>x.month===m);
- const manual=s.expenses.filter(e=>e.cardMonth===m).map(e=>({id:'cashcard:'+e.id,name:e.name,date:e.date,cents:Math.round(e.amount*100),kind:'charge',source:'manual'}));
  if(exact){
+  const manual=[];
   const linked=new Set(exact.rows.flatMap(x=>x.legacyIds??[]));
   for(const e of s.parcels){
    const cents=Math.round(newPartAmount(e,m)*100);
@@ -65,11 +73,12 @@ function reconRawRows(s,m){
   const cents=Math.round(newPartAmount(e,m)*100);
   if(!covered.has(e.id)&&cents>0)projected.push({id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:e.cardAdded?'manual':'legacy'});
  }
- return [...projected,...manual];
+ return projected;
 }
-function reconRows(s,m){
+function reconRows(s,m,includePreviousCredit=false){
  const overrides=s.reconciliation?.overrides??[];
- return reconRawRows(s,m).map(row=>{
+ const rows=reconRawRows(s,m);
+ return (includePreviousCredit?[...rows,...reconPreviousCreditRows(s,m)]:rows).map(row=>{
   const exact=overrides.find(o=>o.rowId===row.id&&o.month===m&&o.scope==='one')??overrides.find(o=>o.rowId===row.id&&o.month===m&&o.scope==='future');
   const earlier=overrides.filter(o=>o.rowId===row.id&&o.scope==='future'&&o.month<m).sort((a,b)=>b.month.localeCompare(a.month))[0];
   const o=exact??earlier;
@@ -97,7 +106,7 @@ function reconDebt(s){
   const k=a.month+'|'+a.rowId+'|'+reconPersonKey(p.person);
   received.set(k,(received.get(k)??0)+a.cents);
  }
- return reconMonths(s).flatMap(month=>reconRows(s,month).flatMap(row=>(row.parts??[]).map(part=>{
+ return reconMonths(s).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>{
   const n=received.get(month+'|'+row.id+'|'+reconPersonKey(part.person))??0;
   return {rowId:row.id,month,person:part.person,cents:part.cents,received:n,remaining:Math.max(0,part.cents-n),name:row.name,number:row.number,count:row.count};
  })));
@@ -153,7 +162,7 @@ function reconMarkPaid(s,m,date){
  if(date!==null)r.payments.push({month:m,date});
 }
 function reconInvoice(s,m){
- if(!s.reconciliation?.statements?.some(st=>st.month<=m)&&!s.expenses.some(e=>e.cardMonth===m))return null;
+ if(!s.reconciliation?.statements?.some(st=>st.month<=m))return null;
  return Math.max(0,reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'?0:x.cents),0))/100;
 }
 function reconOpening(s){
@@ -172,12 +181,6 @@ function reconFixed(s,m){
 function defaultCardMonth(d=today()){
  const m=d.slice(0,7);
  return Number(d.slice(-2))<5?m:shiftMonth(m,1);
-}
-function reconOutsideCard(s,m){
- return [
-  ...s.expenses.filter(e=>!e.cardMonth&&e.date.startsWith(m)).map(e=>({name:e.name,date:e.date,cents:-Math.round(e.amount*100)})),
-  ...s.extraIncome.filter(e=>e.date.startsWith(m)).map(e=>({name:e.name,date:e.date,cents:Math.round(e.amount*100)}))
- ].sort((a,b)=>b.date.localeCompare(a.date));
 }
 function reconHasAllocated(s,id){
  return (s.reconciliation?.receipts??[]).some(r=>r.allocations.some(a=>a.rowId===id));

@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.1: seletor da fatura, rateio e integração com lançamentos. */
+/* Diário Financeiro 4.0.2: etiquetas por pessoa e formulários de movimentações separados. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -70,7 +70,7 @@ function cashAt(s,end){
    const p=profile(s,m),salaryDay=eventDate(m,30),invoiceDay=reconPayment(s,m)?.date??eventDate(m,5),paid=settled(s,m);
    if(salaryDay>start&&salaryDay<=end)projected+=p.income;
    if(paid&&included(paid.date))projected-=paid.amount;
-   if(invoiceDay>start&&invoiceDay<=end)projected-=invoiceAmount(s,m);
+   if(invoiceDay>start&&invoiceDay<=end)projected-=invoiceAmount(s,m)+reconPreviousCredit(s,m);
  }
  // Fixos são debitados automaticamente no dia configurado. Pagamentos históricos já confirmados prevalecem.
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
@@ -135,7 +135,7 @@ function nextInvoiceCoverage(s,asOf){
  const paid=settled(s,invoiceMonth);
  const investment=(skipped(s,invoiceMonth)||(paid&&paid.date<=asOf))?0:paid?paid.amount:investmentAmount(s,invoiceMonth);
  const margin=profile(s,invoiceMonth).margin;
- const obligations=round(invoice+fixed+investment+margin);
+ const obligations=round(invoice+fixed+investment+margin+(invoiceDate>asOf?reconPreviousCredit(s,invoiceMonth):0));
  return {invoiceMonth,invoiceDate,salaryDate,incomingSalary,invoice,fixed,investment,margin,obligations,shortfall:round(Math.max(0,obligations-incomingSalary))};
 }
 // Avalia os compromissos até o terceiro próximo crédito mensal.
@@ -215,7 +215,7 @@ function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.coun
 function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+newPartAmount(e,m),0))}
 function invoiceAmount(s,m){return reconInvoice(s,m)??round(baseAmount(s,m)+newAmount(s,m))}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
-function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-base-extra-applied-p.margin)}}
+function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>!e.cardMonth&&e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
@@ -261,6 +261,7 @@ function breakdown(s,m){
  const reconciled=reconInvoice(s,m);
  const base=reconciled!==null?reconRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
  const newer=reconciled!==null?[]:s.parcels.map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
+ const previousCredit=reconPreviousCreditRows(s,m).map(e=>({name:e.name,amount:e.cents/100}));
  const confirmed=settled(s,m),extra=extraInvested(s,m),investmentItems=[];
  if(confirmed)investmentItems.push({name:'Aporte principal realizado',amount:confirmed.amount,meta:confirmed.date.split('-').reverse().join('/')});
  else if(skipped(s,m))investmentItems.push({name:'Aporte mensal não realizado',amount:0,meta:`Meta: ${money(z.investment)}`});
@@ -269,7 +270,7 @@ function breakdown(s,m){
  const extras=s.extraIncome.filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.amount}));
  const extraTotal=round(extras.reduce((sum,e)=>sum+e.amount,0));
  return `<div class="detail-line detail-percent"><span>Renda líquida</span><div class="line-amount"><strong>${money(income)}</strong><small>100% da renda</small></div></div>`+
- group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',base)+(reconciled===null?group('Compras parceladas novas',newer):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
+ group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',base)+(reconciled===null?group('Compras parceladas novas',newer):'')+(previousCredit.length?group('Movimentações de crédito anteriores',previousCredit):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
  line('Margem protegida',z.margin)+
  `<div class="detail-line detail-total detail-percent"><span>Livre no mês (planejado)</span><div class="line-amount"><strong>${z.known?money(round(z.available+extraTotal)):'—'}</strong><small>${z.known?pct(round(z.available+extraTotal),income):'—'} da renda</small></div></div>`;
 }
@@ -375,7 +376,7 @@ function renderExpenseHistory(){
  $('expenseCount').textContent=`${entries.length} ${entries.length===1?'lançamento':'lançamentos'}`;
  const row=entry=>{
    const incoming=entry.direction==='in';
-   const renamed=entry.cardMonth?reconRows(state,entry.cardMonth).find(x=>x.id==='cashcard:'+entry.id)?.name:undefined;
+   const renamed=entry.cardMonth?reconRows(state,entry.cardMonth,true).find(x=>x.id==='cashcard:'+entry.id)?.name:undefined;
    return `<div class="entry history-entry"><div class="entry-main"><div class="entry-title">${esc(renamed??entry.name)}</div><time class="entry-description" datetime="${entry.date}">${readableDate(entry.date)}</time>${entry.cardMonth?`<small class="entry-description">Crédito · ${esc(monthTitle(entry.cardMonth))}</small>`:''}</div><div class="entry-right"><span class="entry-price ${incoming?'entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</span>${incoming?`<button class="entry-remove" type="button" data-delete-income-extra="${esc(entry.id)}" aria-label="Excluir entrada: ${esc(entry.name)}">×</button>`:`<button class="entry-remove" type="button" data-delete-expense="${esc(entry.id)}" aria-label="Excluir ${esc(entry.name)}">×</button>`}</div></div>`;
  };
  $('expenses').innerHTML=byMonth(entries,item=>item.date).map(([month,items])=>
@@ -423,31 +424,30 @@ function showScreenNoScroll(){
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
  for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
- if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),accounts:reconAccounts(state),rows:m=>reconRows(state,m),cashRows:m=>reconOutsideCard(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),accounts:reconAccounts(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  const area=launch?'week':plan?'planning':screen;
- for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button')){
+ for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
    button.classList.toggle('active',active);
    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
  }
 }
 function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?Math.floor(Math.round(total*100)/count)/100:0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
-function expenseCardFields(resetMonth=false){
- const card=$('expenseMethod').value==='credit';
- const month=$('expenseCardMonth');
- $('expenseCardFields').classList.toggle('hidden',!card);
- month.required=card;month.disabled=!card;
- const date=$('expenseDate').value;
- if(card&&(resetMonth||!month.value))month.value=defaultCardMonth(isDate(date)?date:today());
- calendarLabels();
+function showMovementForm(mode){
+ const extra=mode==='extra';
+ $('movementExpensePanel').classList.toggle('hidden',extra);
+ $('movementIncomePanel').classList.toggle('hidden',!extra);
+ for(const [id,on] of [['movementExpenseTab',!extra],['movementIncomeTab',extra]]){
+  const button=$(id);
+  button.classList.toggle('active',on);
+  button.setAttribute('aria-pressed',String(on));
+ }
 }
 async function saveExpense(e){
  e.preventDefault();
  const name=$('expenseName').value.trim(),value=round(amount('expenseAmount')),date=$('expenseDate').value;
- const cardMonth=$('expenseMethod').value==='credit'?$('expenseCardMonth').value:null;
- if(!name||!(value>0)||!isDate(date)||(cardMonth!==null&&!isMonth(cardMonth)))return notice('Confira a data, a descrição, o valor e o mês da fatura.','warning');
- if(cardMonth&&reconRawRows(state,cardMonth).some(x=>x.kind==='charge'&&x.cents===Math.round(value*100)&&reconPersonKey(x.name)===reconPersonKey(name))&&!confirm('Já existe um gasto com esse nome e valor nesta fatura. Adicionar mesmo assim?'))return;
- if(await update(s=>s.expenses.push({id:newId(),name,amount:value,date,...(cardMonth?{cardMonth}:{})}))){
+ if(!name||!(value>0)||!isDate(date))return notice('Informe data, descrição e valor positivo.','warning');
+ if(await update(s=>s.expenses.push({id:newId(),name,amount:value,date}))){
   $('expenseName').value='';$('expenseAmount').value='';
  }
 }
@@ -543,7 +543,7 @@ async function init(){try{
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
  openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
- $('parcelStart').value=defaultCardMonth();expenseCardFields();updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
+ $('parcelStart').value=defaultCardMonth();showMovementForm('expense');updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
@@ -558,7 +558,8 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click'
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
-$('expenseMethod').addEventListener('change',()=>expenseCardFields());$('expenseDate').addEventListener('change',()=>expenseCardFields(true));
+$('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));
+$('movementIncomeTab').addEventListener('click',()=>showMovementForm('extra'));
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);
 

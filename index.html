@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.7">
-<link rel="stylesheet" href="./recon.css?v=4.0.7">
+<link rel="stylesheet" href="./style.css?v=4.0.8">
+<link rel="stylesheet" href="./recon.css?v=4.0.8">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -32,6 +32,10 @@
 <strong id="sundayReference">—</strong>
 <time id="sundayDate">—</time>
 <small id="sundaySetup" class="hidden"></small>
+<details id="pixScenarios" class="pix-scenarios">
+<summary>Simular Pix até a fatura</summary>
+<div id="pixScenarioContent"></div>
+</details>
 </section>
 <section class="dashboard-kpi home-wide-kpi" aria-labelledby="home-investments-title">
 <h2 id="home-investments-title"><button type="button" class="home-kpi-link" data-screen="investments" id="homeInvestments">Investimentos do mês <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button></h2>
@@ -113,6 +117,7 @@
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
 <div class="help-item"><strong>Saldo</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
 <div class="help-item"><strong>Disponível até o próximo domingo</strong><p>É quanto fica livre para gastar até domingo, depois de preservar a margem e os compromissos programados. Valores a receber só entram no saldo depois que você registra o Pix.</p></div>
+<div class="help-item"><strong>Simular Pix até a fatura</strong><p>Compare atrasos e datas sem registrar reembolsos. O valor até a fatura inclui o que gastar até domingo: não some os dois limites. Registre o Pix em A receber quando o dinheiro entrar.</p></div>
 <div class="help-item"><strong>Investimentos do mês</strong><p>Mostra quanto você registrou no primeiro aporte em relação à meta do mês, e o total de aportes extras em separado.</p></div>
 <div class="help-item"><strong>Margem protegida</strong><p>É um saldo mínimo a preservar, não um pagamento. Se a renda futura não cobrir obrigações, a diferença é protegida do caixa disponível.</p></div></details>
 <details class="surface settings-details"><summary>Movimentações</summary>
@@ -166,7 +171,8 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.7" defer></script>
-<script src="./recon-ui.js?v=4.0.7" defer></script>
-<script src="./app.js?v=4.0.7" defer></script>
+<script src="./recon-model.js?v=4.0.8" defer></script>
+<script src="./recon-ui.js?v=4.0.8" defer></script>
+<script src="./scenarios.js?v=4.0.8" defer></script>
+<script src="./app.js?v=4.0.8" defer></script>
 </body></html>

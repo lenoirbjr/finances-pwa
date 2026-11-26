@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.7: classificação em Parcelas e painel de início. */
+/* Diário Financeiro 4.0.8: cenários de Pix no painel de início. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -376,7 +376,73 @@ function renderDashboard(asOf,calc,m){
    $('homeExtraDate').textContent='';
  }
  $('currentMargin').textContent=money(profile(state,m).margin);
+ renderPixScenario(asOf,calc);
 }
+let pixSim=null,pixSimPreferences={month:'',dates:new Map(),selected:new Map()};
+const pixModes=[
+ ['none','Ninguém paga'],['all','Todos pagam'],
+ ['late1','Até 1 pessoa atrasa'],['late2','Até 2 pessoas atrasam'],
+ ['custom','Pessoas selecionadas']
+];
+const pixMoney=cents=>money(cents/100);
+function renderPixScenario(asOf,calc){
+ const details=$('pixScenarios'),content=$('pixScenarioContent');
+ if(!details?.open||!content)return;
+ if(!calc.ready){pixSim=null;content.innerHTML='<p>Configure o saldo de abertura para simular.</p>';return;}
+ const snapshot=pixScenarioSnapshot(state,asOf,calc);
+ if(!snapshot){pixSim=null;content.innerHTML='<p>Nenhuma fatura futura com valor lançado para simular.</p>';return;}
+ const {bill,last}=snapshot;
+ if(pixSimPreferences.month!==bill.month)pixSimPreferences={month:bill.month,dates:new Map(),selected:new Map()};
+ const available=last>=asOf;
+ const people=snapshot.people.map(p=>({...p,date:(()=>{
+   const d=pixSimPreferences.dates.get(p.key);
+   return isDate(d)&&d>=asOf&&d<=last?d:last;
+ })(),selected:pixSimPreferences.selected.get(p.key)??true}));
+ pixSim={snapshot,people};
+ const rows=people.map((p,i)=>`<div class="pix-scenario-person">
+ <label><input type="checkbox" data-pix-sim-person="${i}" ${p.selected?'checked':''} ${available?'':'disabled'}><span>${esc(p.name)}<small>${pixMoney(p.cents)} em aberto</small></span></label>
+ ${available?`<label class="pix-scenario-date"><span>Data prevista</span><input type="date" aria-label="Data prevista para ${esc(p.name)}" data-pix-sim-date="${i}" min="${asOf}" max="${last}" value="${p.date}"></label>`:''}</div>`).join('');
+ content.innerHTML=`<p class="pix-scenario-summary">Fatura de ${bill.month.slice(5)}/${bill.month.slice(0,4)} · ${bill.modeled?'Vencimento':'Vencimento estimado'}: <time datetime="${bill.date}">${readableDate(bill.date)}</time></p>
+ <div id="pixScenarioComparison" class="pix-scenario-comparison" aria-live="polite"></div>
+ ${!available?'<p>O vencimento é hoje. A simulação não conta Pix no mesmo dia da fatura.</p>':''}
+ ${people.length?`<details class="pix-scenario-people"><summary>Quem paga e quando (${people.length})</summary>
+ <p>Marque os nomes para o cenário personalizado e ajuste as datas em todos os cenários.</p>
+ ${rows}</details>`:'<p>Não há reembolsos em aberto classificados nesta fatura.</p>'}
+ <p class="pix-scenario-note">Só conte com o valor simulado depois que o Pix cair. O teto até a fatura considera os compromissos até o vencimento. Se domingo vier antes, o teto da fatura já inclui o de domingo: não some os dois.</p>`;
+ updatePixScenarioComparison();
+}
+function updatePixScenarioComparison(){
+ const target=$('pixScenarioComparison');
+ if(!target||!pixSim)return;
+ const {snapshot,people}=pixSim;
+ const modes=people.length&&snapshot.last>=snapshot.asOf?pixModes:pixModes.slice(0,1);
+ target.innerHTML=`<table><caption>Teto de gastos por cenário</caption><thead><tr><th scope="col">Cenário</th><th scope="col">Até domingo</th><th scope="col">Até a fatura</th></tr></thead><tbody>
+ ${modes.map(([mode,title])=>{
+  const x=pixScenarioEvaluate(snapshot,people,mode);
+  const warnings=[
+   x.billGap?`Faltam ${pixMoney(x.billGap)} no dia da fatura.`:'',
+   x.marginGap?`Faltam ${pixMoney(x.marginGap)} para manter a reserva.`:'',
+   x.earlierDeficit?`Compromissos anteriores à fatura sem cobertura: ${pixMoney(x.earlierDeficit)}.`:''
+  ].filter(Boolean);
+  return `<tr><th scope="row">${title}${warnings.length?`<small class="pix-scenario-warning">${warnings.join(' ')}</small>`:''}</th>
+  <td>${pixMoney(x.sunday)}</td><td>${pixMoney(x.due)}</td></tr>`;
+ }).join('')}</tbody></table>`;
+}
+function onPixScenarioChange(event){
+ if(!pixSim)return;
+ const input=event.target,i=input.dataset.pixSimPerson??input.dataset.pixSimDate;
+ if(i===undefined)return;
+ const person=pixSim.people[Number(i)];if(!person)return;
+ if(input.dataset.pixSimPerson!==undefined){
+   person.selected=input.checked;pixSimPreferences.selected.set(person.key,person.selected);
+ }else{
+   const {asOf,last}=pixSim.snapshot, date=input.value;
+   if(!isDate(date)||date<asOf||date>last){input.value=person.date;return;}
+   person.date=date;pixSimPreferences.dates.set(person.key,date);
+ }
+ updatePixScenarioComparison();
+}
+
 const calendarDate=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
 const readableDate=date=>calendarDate.format(new Date(date+'T12:00:00'));
 function byMonth(items,dateOf){
@@ -603,6 +669,8 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click'
 }));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
+$('pixScenarios')?.addEventListener('toggle',()=>{if($('pixScenarios').open&&state){const asOf=today();renderPixScenario(asOf,cycleBudget(state,asOf));}});
+$('pixScenarioContent')?.addEventListener('change',onPixScenarioChange);
 $('parcelOpenBill').addEventListener('click',()=>{const m=$('parcelOpenBill').dataset.month;if(isMonth(m)){window.ReconUI?.selectBill(m);showScreen('recon');}});
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('screen-installments').addEventListener('click',event=>{

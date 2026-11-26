@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.4: recebimentos por pessoa e filtro por etiqueta. */
+/* Diário Financeiro 4.0.5: salário em duas datas e atualização do caixa. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -24,7 +24,7 @@ function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
  const base={...s,version:5};if(!validLegacyShape(base)||!reconValidate(s.reconciliation))return false;
  if(s.expenses.some(e=>e.cardMonth!==undefined&&!isMonth(e.cardMonth))||s.parcels.some(p=>(p.cardAdded!==undefined&&p.cardAdded!==true)||(p.purchaseDate!==undefined&&!isDate(p.purchaseDate))))return false;
- if(!s.profiles.every(p=>isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)))return false;
+ if(!s.profiles.every(p=>isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)&&(p.salaryMidMonthPercent===undefined||(Number.isInteger(p.salaryMidMonthPercent)&&p.salaryMidMonthPercent>=0&&p.salaryMidMonthPercent<100))))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
  if(s.opening!==null&&(!s.opening||!isDate(s.opening.date)||!Number.isFinite(s.opening.amount)||s.opening.amount<0))return false;
  if(!Array.isArray(s.extraIncome)||!s.extraIncome.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>0))return false;
@@ -57,6 +57,17 @@ function skipped(s,m){return (s.investmentSkipped||[]).includes(m)}
 // Projeção local a partir de um saldo de abertura. Não significa conciliação bancária.
 // Fevereiro usa o último dia do mês como equivalente ao pagamento do dia 30.
 function eventDate(m,day){const [y,mo]=m.split('-').map(Number),last=new Date(y,mo,0).getDate();return `${m}-${pad(Math.min(day,last))}`}
+// Split only the configured income profile. Legacy profiles keep 100% on the 30th.
+function salaryEvents(s,m){
+ const p=profile(s,m),total=Math.round(p.income*100),percent=p.salaryMidMonthPercent??0;
+ const middle=Math.round(total*percent/100);
+ const late={date:eventDate(m,30),amount:(total-middle)/100};
+ return percent?[{date:eventDate(m,15),amount:middle/100},late]:[late];
+}
+function nextMonthEndPayday(date){
+ const m=date.slice(0,7),pay=eventDate(m,30);
+ return pay>date?pay:eventDate(shiftMonth(m,1),30);
+}
 function fixedDate(s,item,m){return eventDate(m,item.day||5)}
 function confirmedFixed(s,id,m){return (s.fixedPaid||[]).find(x=>x.id===id&&x.month===m)||null}
 function cashAt(s,end){
@@ -67,8 +78,8 @@ function cashAt(s,end){
  if(end<start)return round(opened.amount);
  let projected=opened.amount;
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
-   const p=profile(s,m),salaryDay=eventDate(m,30),invoiceDay=reconPayment(s,m)?.date??eventDate(m,5),paid=settled(s,m);
-   if(salaryDay>start&&salaryDay<=end)projected+=p.income;
+   const invoiceDay=reconPayment(s,m)?.date??eventDate(m,5),paid=settled(s,m);
+   for(const credit of salaryEvents(s,m))if(credit.date>start&&credit.date<=end)projected+=credit.amount;
    if(paid&&included(paid.date))projected-=paid.amount;
    if(invoiceDay>start&&invoiceDay<=end)projected-=invoiceAmount(s,m)+reconPreviousCredit(s,m);
  }
@@ -114,7 +125,7 @@ function cashToday(s){return cashAt(s,today())}
 // Eventos futuros só ajudam a verificar se pagamentos posteriores caberão.
 function addDays(date,n){const [y,m,d]=date.split('-').map(Number);return dateKey(new Date(y,m-1,d+n,12))}
 function daysBetween(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)}
-function nextPayday(date){const m=date.slice(0,7),pay=eventDate(m,30);return pay>date?pay:eventDate(shiftMonth(m,1),30)}
+function nextPayday(s,date){const m=date.slice(0,7);return salaryEvents(s,m).find(e=>e.date>date)?.date??salaryEvents(s,shiftMonth(m,1))[0].date}
 function nextSunday(date){const d=new Date(date+'T12:00:00');return addDays(date,(7-d.getDay())%7)}
 // Reserva adicional para o fechamento mais próximo: não confundir superávit futuro
 // com dinheiro que já existe. Uma fatura que exceda o salário líquido do ciclo,
@@ -124,8 +135,12 @@ function nextInvoiceCoverage(s,asOf){
  const m=asOf.slice(0,7),thisDue=eventDate(m,5);
  const invoiceMonth=thisDue>asOf?m:shiftMonth(m,1);
  const invoiceDate=reconPayment(s,invoiceMonth)?.date??eventDate(invoiceMonth,5);
- const salaryMonth=shiftMonth(invoiceMonth,-1),salaryDate=eventDate(salaryMonth,30);
- const incomingSalary=salaryDate>asOf&&salaryDate<=invoiceDate?profile(s,salaryMonth).income:0;
+ const credits=[];
+ for(let month=asOf.slice(0,7);month<=invoiceDate.slice(0,7);month=shiftMonth(month,1)){
+   for(const credit of salaryEvents(s,month))if(credit.date>asOf&&credit.date<=invoiceDate)credits.push(credit);
+ }
+ const incomingSalary=round(credits.reduce((n,e)=>n+e.amount,0));
+ const salaryDate=credits.at(-1)?.date??null;
  const invoice=invoiceDate>asOf?invoiceAmount(s,invoiceMonth):0;
  const fixed=round(reconFixed(s,invoiceMonth).reduce((sum,item)=>{
    const confirmed=confirmedFixed(s,item.id,invoiceMonth);
@@ -141,13 +156,13 @@ function nextInvoiceCoverage(s,asOf){
 // Avalia os compromissos até o terceiro próximo crédito mensal.
 // A margem é um piso de caixa, e não uma saída bancária nem um valor somado todos os meses.
 function cycleBudget(s,asOf=today()){
- const next=nextPayday(asOf), days=Math.max(1,daysBetween(asOf,next));
+ const next=nextPayday(s,asOf), days=Math.max(1,daysBetween(asOf,next));
  const current=reconOpening(s)&&reconOpening(s).date<=asOf?cashAt(s,asOf):null;
  if(current===null)return {ready:false,reason:'Configure um saldo de abertura com data igual ou anterior a hoje.'};
- const horizon=nextPayday(nextPayday(next));
+ const firstMonthEnd=nextMonthEndPayday(asOf),horizon=eventDate(shiftMonth(firstMonthEnd.slice(0,7),2),30);
  const checkpoints=new Set([asOf,next,horizon]);
  for(let month=asOf.slice(0,7);month<=horizon.slice(0,7);month=shiftMonth(month,1)){
-   for(const day of [5,30]){const t=eventDate(month,day);if(t>asOf&&t<=horizon)checkpoints.add(t)}
+   for(const t of [eventDate(month,5),...salaryEvents(s,month).map(e=>e.date)])if(t>asOf&&t<=horizon)checkpoints.add(t);
    for(const item of activeFixed(s,month)){const due=fixedDate(s,item,month);if(due>asOf&&due<=horizon)checkpoints.add(due)}
  }
  for(const group of [s.monthlyPaid||[],s.extraIncome||[],s.extraInvestments||[],s.expenses||[],s.reconciliation?.receipts||[],s.reconciliation?.payments||[]]){
@@ -170,8 +185,8 @@ function cycleBudget(s,asOf=today()){
  const daily=round(available/days);
  const sunday=nextSunday(asOf);
  const remaining=Math.min(days,daysBetween(asOf,sunday)+1);
- const week=round(Math.min(available,available/days*remaining));
- return {ready:true,current,next,days,sunday,remaining,available,daily,week,minimum:round(minimum),lowestDate,horizon,margin:profile(s,asOf.slice(0,7)).margin,coverage};
+ const week=round(Math.min(available,available/days*remaining)), sundayBalance=cashForecast(s,sunday,asOf);
+ return {ready:true,current,next,days,sunday,sundayBalance,remaining,available,daily,week,minimum:round(minimum),lowestDate,horizon,margin:profile(s,asOf.slice(0,7)).margin,coverage};
 }
 
 function profile(s,m){return s.profiles.filter(p=>p.from<=m).sort((a,b)=>b.from.localeCompare(a.from))[0]||s.profiles.slice().sort((a,b)=>a.from.localeCompare(b.from))[0]}
@@ -326,20 +341,20 @@ const shortDay=date=>dayOfWeek.format(new Date(date+'T12:00:00')).replace('.',''
 function renderDashboard(asOf,calc,m){
  const since=monday(new Date(asOf+'T12:00:00')), sunday=nextSunday(asOf);
  $('weekRange').textContent=since.slice(0,7)===sunday.slice(0,7)?`${since.slice(-2)}–${shortDate(sunday)}`:`${shortDate(since)} – ${shortDate(sunday)}`;
- const next=nextPayday(asOf),invoiceDate=nextInvoiceCoverage(state,asOf).invoiceDate;
+ const next=nextPayday(state,asOf),invoiceDate=nextInvoiceCoverage(state,asOf).invoiceDate;
  for(const [id,day] of [['paydayCaption',next],['invoiceCaption',invoiceDate]]){
    $(id).dateTime=day;$(id).textContent=shortDate(day);
  }
  const first=next<=invoiceDate?$('salaryRow'):$('invoiceRow');
  if($('upcomingRows').firstElementChild!==first)$('upcomingRows').prepend(first);
- const nextMonth=next.slice(0,7);
+ const contributionDate=nextMonthEndPayday(asOf),nextMonth=contributionDate.slice(0,7);
  const upcomingContribution=!settled(state,nextMonth)&&!skipped(state,nextMonth)&&investmentAmount(state,nextMonth)>0;
  $('preInvestmentCard').classList.toggle('hidden',!calc.ready||!upcomingContribution);
  if(calc.ready&&upcomingContribution){
-   const before=cashAt(state,next);
+   const before=cashAt(state,contributionDate);
    $('preInvestmentBalance').textContent=money(before);
    $('preInvestmentBalance').classList.toggle('negative',before<0);
-   $('preInvestmentDate').textContent=`Projeção em ${shortDate(next)}`;
+   $('preInvestmentDate').textContent=`Projeção em ${shortDate(contributionDate)}`;
  }
  const invested=investmentsStatus(state,m);
  $('homeInvestmentTotal').textContent=money(invested.total);
@@ -391,14 +406,15 @@ function render(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=c
 $('cashBalance').textContent=calc.ready?money(calc.current):'—';
 $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
 $('cashBalanceDate').dateTime=asOf;$('cashBalanceDate').textContent=`Estimado em ${shortDate(asOf)}`;
-$('cycleAvailableDate').dateTime=nextPayday(asOf);$('cycleAvailableDate').textContent=calc.ready?`Até ${shortDate(calc.next)}`:`Salário em ${shortDate(nextPayday(asOf))}`;
+$('cycleAvailableDate').dateTime=nextPayday(state,asOf);$('cycleAvailableDate').textContent=calc.ready?`Até ${shortDate(calc.next)}`:`Salário em ${shortDate(nextPayday(state,asOf))}`;
 const cashReserveNote=$('cashReserveNote');
 if(cashReserveNote){const gap=calc.ready?calc.coverage.shortfall:0;cashReserveNote.classList.toggle('hidden',!(gap>0));cashReserveNote.textContent=gap>0?`A preservar para os compromissos de ${monthTitle(calc.coverage.invoiceMonth)}: ${money(gap)}`:'';}
 $('cycleAvailable').textContent=calc.ready?money(calc.available):'—';
 $('dayReference').textContent=calc.ready?money(calc.daily):'—';
-$('sundayReference').textContent=calc.ready?money(calc.week):'—';
+$('sundayReference').textContent=calc.ready?money(calc.sundayBalance):'—';
+$('sundayReference').classList.toggle('negative',calc.ready&&calc.sundayBalance<0);
 $('daysCaption').textContent=calc.ready?`${calc.days} dia(s) até o salário`:'—';
-$('sundayCaption').textContent=calc.ready?`Até ${shortDate(calc.sunday)} · disponível após reservas.`:calc.reason;
+$('sundayCaption').textContent=calc.ready?`Projetado para ${shortDate(calc.sunday)} · Livre para gastar após reservas: ${money(calc.week)}.`:calc.reason;
 $('cycleDetail').textContent=!calc.ready?calc.reason:calc.minimum<0?'Atenção: os compromissos projetados ultrapassam o caixa protegido. Confira o planejamento.':calc.coverage.shortfall>0?`Após margem e reserva de ${money(calc.coverage.shortfall)} para cobrir a diferença dos compromissos de ${monthTitle(calc.coverage.invoiceMonth)}.`:'Após a margem e os pagamentos previstos, sem antecipar salários futuros.';
 $('currentMargin').textContent=money(profile(state,m).margin);
 $('currentInvestment').textContent=money(investmentAmount(state,m));
@@ -424,7 +440,7 @@ function showScreenNoScroll(){
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
  for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
- if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),accounts:reconAccounts(state),owner:reconOwner(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  const area=launch?'week':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
@@ -466,8 +482,8 @@ async function saveNew(e){
   editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');
  }
 }
-function fillProfileInputs(){if(!state)return;const p=profile(state,$('effectiveMonth').value||monthNow());$('income').value=p.income;$('investment').value=p.investments;$('margin').value=p.margin}
-async function saveBaseline(e){e.preventDefault();const income=amount('income'),investment=amount('investment'),margin=amount('margin'),date=$('started').value,from=$('effectiveMonth').value;if(![income,investment,margin].every(v=>Number.isFinite(v)&&v>=0)||!isDate(date)||!isMonth(from))return notice('Confira os valores e as datas.','warning');await update(s=>{const p={from,income:round(income),investments:round(investment),margin:round(margin)};s.profiles=s.profiles.filter(x=>x.from!==from);s.profiles.push(p);s.profiles.sort((a,b)=>a.from.localeCompare(b.from));s.started=monday(new Date(date+'T12:00:00'))})}
+function fillProfileInputs(){if(!state)return;const p=profile(state,$('effectiveMonth').value||monthNow());$('income').value=p.income;$('salaryMidMonthPercent').value=String(p.salaryMidMonthPercent??0);$('investment').value=p.investments;$('margin').value=p.margin}
+async function saveBaseline(e){e.preventDefault();const income=amount('income'),investment=amount('investment'),margin=amount('margin'),mid=amount('salaryMidMonthPercent'),date=$('started').value,from=$('effectiveMonth').value;if(![income,investment,margin].every(v=>Number.isFinite(v)&&v>=0)||!Number.isInteger(mid)||mid<0||mid>=100||!isDate(date)||!isMonth(from))return notice('Confira os valores e as datas.','warning');await update(s=>{const p={from,income:round(income),investments:round(investment),margin:round(margin),...(mid?{salaryMidMonthPercent:mid}:{})};s.profiles=s.profiles.filter(x=>x.from!==from);s.profiles.push(p);s.profiles.sort((a,b)=>a.from.localeCompare(b.from));s.started=monday(new Date(date+'T12:00:00'))})}
 async function saveFixed(e){e.preventDefault();const name=$('fixedName').value.trim(),value=amount('fixedAmount'),start=$('fixedStart').value,end=$('fixedEnd').value;if(!name||!Number.isFinite(value)||value<0||!Number.isInteger(Number($('fixedDay').value))||Number($('fixedDay').value)<1||Number($('fixedDay').value)>31||!isMonth(start)||(end&&!isMonth(end))||(end&&end<start))return notice('Confira os dados da despesa fixa.','warning');if(await update(s=>{const item={id:editingFixed||newId(),name,amount:round(value),day:Number($('fixedDay').value),start,end:end||null};if(editingFixed)s.fixedItems=s.fixedItems.map(p=>p.id===editingFixed?item:p);else s.fixedItems.push(item)})){editingFixed=null;$('fixedForm').reset();$('fixedStart').value=monthNow();$('fixedDay').value='5';$('fixedSubmit').textContent='Adicionar despesa fixa';$('fixedCancel').classList.add('hidden');calendarLabels()}}
 async function saveBase(e){e.preventDefault();const name=$('baseName').value.trim(),payment=amount('basePayment'),remaining=Number($('baseRemaining').value),start=$('baseStart').value;if(!name||!(payment>0)||!Number.isInteger(remaining)||remaining<1||remaining>240||!isMonth(start))return notice('Confira a parcela antiga.','warning');if(await update(s=>{const item={id:editingBase||newId(),name,payment:round(payment),remaining,start};if(editingBase)s.baseParcels=s.baseParcels.map(p=>p.id===editingBase?item:p);else s.baseParcels.push(item)})){editingBase=null;$('baseForm').reset();$('baseStart').value=monthNow();$('baseSubmit').textContent='Adicionar parcela antiga';$('baseCancel').classList.add('hidden');calendarLabels()}}
 async function saveExtraInvestment(e){e.preventDefault();const date=$('extraDate').value,name=$('extraName').value.trim()||'Aporte extra',v=amount('extraAmount');if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Informe data e valor positivo.','warning');if(await update(s=>s.extraInvestments.push({id:newId(),date,name,amount:round(v)}))){$('extraAmount').value='';$('extraName').value=''}}

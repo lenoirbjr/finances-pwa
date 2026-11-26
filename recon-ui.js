@@ -55,8 +55,7 @@ window.ReconUI=(()=>{
    return `<div class="section-heading recon-heading"><div><p class="recon-kicker">ORGANIZAÇÃO DO CARTÃO</p><h1>${tab==='bill'?'Fatura':'A receber'}</h1>${tab==='debt'?'<p>Acompanhe o que cada pessoa deve e registre o Pix quando cair.</p>':''}</div></div>
    <nav class="subtabs recon-tabs" aria-label="Fatura e recebimentos"><button data-recon-tab="bill" aria-pressed="${tab==='bill'}" type="button">Fatura</button><button data-recon-tab="debt" aria-pressed="${tab==='debt'}" type="button">A receber</button></nav><p class="recon-message" data-recon-message role="status"></p>`;
  }
- function bill(){
-   const all=api.rows(period)||[];
+ function billList(all){
    const options=new Map([['all','Todos'],['unlabeled','Sem etiqueta']]);
    const names=new Map();
    const withNames=all.map(row=>{
@@ -70,6 +69,11 @@ window.ReconUI=(()=>{
    for(const [value,label] of [...names].sort((a,b)=>a[1].localeCompare(b[1],'pt-BR')))options.set(value,label);
    if(!options.has(billFilter))billFilter='all';
    displayed=withNames.filter(({row,keys})=>billFilter==='all'||(billFilter==='unlabeled'?charge(row)&&keys.length===0:keys.includes(billFilter))).map(x=>x.row);
+   return options;
+ }
+ function bill(){
+   const all=api.rows(period)||[];
+   const options=billList(all);
    const total=all.reduce((v,r)=>v+(r.kind==='prior-payment'?0:r.cents),0);
    const parts=all.filter(charge);
    const due=statement(period)?.dueDate??statement(period)?.due??(statement(period)?period+'-05':'');
@@ -85,11 +89,14 @@ window.ReconUI=(()=>{
     </div></div>
    <dl class="recon-totals"><div><dt>Total da fatura</dt><dd>${brl(total)}</dd></div><div><dt>Minha parte</dt><dd>${brl(mine)}</dd></div><div><dt>De outras pessoas</dt><dd>${brl(assigned)}</dd></div><div><dt>Sem etiqueta</dt><dd>${brl(unassigned)}</dd></div></dl>
    <p class="recon-due">Vencimento: <strong>${when(safeDate(due)?due:period+'-05')}</strong></p>
-   <div class="recon-label-filter"><label for="reconBillFilter">Filtrar por etiqueta</label><select id="reconBillFilter">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select></div>
-   <div class="recon-rows">${displayed.length?displayed.map((r,i)=>{
+   <div class="recon-label-filter"><select id="reconBillFilter" aria-label="Filtrar por etiqueta">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select></div>
+   <div class="recon-rows" id="reconBillRows">${billRows()}</div></div>`;
+ }
+ function billRows(){
+   return `${displayed.length?displayed.map((r,i)=>{
     const name=escape(r.name),part=r.number&&r.count?` · Parcela ${r.number}/${r.count}`:'';
     return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):''}</div></article>${editing===r.id&&formKind==='label'?editor(r):''}`;
-   }).join(''):`<p class="empty">${billFilter==='all'?'Nenhuma linha nesta fatura.':'Nenhum lançamento com esse filtro.'}</p>`}</div></div>`;
+   }).join(''):`<p class="empty">${billFilter==='all'?'Nenhuma linha nesta fatura.':'Nenhum lançamento com esse filtro.'}</p>`}`;
  }
  function personRow(person='',c=0,showValue=true,disabled=false,unit='amount'){
    return `<div class="recon-share"><input name="person" aria-label="Nome da pessoa" placeholder="Nome da pessoa" maxlength="100" value="${escape(person)}" required ${disabled?'disabled':''}>${showValue?`<input name="partCents" aria-label="${unit==='percent'?'Percentual desta pessoa':'Valor desta pessoa (R$)'}" type="text" inputmode="decimal" placeholder="${unit==='percent'?'0,00%':'0,00'}" value="${c?coin(c):''}" required ${disabled?'disabled':''}>`:''}<button type="button" data-recon-remove aria-label="Remover pessoa">×</button></div>`;
@@ -108,29 +115,29 @@ window.ReconUI=(()=>{
  }
  function debt(){
    debts=api.debt()||[];
-   const accounts=api.accounts||api.state?.reconciliation?.baseline?.accounts||[{id:'digital',name:'Conta digital'},{id:'inter',name:'Inter'},{id:'other',name:'Outra conta'}];
    const list=[...new Map(debts.filter(x=>x.remaining>0).map(x=>[norm(x.person),x.person])).values()];
    const byPerson=new Map();
    for(const d of debts){const p=norm(d.person);if(!byPerson.has(p))byPerson.set(p,[]);byPerson.get(p).push(d);}
-   const people=[...byPerson.entries()].sort((a,b)=>a[1][0].person.localeCompare(b[1][0].person,'pt-BR'));
+   const people=[...byPerson.entries()].map(([key,items])=>({key,items,pending:items.reduce((n,d)=>n+d.remaining,0)}))
+     .sort((a,b)=>b.pending-a.pending||a.items[0].person.localeCompare(b.items[0].person,'pt-BR'));
    const receiptsByPerson=new Map();
    for(const receipt of api.state?.reconciliation?.receipts??[]){const k=norm(receipt.person);if(!receiptsByPerson.has(k))receiptsByPerson.set(k,[]);receiptsByPerson.get(k).push(receipt);}
-   const groups=people.map(([key,items])=>{
-    const pending=items.reduce((n,d)=>n+d.remaining,0), received=items.reduce((n,d)=>n+d.received,0);
+   const groups=people.map(({key,items,pending})=>{
+    const received=items.reduce((n,d)=>n+d.received,0);
     const months=groupByMonth(items).map(([month,rows])=>{
      const open=rows.reduce((n,d)=>n+d.remaining,0), recv=rows.reduce((n,d)=>n+d.received,0);
      const groupKey=JSON.stringify(['month',key,month]);
      return `<details class="recon-debt-month" data-recon-group="${escape(groupKey)}" ${openGroups.has(groupKey)?'open':''}>
        <summary><span>Fatura ${monthTitle(month)}<small>${rows.length} ${rows.length===1?'dívida':'dívidas'}${recv?' · '+brl(recv)+' recebido':''}</small></span><strong>${open?brl(open):'Quitado'}</strong></summary>
-       <div class="recon-month-debts">${rows.map(d=>`<article class="recon-row"><div><strong>${escape(d.name)}</strong>${d.number&&d.count?`<small>Parcela ${d.number}/${d.count}</small>`:''}${!statement(d.month)&&d.month>=api.today.slice(0,7)?'<small>Prevista</small>':''}</div><div class="recon-row-amount"><strong>${brl(d.remaining)}</strong><small>${d.remaining===0?'Quitado':d.received?brl(d.received)+' já recebido':'Pendente'}</small></div></article>`).join('')}</div></details>`;
+       <div class="recon-month-debts">${[...rows].sort((a,b)=>b.remaining-a.remaining).map(d=>`<article class="recon-row"><div><strong>${escape(d.name)}</strong>${d.number&&d.count?`<small>Parcela ${d.number}/${d.count}</small>`:''}${!statement(d.month)&&d.month>=api.today.slice(0,7)?'<small>Prevista</small>':''}</div><div class="recon-row-amount"><strong>${brl(d.remaining)}</strong><small>${d.remaining===0?'Quitado':d.received?brl(d.received)+' já recebido':'Pendente'}</small></div></article>`).join('')}</div></details>`;
     }).join('');
     const receipts=receiptsByPerson.get(key)||[], receiptKey='receipts:'+key;
-    const receivedRows=receipts.length?`<details class="recon-debt-month" data-recon-group="${escape(receiptKey)}" ${openGroups.has(receiptKey)?'open':''}><summary><span>Pix registrados</span><strong>${receipts.length}</strong></summary><div class="recon-month-debts">${receipts.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<article class="recon-row"><div><strong>${brl(r.cents)}</strong><small>${when(r.date)} · ${escape(accounts.find(a=>a.id===r.accountId)?.name||'Conta não identificada')}${r.inBaseline?' · Já no saldo inicial':''}</small></div><div class="recon-row-amount">${api.deleteReceipt?`<button type="button" class="secondary" data-recon-delete-pix="${escape(r.id)}">Desfazer</button>`:''}</div></article>`).join('')}</div></details>`:'';
+    const receivedRows=receipts.length?`<details class="recon-debt-month" data-recon-group="${escape(receiptKey)}" ${openGroups.has(receiptKey)?'open':''}><summary><span>Pix registrados</span><strong>${receipts.length}</strong></summary><div class="recon-month-debts">${receipts.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<article class="recon-row"><div><strong>${brl(r.cents)}</strong><small>${when(r.date)}${r.inBaseline?' · Já no saldo inicial':''}</small></div><div class="recon-row-amount">${api.deleteReceipt?`<button type="button" class="secondary" data-recon-delete-pix="${escape(r.id)}">Desfazer</button>`:''}</div></article>`).join('')}</div></details>`:'';
     return `<details class="recon-person-group" data-recon-group="${escape('person:'+key)}" ${openGroups.has('person:'+key)?'open':''}><summary><span>${escape(items[0].person)}${received?`<small>${brl(received)} recebido</small>`:''}</span><strong>${pending?brl(pending):'Quitado'}</strong></summary><div class="recon-debt-months">${months}${receivedRows}</div></details>`;
    }).join('');
    return `<div class="surface recon-screen"><dl class="recon-totals"><div><dt>Em aberto</dt><dd>${brl(debts.reduce((n,d)=>n+d.remaining,0))}</dd></div><div><dt>Já recebido</dt><dd>${brl(debts.reduce((n,d)=>n+d.received,0))}</dd></div></dl>
    ${list.length&&formKind!=='receipt'?'<button class="primary recon-pix" type="button" data-recon-pix>Registrar PIX</button>':''}
-   ${formKind==='receipt'?receiptForm(list,accounts):''}
+   ${formKind==='receipt'?receiptForm(list):''}
    <div class="recon-rows recon-debt-list">${groups||'<p class="empty">Nenhum valor a receber. Classifique uma linha da fatura para começar.</p>'}</div></div>`;
  }
  function groupByMonth(items){
@@ -138,14 +145,13 @@ window.ReconUI=(()=>{
    for(const x of items){if(!result.has(x.month))result.set(x.month,[]);result.get(x.month).push(x);}
    return [...result.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
  }
- function receiptForm(list,accounts){
+ function receiptForm(list){
    return `<form class="recon-edit recon-receipt-form" data-recon-form="receipt" aria-label="Registrar Pix recebido"><h2>Registrar Pix recebido</h2><label for="reconPerson">De quem veio</label><select id="reconPerson" name="person" required><option value="">Selecione</option>${list.map(p=>`<option ${norm(p)===norm(personFilter)?'selected':''}>${escape(p)}</option>`).join('')}</select>
    <div class="recon-pix-fields"><div><label for="reconPixDate">Data do recebimento</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(api.today)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="reconPixDate" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required></div></div><div><label for="reconPixAmount">Valor recebido (R$)</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total em aberto desta pessoa" disabled>Total</button></div></div></div>
-   <label for="reconAccount">Conta onde caiu</label><select id="reconAccount" name="accountId" required><option value="">Selecione a conta</option>${accounts.map(a=>`<option value="${escape(a.id)}">${escape(a.name)}</option>`).join('')}</select>
    <label class="recon-check"><input name="inBaseline" type="checkbox"> Este Pix já está incluído no saldo inicial.</label>
    <fieldset class="recon-allocations"><legend>Distribuir entre dívidas</legend><div data-recon-allocations></div><p class="recon-allocation-summary" data-recon-unallocated aria-live="polite"></p></fieldset>
-   <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary" ${accounts.length?'':'disabled'}>Registrar PIX</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
-   ${accounts.length?'':'<p class="recon-note">Cadastre ou importe uma conta no saldo inicial antes de registrar o Pix.</p>'}</form>`;
+   <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Registrar PIX</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
+   </form>`;
  }
  function allocations(form){
    const p=form.elements.person.value;
@@ -230,7 +236,13 @@ window.ReconUI=(()=>{
   });
   dom.addEventListener('change',e=>{
     const el=e.target;
-    if(el.id==='reconBillFilter'){billFilter=el.value;close();$('#reconBillFilter',root)?.focus();return;}
+    if(el.id==='reconBillFilter'){
+      billFilter=el.value;editing=null;formKind='';
+      billList(api.rows(period)||[]);
+      const list=$('#reconBillRows',root);
+      if(list)list.innerHTML=billRows();
+      return;
+    }
     if(el.id==='reconMonth'&&safeMonth(el.value)){period=el.value;close();return;}
     if(el.name==='divided'){
       const f=el.form,show=f.elements.divided.value==='yes',shares=$('.recon-shares',f);
@@ -274,9 +286,9 @@ window.ReconUI=(()=>{
       }
       apply(()=>api.label(period,r.id,label||null,parts,scope,name,ownerName),'Lançamento atualizado.');
     }else {
-      const {person,date,amount,accountId,inBaseline}=f.elements;
+      const {person,date,amount,inBaseline}=f.elements;
       const total=cents(amount.value);
-      if(!safeDate(date.value)||date.value>api.today||!(total>0)||!person.value||!accountId.value){error('Confira a pessoa, a data, a conta e o valor do Pix.');return;}
+      if(!safeDate(date.value)||date.value>api.today||!(total>0)||!person.value){error('Confira a pessoa, a data e o valor do Pix.');return;}
       const allocations=[];
       for(const el of f.querySelectorAll('[data-recon-debt]')){
         if(!el.value.trim())continue;
@@ -285,7 +297,7 @@ window.ReconUI=(()=>{
         allocations.push({rowId:d.rowId,month:d.month,cents:c});
       }
       if(allocations.reduce((n,a)=>n+a.cents,0)!==total){error('Distribua o valor inteiro do Pix nas dívidas escolhidas.');return;}
-      apply(()=>api.receipt({id:crypto.randomUUID(),date:date.value,accountId:accountId.value,person:person.value,cents:total,inBaseline:inBaseline.checked,allocations}),'Pix registrado.');
+      apply(()=>api.receipt({id:crypto.randomUUID(),date:date.value,person:person.value,cents:total,inBaseline:inBaseline.checked,allocations}),'Pix registrado.');
     }
   });
  }

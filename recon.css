@@ -133,3 +133,6 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-person-chip[data-person-color="45"]{--person-hue:338}
 .recon-person-chip[data-person-color="46"]{--person-hue:345}
 .recon-person-chip[data-person-color="47"]{--person-hue:352}
+
+.recon-edit .recon-label-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.recon-edit .recon-label-actions button{width:100%;min-width:0;padding:6px 2px;margin:0;white-space:nowrap;font-size:clamp(.7rem,3.25vw,.87rem)}

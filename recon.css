@@ -160,3 +160,9 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-label-filter{padding:8px 0 0}
 .recon-label-filter select{min-width:0;max-width:100%;width:100%;margin:0}
 @media(max-width:370px){.recon-allocation{grid-template-columns:minmax(0,1fr);gap:4px}.recon-allocation .recon-quick-amount{max-width:100%}}
+
+/* Classify installment history without forcing a wide controls column. */
+.parcel-history-entry{flex-wrap:wrap}
+.parcel-history-entry .entry-main{min-width:min(115px,100%)}
+.parcel-history-entry .entry-right{flex-wrap:wrap;max-width:100%}
+.parcel-label-button{display:inline-flex;flex-wrap:wrap;align-items:center;gap:3px;max-width:100%;min-height:36px}

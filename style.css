@@ -492,3 +492,6 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
  .dashboard{gap:16px}.surface{padding:18px}.balance-card{padding:23px}
  .dashboard-kpi{padding:15px}.theme-choices{max-width:340px}
 }
+
+.tabs.bottom-nav,html[data-theme=pink] .tabs.bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+.tabs.bottom-nav button span{white-space:nowrap;font-size:clamp(.55rem,2.55vw,.72rem)}

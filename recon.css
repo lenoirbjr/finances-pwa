@@ -1,0 +1,49 @@
+/* Finance reconciliation; use theme variables from the host app. */
+.recon-heading h1{margin:0}.recon-heading .recon-kicker{color:var(--accent);font-weight:780;letter-spacing:.13em;font-size:.65rem;margin:0 0 4px}
+.recon-tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 0 14px;gap:8px}
+.recon-tabs button{min-height:44px}
+.recon-tabs button[aria-pressed=true]{background:var(--accent-strong);color:var(--accent-on)}
+.recon-message{color:var(--accent);font-size:.83rem;margin:0 0 9px;line-height:1.35}
+.recon-message:empty{display:none}
+.recon-screen .recon-note{font-size:.78rem;line-height:1.4;color:var(--muted);margin:10px 0 12px}
+.recon-screen .recon-period{max-width:20rem}
+.recon-screen :is(input,select,button){min-height:44px}
+.recon-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 10px}
+.recon-totals>div{padding:10px;border-radius:12px;border:1px solid var(--edge);background:var(--surface-alt);min-width:0}
+.recon-totals dt{font-size:.72rem;color:var(--muted)}
+.recon-totals dd{margin:4px 0 0;font-size:clamp(.96rem,4vw,1.4rem);font-weight:800;overflow-wrap:anywhere}
+.recon-rows{margin-top:12px}
+.recon-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;border-top:1px solid var(--edge);padding:11px 0}
+.recon-row>div{min-width:0;overflow-wrap:anywhere}
+.recon-row strong{font-size:.9rem}.recon-row small{display:block;margin-top:3px;font-size:.73rem;color:var(--muted)}
+.recon-row .recon-row-amount{display:grid;justify-items:end;text-align:right;min-width:84px}
+.recon-screen .recon-row button{margin:4px 0 0;width:auto;padding-inline:9px;font-size:.76rem}
+.recon-tag{display:inline-block;margin-top:5px;padding:3px 6px;border-radius:6px;border:1px solid var(--edge);font-size:.69rem;color:var(--muted)}
+.recon-tag[data-label=mine],.recon-tag[data-label=other],.recon-tag[data-label=split]{color:var(--accent)}
+.recon-edit{border:1px solid var(--edge);padding:12px;border-radius:12px;background:var(--surface-alt);margin:0 0 9px}
+.recon-edit label,.recon-period label,.recon-paid label{display:block;font-size:.77rem;color:var(--muted);margin:8px 0 4px}
+.recon-edit :is(input,select),.recon-period input,.recon-paid input{width:100%;min-width:0}
+.recon-edit :is(input,select),.recon-paid input{margin:0}
+.recon-shares[hidden],.recon-screen [hidden]{display:none!important}
+.recon-share{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,.6fr) 44px;gap:6px;margin:0 0 6px}
+.recon-share:not(:has([name=partCents])){grid-template-columns:minmax(0,1fr) 44px}
+.recon-screen .recon-share button{margin:0;padding:0}
+.recon-actions,.recon-paid{display:flex;flex-wrap:wrap;gap:7px 10px;align-items:center}
+.recon-actions button,.recon-paid button,.recon-screen .recon-pix{width:auto;margin:8px 0 0}
+.recon-paid{padding:8px 0 12px;border-top:1px solid var(--edge)}
+.recon-paid input{width:auto}.recon-paid button{margin:0}
+.recon-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}.recon-fields>div{min-width:0}
+.recon-edit .recon-check{display:flex;gap:8px;align-items:center;min-height:44px;margin:7px 0 8px}
+.recon-edit .recon-check input{appearance:auto;width:20px;min-height:20px;flex:none}
+.recon-allocations{border:1px solid var(--edge);border-radius:10px;margin:10px 0;padding:7px;min-width:0}
+.recon-allocations legend{font-size:.77rem;padding-inline:4px;color:var(--text)}
+.recon-edit .recon-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,.47fr);align-items:center;gap:8px;margin:5px 0}
+.recon-allocation small{display:block;font-size:.68rem;color:var(--muted)}
+.recon-history{border-top:1px solid var(--edge);padding-top:8px;margin-top:12px}
+.recon-history summary{cursor:pointer;min-height:44px;align-content:center}
+@media(max-width:350px){.recon-fields{grid-template-columns:1fr}.recon-edit{padding:8px}}
+.recon-month-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px;align-items:center}
+.recon-screen .recon-month-controls button{margin:0;padding:0;font-size:1.15rem}
+.recon-period input[type=month]{min-inline-size:0;max-width:100%;text-align:left}
+.recon-period input[type=month]::-webkit-date-and-time-value{text-align:left}
+.recon-person-group h2{margin:14px 0 3px;font-size:1rem;color:var(--accent)}

@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.5: salário em duas datas e atualização do caixa. */
+/* Diário Financeiro 4.0.6: compras manuais na fatura e salário por data. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -24,7 +24,7 @@ function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
  const base={...s,version:5};if(!validLegacyShape(base)||!reconValidate(s.reconciliation))return false;
  if(s.expenses.some(e=>e.cardMonth!==undefined&&!isMonth(e.cardMonth))||s.parcels.some(p=>(p.cardAdded!==undefined&&p.cardAdded!==true)||(p.purchaseDate!==undefined&&!isDate(p.purchaseDate))))return false;
- if(!s.profiles.every(p=>isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)&&(p.salaryMidMonthPercent===undefined||(Number.isInteger(p.salaryMidMonthPercent)&&p.salaryMidMonthPercent>=0&&p.salaryMidMonthPercent<100))))return false;
+ if(!s.profiles.every(p=>p&&isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)&&validSalary(p)))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
  if(s.opening!==null&&(!s.opening||!isDate(s.opening.date)||!Number.isFinite(s.opening.amount)||s.opening.amount<0))return false;
  if(!Array.isArray(s.extraIncome)||!s.extraIncome.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>0))return false;
@@ -57,12 +57,22 @@ function skipped(s,m){return (s.investmentSkipped||[]).includes(m)}
 // Projeção local a partir de um saldo de abertura. Não significa conciliação bancária.
 // Fevereiro usa o último dia do mês como equivalente ao pagamento do dia 30.
 function eventDate(m,day){const [y,mo]=m.split('-').map(Number),last=new Date(y,mo,0).getDate();return `${m}-${pad(Math.min(day,last))}`}
-// Split only the configured income profile. Legacy profiles keep 100% on the 30th.
+// New profiles store each payday in exact cents. Older profiles keep their original split.
+function validSalary(p){
+ const first=p.salaryDay15Cents,last=p.salaryDay30Cents,percent=p.salaryMidMonthPercent;
+ if(first===undefined&&last===undefined)return percent===undefined||(Number.isInteger(percent)&&percent>=0&&percent<100);
+ return percent===undefined&&Number.isSafeInteger(first)&&first>=0&&Number.isSafeInteger(last)&&last>=0&&
+   Number.isSafeInteger(first+last)&&p.income===(first+last)/100;
+}
+function salaryCents(p){
+ if(p.salaryDay15Cents!==undefined)return [p.salaryDay15Cents,p.salaryDay30Cents];
+ const sum=Math.round(p.income*100),first=Math.round(sum*(p.salaryMidMonthPercent??0)/100);
+ return [first,sum-first];
+}
 function salaryEvents(s,m){
- const p=profile(s,m),total=Math.round(p.income*100),percent=p.salaryMidMonthPercent??0;
- const middle=Math.round(total*percent/100);
- const late={date:eventDate(m,30),amount:(total-middle)/100};
- return percent?[{date:eventDate(m,15),amount:middle/100},late]:[late];
+ const [first,last]=salaryCents(profile(s,m));
+ const middle={date:eventDate(m,15),amount:first/100},late={date:eventDate(m,30),amount:last/100};
+ return first&&last?[middle,late]:first?[middle]:[late];
 }
 function nextMonthEndPayday(date){
  const m=date.slice(0,7),pay=eventDate(m,30);
@@ -480,10 +490,31 @@ async function saveNew(e){
   else s.parcels.push(item);
  })){
   editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');
+  $('parcelOpenBill').dataset.month=start;$('parcelOpenBill').textContent='Ver na fatura de '+monthTitle(start);$('parcelOpenBill').classList.remove('hidden');
  }
 }
-function fillProfileInputs(){if(!state)return;const p=profile(state,$('effectiveMonth').value||monthNow());$('income').value=p.income;$('salaryMidMonthPercent').value=String(p.salaryMidMonthPercent??0);$('investment').value=p.investments;$('margin').value=p.margin}
-async function saveBaseline(e){e.preventDefault();const income=amount('income'),investment=amount('investment'),margin=amount('margin'),mid=amount('salaryMidMonthPercent'),date=$('started').value,from=$('effectiveMonth').value;if(![income,investment,margin].every(v=>Number.isFinite(v)&&v>=0)||!Number.isInteger(mid)||mid<0||mid>=100||!isDate(date)||!isMonth(from))return notice('Confira os valores e as datas.','warning');await update(s=>{const p={from,income:round(income),investments:round(investment),margin:round(margin),...(mid?{salaryMidMonthPercent:mid}:{})};s.profiles=s.profiles.filter(x=>x.from!==from);s.profiles.push(p);s.profiles.sort((a,b)=>a.from.localeCompare(b.from));s.started=monday(new Date(date+'T12:00:00'))})}
+function fillProfileInputs(){
+ if(!state)return;
+ const p=profile(state,$('effectiveMonth').value||monthNow()),[first,last]=salaryCents(p);
+ $('salaryDay15').value=(first/100).toFixed(2);$('salaryDay30').value=(last/100).toFixed(2);
+ $('investment').value=p.investments;$('margin').value=p.margin;
+}
+function salaryInputCents(id){
+ const raw=$(id).value.trim().replace(',','.');
+ if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return NaN;
+ const [whole,decimal='']=raw.split('.');
+ const value=Number(whole)*100+Number(decimal.padEnd(2,'0'));
+ return Number.isSafeInteger(value)?value:NaN;
+}
+async function saveBaseline(e){
+ e.preventDefault();
+ const first=salaryInputCents('salaryDay15'),last=salaryInputCents('salaryDay30'),investment=amount('investment'),margin=amount('margin'),date=$('started').value,from=$('effectiveMonth').value;
+ if(!Number.isSafeInteger(first+last)||![investment,margin].every(v=>Number.isFinite(v)&&v>=0)||!isDate(date)||!isMonth(from))return notice('Confira os valores e as datas.','warning');
+ await update(s=>{
+   const p={from,income:(first+last)/100,investments:round(investment),margin:round(margin),salaryDay15Cents:first,salaryDay30Cents:last};
+   s.profiles=s.profiles.filter(x=>x.from!==from);s.profiles.push(p);s.profiles.sort((a,b)=>a.from.localeCompare(b.from));s.started=monday(new Date(date+'T12:00:00'));
+ });
+}
 async function saveFixed(e){e.preventDefault();const name=$('fixedName').value.trim(),value=amount('fixedAmount'),start=$('fixedStart').value,end=$('fixedEnd').value;if(!name||!Number.isFinite(value)||value<0||!Number.isInteger(Number($('fixedDay').value))||Number($('fixedDay').value)<1||Number($('fixedDay').value)>31||!isMonth(start)||(end&&!isMonth(end))||(end&&end<start))return notice('Confira os dados da despesa fixa.','warning');if(await update(s=>{const item={id:editingFixed||newId(),name,amount:round(value),day:Number($('fixedDay').value),start,end:end||null};if(editingFixed)s.fixedItems=s.fixedItems.map(p=>p.id===editingFixed?item:p);else s.fixedItems.push(item)})){editingFixed=null;$('fixedForm').reset();$('fixedStart').value=monthNow();$('fixedDay').value='5';$('fixedSubmit').textContent='Adicionar despesa fixa';$('fixedCancel').classList.add('hidden');calendarLabels()}}
 async function saveBase(e){e.preventDefault();const name=$('baseName').value.trim(),payment=amount('basePayment'),remaining=Number($('baseRemaining').value),start=$('baseStart').value;if(!name||!(payment>0)||!Number.isInteger(remaining)||remaining<1||remaining>240||!isMonth(start))return notice('Confira a parcela antiga.','warning');if(await update(s=>{const item={id:editingBase||newId(),name,payment:round(payment),remaining,start};if(editingBase)s.baseParcels=s.baseParcels.map(p=>p.id===editingBase?item:p);else s.baseParcels.push(item)})){editingBase=null;$('baseForm').reset();$('baseStart').value=monthNow();$('baseSubmit').textContent='Adicionar parcela antiga';$('baseCancel').classList.add('hidden');calendarLabels()}}
 async function saveExtraInvestment(e){e.preventDefault();const date=$('extraDate').value,name=$('extraName').value.trim()||'Aporte extra',v=amount('extraAmount');if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Informe data e valor positivo.','warning');if(await update(s=>s.extraInvestments.push({id:newId(),date,name,amount:round(v)}))){$('extraAmount').value='';$('extraName').value=''}}
@@ -573,6 +604,7 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click'
 }));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
+$('parcelOpenBill').addEventListener('click',()=>{const m=$('parcelOpenBill').dataset.month;if(isMonth(m)){window.ReconUI?.selectBill(m);showScreen('recon');}});
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));
 $('movementIncomeTab').addEventListener('click',()=>showMovementForm('extra'));

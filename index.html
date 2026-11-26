@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.5">
-<link rel="stylesheet" href="./recon.css?v=4.0.5">
+<link rel="stylesheet" href="./style.css?v=4.0.6">
+<link rel="stylesheet" href="./recon.css?v=4.0.6">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -78,7 +78,7 @@
 <label for="parcelTotal">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
 <div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div>Parcela mensal adicionada à fatura <strong id="weeklyImpact">R$ 0,00</strong></div></div>
-<button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button></form></div>
+<button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button><button type="button" id="parcelOpenBill" class="text-button hidden">Ver na fatura</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><p class="assistive">Agrupadas pelo mês da primeira fatura.</p><div id="parcels"></div></div>
 </section>
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><span class="screen-kicker">PROJEÇÕES</span><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
@@ -106,8 +106,8 @@
 <details class="surface settings-details"><summary>Saldo de abertura</summary><p id="reconOpeningNote" class="assistive hidden"></p><form id="openingForm"><div id="reconOpeningAccounts" class="hidden"></div><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><div id="originalOpeningAmount"><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required></div><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
 <details class="surface settings-details"><summary>Renda e investimentos</summary><form id="baselineForm">
 <label for="effectiveMonth">Renda e aporte válidos a partir de</label><div class="calendar-field"><span class="calendar-label" data-for="effectiveMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="effectiveMonth" type="month" required></div>
-<label for="income">Renda líquida mensal (R$)</label><input id="income" type="number" min="0" step="0.01" required>
-<label for="salaryMidMonthPercent">Percentual do salário que cai no dia 15</label><input id="salaryMidMonthPercent" type="number" min="0" max="99" step="1" inputmode="numeric" value="0" required><p class="assistive">O restante cai no dia 30. Use 0 se recebe tudo de uma vez.</p>
+<div class="two-cols"><div><label for="salaryDay15">Salário no dia 15 (R$)</label><input id="salaryDay15" type="number" inputmode="decimal" min="0" step="0.01" required></div><div><label for="salaryDay30">Salário no dia 30 (R$)</label><input id="salaryDay30" type="number" inputmode="decimal" min="0" step="0.01" required></div></div>
+<p class="assistive">Informe quanto entra em cada data. Se recebe só em uma, preencha a outra com 0.</p>
 <label for="investment">Investimento mensal protegido (R$)</label><input id="investment" type="number" min="0" step="0.01" required>
 <label for="margin">Margem de segurança mensal (R$)</label><input id="margin" type="number" min="0" step="0.01" required>
 <input id="started" type="hidden">
@@ -142,7 +142,7 @@
 <div class="help-item"><strong>Saldo inicial</strong><p>Dinheiro disponível antes dos lançamentos que você fará nessa data. Serve como ponto de partida, inclusive se precisar recomeçar após um problema; não é nova renda nem cria cotas semanais.</p></div></details>
 <details class="surface settings-details"><summary>Renda, investimentos e semanas</summary>
 <div class="help-item"><strong>Renda e aporte válidos a partir de</strong><p>Mês em que passam a valer a renda, o investimento padrão e a margem cadastrados. Configurações anteriores continuam aplicáveis aos meses anteriores.</p></div>
-<div class="help-item"><strong>Renda líquida mensal</strong><p>Salário após descontos. A projeção usa o percentual configurado para o dia 15 e o restante no dia 30 (ou no último dia de meses menores).</p></div>
+<div class="help-item"><strong>Salário nos dias 15 e 30</strong><p>Informe o valor líquido recebido em cada data. A renda mensal é a soma dos dois valores. Em meses com menos de 30 dias, o segundo pagamento cai no último dia do mês.</p></div>
 <div class="help-item"><strong>Investimento mensal protegido</strong><p>Meta de aporte recorrente que reduz o orçamento livre. A saída do caixa é registrada quando você confirma o investimento na aba Investimentos.</p></div>
 <div class="help-item"><strong>Margem de segurança mensal</strong><p>Quantia que você escolhe preservar, além do investimento padrão. Reduz a disponibilidade para consumo; não é um pagamento registrado na conta.</p></div>
 <div class="help-item"><strong>Início do controle (histórico)</strong><p>Data mantida por compatibilidade com backups antigos. Não interfere no novo orçamento diário ou no limite até domingo.</p></div></details>
@@ -178,7 +178,7 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.5" defer></script>
-<script src="./recon-ui.js?v=4.0.5" defer></script>
-<script src="./app.js?v=4.0.5" defer></script>
+<script src="./recon-model.js?v=4.0.6" defer></script>
+<script src="./recon-ui.js?v=4.0.6" defer></script>
+<script src="./app.js?v=4.0.6" defer></script>
 </body></html>

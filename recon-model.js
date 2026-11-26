@@ -107,9 +107,24 @@ function reconRawRows(s,m){
  const {normalized,groups,ambiguous}=reconStatementLinks(statements,s.reconciliation?.receipts??[]);
  const rowWithSeries=x=>{const g=groups.get(x);return g?{...x,seriesKey:g.key,seriesAliases:g.aliases}:ambiguous.has(x)?{...x,forecastKey:x.seriesKey,seriesKey:undefined}:x};
  const exact=statements.find(x=>x.month===m);
+ // A manually entered installment can predate its first CSV appearance.
+ // Share the series for classification only when an explicit link is unambiguous.
+ const manualSeries=new Map(),manualIds=new Set(s.parcels.map(p=>p.id));
+ for(const rows of normalized.values())for(const raw of rows){
+  if(raw.kind!=='charge'||raw.cents<=0)continue;
+  const ids=[raw.id,...(raw.legacyIds??[])].filter(id=>manualIds.has(id));
+  if(!ids.length)continue;
+  const key=reconSeriesId(rowWithSeries(raw));
+  for(const id of ids){
+   if(!manualSeries.has(id))manualSeries.set(id,new Set());
+   manualSeries.get(id).add(key);
+  }
+ }
  const manualRows=linked=>s.parcels.flatMap(e=>{
-  const cents=Math.round(newPartAmount(e,m)*100);
-  return linked.has(e.id)||cents<=0?[]:[{id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'manual'}];
+  const cents=Math.round(newPartAmount(e,m)*100),series=manualSeries.get(e.id);
+  if(linked.has(e.id)||cents<=0)return [];
+  const linkedSeries=series?.size===1?[...series][0]:null;
+  return [{id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'manual',...(linkedSeries?{seriesKey:linkedSeries,seriesAliases:['id:'+e.id]}:{})}];
  });
  if(exact){
   const imported=normalized.get(m).map(rowWithSeries);
@@ -159,6 +174,29 @@ function reconRows(s,m,includePreviousCredit=false){
   const name=o.name??earlier?.name??row.name;
   return {...row,label,parts,name,ownerName:o.ownerName,originalName:name===row.name?undefined:row.name};
  });
+}
+// Pick an explicitly linked statement line over its local planning alias.
+function reconParcelTarget(s,id,monthRows=new Map()){
+ const rowsAt=month=>{
+  if(!monthRows.has(month))monthRows.set(month,reconRows(s,month));
+  return monthRows.get(month);
+ };
+ const item=s.parcels.find(e=>e.id===id);
+ if(!item)return null;
+ const statements=[...(s.reconciliation?.statements??[])].sort((a,b)=>a.month.localeCompare(b.month));
+ const linked=[];
+ for(const st of statements){
+   if(!st.rows.some(x=>x.id===id||x.legacyIds?.includes(id)))continue;
+   const candidates=rowsAt(st.month).filter(r=>r.kind==='charge'&&r.cents>0&&(r.id===id||r.legacyIds?.includes(id)));
+   if(candidates.length>1)return null;
+   if(candidates.length===1)linked.push({month:st.month,row:candidates[0]});
+ }
+ if(linked.length)return new Set(linked.map(x=>reconSeriesId(x.row))).size===1?linked[0]:null;
+ for(let n=0;n<item.count;n++){
+   const month=shiftMonth(item.start,n),row=rowsAt(month).find(r=>r.kind==='charge'&&r.cents>0&&r.id===id);
+   if(row)return {month,row};
+ }
+ return null;
 }
 function reconMonths(s){
  const r=s.reconciliation;

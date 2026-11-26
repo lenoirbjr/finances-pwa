@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.6: compras manuais na fatura e salário por data. */
+/* Diário Financeiro 4.0.7: classificação em Parcelas e painel de início. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -225,7 +225,7 @@ function toV5(v){
  }
  x.mode='items';x.version=5;return x;
 }
-let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),openExpenseMonths=new Set(),openParcelMonths=new Set(),screen='home',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,viewMonth=monthNow();
+let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),openExpenseMonths=new Set(),openParcelMonths=new Set(),screen='home',writing=false,archived=false,editingFixed=null,editingBase=null,editingNew=null,parcelLabelId=null,viewMonth=monthNow();
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
@@ -272,7 +272,13 @@ function setTheme(theme){
  try{localStorage.setItem(THEME_KEY,next)}catch{}
 }
 function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
-function rows(items,type){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right"><button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
+function parcelClassifyButton(id,monthRows){
+ const t=reconParcelTarget(state,id,monthRows);
+ if(!t)return '';
+ const chips=window.ParcelReconUI?.parcelLabels(t.row,reconOwner(state))||'';
+ return `<button type="button" class="small-action parcel-label-button" data-classify-parcel="${esc(id)}" aria-label="${chips?'Editar classificação':'Classificar'}: ${esc(t.row.name)}">${chips||'Classificar'}</button>`;
+}
+function rows(items,type,monthRows){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry${type==='new'?' parcel-history-entry':''}"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right">${type==='new'?parcelClassifyButton(e.id,monthRows):''}<button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
 function pct(amount,income){return income>0?`${(100*amount/income).toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})}%`:'—'}
 function breakdown(s,m){
  const z=monthly(s,m),income=z.income;
@@ -345,43 +351,31 @@ function renderInvestmentPanels(){
  }).join('');
 }
 const dayAndMonth=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit'});
-const dayOfWeek=new Intl.DateTimeFormat('pt-BR',{weekday:'short'});
 const shortDate=date=>dayAndMonth.format(new Date(date+'T12:00:00')).replace(' de ',' ').replace('.','');
-const shortDay=date=>dayOfWeek.format(new Date(date+'T12:00:00')).replace('.','');
 function renderDashboard(asOf,calc,m){
- const since=monday(new Date(asOf+'T12:00:00')), sunday=nextSunday(asOf);
+ const since=monday(new Date(asOf+'T12:00:00')),sunday=nextSunday(asOf);
  $('weekRange').textContent=since.slice(0,7)===sunday.slice(0,7)?`${since.slice(-2)}–${shortDate(sunday)}`:`${shortDate(since)} – ${shortDate(sunday)}`;
- const next=nextPayday(state,asOf),invoiceDate=nextInvoiceCoverage(state,asOf).invoiceDate;
- for(const [id,day] of [['paydayCaption',next],['invoiceCaption',invoiceDate]]){
-   $(id).dateTime=day;$(id).textContent=shortDate(day);
- }
- const first=next<=invoiceDate?$('salaryRow'):$('invoiceRow');
- if($('upcomingRows').firstElementChild!==first)$('upcomingRows').prepend(first);
- const contributionDate=nextMonthEndPayday(asOf),nextMonth=contributionDate.slice(0,7);
- const upcomingContribution=!settled(state,nextMonth)&&!skipped(state,nextMonth)&&investmentAmount(state,nextMonth)>0;
- $('preInvestmentCard').classList.toggle('hidden',!calc.ready||!upcomingContribution);
- if(calc.ready&&upcomingContribution){
-   const before=cashAt(state,contributionDate);
-   $('preInvestmentBalance').textContent=money(before);
-   $('preInvestmentBalance').classList.toggle('negative',before<0);
-   $('preInvestmentDate').textContent=`Projeção em ${shortDate(contributionDate)}`;
- }
+ $('cashBalance').textContent=calc.ready?money(calc.current):'—';
+ $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
+ $('sundayReference').textContent=calc.ready?money(calc.week):'—';
+ $('sundayDate').dateTime=sunday;
+ $('sundayDate').textContent=shortDate(sunday);
+ $('sundaySetup').textContent=calc.ready?'':calc.reason;
+ $('sundaySetup').classList.toggle('hidden',calc.ready);
  const invested=investmentsStatus(state,m);
- $('homeInvestmentTotal').textContent=money(invested.total);
+ $('homeInvestmentTotal').textContent=money(invested.paid?.amount??0);
+ $('homeInvestmentTarget').textContent=`de ${money(invested.plan)}`;
  $('homeExtraTotal').textContent=money(invested.extra);
- // Show the protected cumulative allowance, not a bank-balance history or forecast.
- const dates=daysBetween(asOf,sunday)+1,showTrend=calc.ready&&calc.week>0&&dates>1;
- $('weekTrend').classList.toggle('hidden',!showTrend);
- if(showTrend){
-   const points=Array.from({length:dates},(_,i)=>[1+298*i/(dates-1),43-37*Math.min(i+1,calc.remaining)/calc.remaining]);
-   const line=points.map(([x,y],i)=>`${i?'L':'M'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
-   $('trendLine').setAttribute('d',line);
-   $('trendArea').setAttribute('d',`${line} L299 44 H1 Z`);
-   $('trendEnd').setAttribute('cx','299');
-   $('trendEnd').setAttribute('cy',points[points.length-1][1]);
-   $('trendStart').textContent=shortDay(asOf);
-   $('trendLast').textContent=shortDay(sunday);
+ const latestExtra=state.extraInvestments.reduce((last,entry)=>entry.date.startsWith(m)&&entry.date>last?entry.date:last,'');
+ $('homeExtraDate').classList.toggle('hidden',!latestExtra);
+ if(latestExtra){
+   $('homeExtraDate').dateTime=latestExtra;
+   $('homeExtraDate').textContent=`Último em ${shortDate(latestExtra)}`;
+ }else{
+   $('homeExtraDate').removeAttribute('datetime');
+   $('homeExtraDate').textContent='';
  }
+ $('currentMargin').textContent=money(profile(state,m).margin);
 }
 const calendarDate=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
 const readableDate=date=>calendarDate.format(new Date(date+'T12:00:00'));
@@ -408,26 +402,29 @@ function renderExpenseHistory(){
    `<details class="history-month-fold" data-expense-month="${month}" ${openExpenseMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><small>${items.length} ${items.length===1?'lançamento':'lançamentos'}</small></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`).join('')||'<p class="empty">Nenhum lançamento registrado.</p>';
 }
 function renderParcelHistory(){
+ const monthRows=new Map();
  $('parcelCountBadge').textContent=String(state.parcels.length);
  $('parcels').innerHTML=byMonth(state.parcels,item=>item.start).map(([month,items])=>
-   `<details class="history-month-fold" data-parcel-month="${month}" ${openParcelMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><small>${items.length} ${items.length===1?'compra':'compras'}</small></summary><div class="history-month-content">${rows(items,'new')}</div></details>`).join('')||'<p class="empty">Nenhum item cadastrado.</p>';
+   `<details class="history-month-fold" data-parcel-month="${month}" ${openParcelMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><small>${items.length} ${items.length===1?'compra':'compras'}</small></summary><div class="history-month-content">${rows(items,'new',monthRows)}</div></details>`).join('')||'<p class="empty">Nenhum item cadastrado.</p>';
+}
+function renderParcelClassify(){
+ const panel=$('parcelReconUI');
+ if(!panel)return;
+ const target=screen==='installments'&&parcelLabelId&&reconParcelTarget(state,parcelLabelId);
+ panel.classList.toggle('hidden',!target);
+ if(!target){panel.innerHTML='';return;}
+ window.ParcelReconUI?.render({parcel:target,today:today(),owner:reconOwner(state),
+   label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),
+   closeParcel:message=>{parcelLabelId=null;renderParcelClassify();if(message)notice(message);}
+ });
+}
+function openParcelClassify(id){
+ if(!reconParcelTarget(state,id)){notice('Não encontrei uma parcela identificada na fatura para classificar esta compra.','warning');return;}
+ parcelLabelId=id;renderParcelClassify();
+ $('parcelReconUI')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+ $('parcelReconUI')?.querySelector('input:not([type=hidden]), select')?.focus({preventScroll:true});
 }
 function render(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);
-$('cashBalance').textContent=calc.ready?money(calc.current):'—';
-$('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
-$('cashBalanceDate').dateTime=asOf;$('cashBalanceDate').textContent=`Estimado em ${shortDate(asOf)}`;
-$('cycleAvailableDate').dateTime=nextPayday(state,asOf);$('cycleAvailableDate').textContent=calc.ready?`Até ${shortDate(calc.next)}`:`Salário em ${shortDate(nextPayday(state,asOf))}`;
-const cashReserveNote=$('cashReserveNote');
-if(cashReserveNote){const gap=calc.ready?calc.coverage.shortfall:0;cashReserveNote.classList.toggle('hidden',!(gap>0));cashReserveNote.textContent=gap>0?`A preservar para os compromissos de ${monthTitle(calc.coverage.invoiceMonth)}: ${money(gap)}`:'';}
-$('cycleAvailable').textContent=calc.ready?money(calc.available):'—';
-$('dayReference').textContent=calc.ready?money(calc.daily):'—';
-$('sundayReference').textContent=calc.ready?money(calc.sundayBalance):'—';
-$('sundayReference').classList.toggle('negative',calc.ready&&calc.sundayBalance<0);
-$('daysCaption').textContent=calc.ready?`${calc.days} dia(s) até o salário`:'—';
-$('sundayCaption').textContent=calc.ready?`Projetado para ${shortDate(calc.sunday)} · Livre para gastar após reservas: ${money(calc.week)}.`:calc.reason;
-$('cycleDetail').textContent=!calc.ready?calc.reason:calc.minimum<0?'Atenção: os compromissos projetados ultrapassam o caixa protegido. Confira o planejamento.':calc.coverage.shortfall>0?`Após margem e reserva de ${money(calc.coverage.shortfall)} para cobrir a diferença dos compromissos de ${monthTitle(calc.coverage.invoiceMonth)}.`:'Após a margem e os pagamentos previstos, sem antecipar salários futuros.';
-$('currentMargin').textContent=money(profile(state,m).margin);
-$('currentInvestment').textContent=money(investmentAmount(state,m));
 renderExpenseHistory();
 renderParcelHistory();
 $('fixedList').innerHTML=rows(state.fixedItems,'fixed');$('baseList').innerHTML=rows(state.baseParcels,'base');$('fixedSubtotal').textContent=money(x.fixed);$('baseSubtotal').textContent=x.known?money(x.base):'—';
@@ -450,6 +447,7 @@ function showScreenNoScroll(){
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
  for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
+ renderParcelClassify();
  if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  const area=launch?'week':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
@@ -481,16 +479,18 @@ async function saveNew(e){
  e.preventDefault();
  const name=$('parcelName').value.trim(),total=round(amount('parcelTotal')),count=Number($('parcelCount').value),start=$('parcelStart').value;
  if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120||Math.round(total*100)<count)return notice('Confira os campos da compra. Cada parcela deve ter ao menos um centavo.','warning');
+ const id=editingNew||newId();
  if(await update(s=>{
   const old=editingNew?s.parcels.find(p=>p.id===editingNew):null;
   const payment=old&&old.total===total&&old.count===count?old.payment:Math.floor(Math.round(total*100)/count)/100;
   if(old&&reconHasAllocated(s,old.id)&&(old.total!==total||old.count!==count||old.start!==start))throw Error('Há um Pix vinculado a esta compra. Desfaça o recebimento antes de mudar as parcelas.');
-  const item={...old,id:old?.id??newId(),name,total,payment,count,start,...(!old?{cardAdded:true,purchaseDate:today()}:{})};
+  const item={...old,id,name,total,payment,count,start,...(!old?{cardAdded:true,purchaseDate:today()}:{})};
   if(old)s.parcels=s.parcels.map(p=>p.id===old.id?item:p);
   else s.parcels.push(item);
  })){
   editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');
   $('parcelOpenBill').dataset.month=start;$('parcelOpenBill').textContent='Ver na fatura de '+monthTitle(start);$('parcelOpenBill').classList.remove('hidden');
+  $('parcelClassifyLast').dataset.classifyParcel=id;$('parcelClassifyLast').classList.toggle('hidden',!reconParcelTarget(state,id));
  }
 }
 function fillProfileInputs(){
@@ -597,15 +597,18 @@ async function init(){try{
 document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',calendarLabels);el.addEventListener('change',calendarLabels)});
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>{
  showScreen(b.dataset.screen);
- if(b.id==='homeExtras'||b.id==='homeInvestments'){
+ if(b.id==='homeInvestments'){
    $('investmentFocusMonth').value=monthNow();updateInvestmentForm();renderInvestmentPanels();
-   if(b.id==='homeExtras')$('extraContributionBlock').scrollIntoView({block:'start'});
  }
 }));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 $('parcelOpenBill').addEventListener('click',()=>{const m=$('parcelOpenBill').dataset.month;if(isMonth(m)){window.ReconUI?.selectBill(m);showScreen('recon');}});
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
+$('screen-installments').addEventListener('click',event=>{
+ const button=event.target.closest?.('[data-classify-parcel]');
+ if(button)openParcelClassify(button.dataset.classifyParcel);
+});
 $('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));
 $('movementIncomeTab').addEventListener('click',()=>showMovementForm('extra'));
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);

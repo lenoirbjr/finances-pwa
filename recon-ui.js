@@ -1,5 +1,5 @@
 'use strict';
-window.ReconUI=(()=>{
+function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
  const brl=c=>money.format((c||0)/100);
@@ -18,9 +18,9 @@ window.ReconUI=(()=>{
  const knownLabel=x=>Object.hasOwn(labels,x)?x:'';
  const personHue=name=>{let h=2166136261;for(const c of norm(name)){h=Math.imul(h^c.codePointAt(0),16777619);}return (h>>>0)%48;};
  const chip=name=>`<span class="recon-person-chip" data-person-color="${personHue(name)}">${escape(name)}</span>`;
- function classificationNames(r){
+ function classificationNames(r,owner=api?.owner){
    const parts=(r.parts||[]).filter(x=>partName(x));
-   const mine=r.ownerName||api.owner?.name||'Minha parte';
+   const mine=r.ownerName||owner?.name||'Minha parte';
    return r.label==='mine'?[mine]:r.label==='split'?[mine,...parts.map(partName)]:r.label==='other'?parts.map(partName):[];
  }
  function classificationButton(r,i){
@@ -49,7 +49,7 @@ window.ReconUI=(()=>{
    const obj=api.state?.reconciliation?.statements||{};
    return [...new Set([...(api.months||[]),...(Array.isArray(obj)?obj.map(x=>x.month):Object.keys(obj)),api.today.slice(0,7),period].filter(safeMonth))].sort().reverse();
  }
- function close(){editing=null;formKind='';personFilter='';paint();}
+ function close(){editing=null;formKind='';personFilter='';if(api.parcel){api.closeParcel?.();return;}paint();}
  function error(t){const el=$('[data-recon-form-message]',root)||$('[data-recon-message]',root);if(el)el.textContent=t;}
  function header(){
    return `<div class="section-heading recon-heading"><div><p class="recon-kicker">ORGANIZAÇÃO DO CARTÃO</p><h1>${tab==='bill'?'Fatura':'A receber'}</h1>${tab==='debt'?'<p>Acompanhe o que cada pessoa deve e registre o Pix quando cair.</p>':''}</div></div>
@@ -106,7 +106,7 @@ window.ReconUI=(()=>{
    const shared=label==='split'||(label==='other'&&rows.length>1);
    const owner=label==='mine'?(r.ownerName||api.owner?.name||''):(!shared&&rows.length?partName(rows[0]):'');
    return `<form class="recon-edit" data-recon-form="label" aria-label="Classificação do lançamento">
-      <label for="reconLineName">Nome do lançamento</label><input id="reconLineName" name="lineName" maxlength="250" value="${escape(r.name)}" required>
+      ${api.parcel?`<input type="hidden" name="lineName" value="${escape(r.name)}">`:`<label for="reconLineName">Nome do lançamento</label><input id="reconLineName" name="lineName" maxlength="250" value="${escape(r.name)}" required>`}
       <fieldset class="recon-divided"><legend>Dividida?</legend><label><input type="radio" name="divided" value="no" ${!shared?'checked':''}> Não</label><label><input type="radio" name="divided" value="yes" ${shared?'checked':''}> Sim</label></fieldset>
       <div class="recon-owner" ${shared?'hidden':''}><label for="reconOwner">De quem é o gasto?</label><div><input id="reconOwner" name="owner" maxlength="100" placeholder="Seu nome ou de outra pessoa" value="${escape(owner)}"></div><p class="recon-note">Em branco, o lançamento fica sem classificação.</p></div>
       <div class="recon-shares" ${shared?'':'hidden'}><label for="reconUnit">Dividir por</label><select id="reconUnit" name="unit" data-previous-unit="amount"><option value="amount">Valor em reais (R$)</option><option value="percent">Percentual (%)</option></select><p class="recon-note">Informe a parte de cada outra pessoa. O restante é a sua parte.</p><div data-recon-people>${rows.length?rows.map(p=>personRow(partName(p),partValue(p),true,!shared)).join(''):personRow('',0,true,!shared)}</div><button type="button" class="secondary" data-recon-add>+ Pessoa</button><p class="recon-note" data-recon-left></p></div>
@@ -188,6 +188,11 @@ window.ReconUI=(()=>{
  }
  function paint(){
    if(!root)return;
+   if(api.parcel){
+     const {row,month}=api.parcel;period=month;displayed=[row];editing=row.id;formKind='label';
+     root.innerHTML=`<h2>Classificar compra</h2><p class="assistive">Use o valor de uma parcela (${brl(row.cents)}, fatura de ${monthTitle(month)}). A classificação vale para todas as parcelas da compra.</p>${editor(row)}`;
+     preview($('[data-recon-form="label"]',root));return;
+   }
    period=period||initialPeriod();
    root.innerHTML=header()+(tab==='bill'?bill():debt());
    const pix=$('[data-recon-form="receipt"]',root);if(pix)allocations(pix);
@@ -199,7 +204,7 @@ window.ReconUI=(()=>{
    let result;
    try{result=await fn();}catch(e){result={ok:false,error:e.message};}
    busy=false;
-   if(result===true||result?.ok){close();error(confirmed);}
+   if(result===true||result?.ok){if(api.parcel){api.closeParcel?.(confirmed);return;}close();error(confirmed);}
    else error(result?.error||'Não foi possível salvar. Confira os dados e tente novamente.');
  }
  function syncPixDate(input){
@@ -301,7 +306,9 @@ window.ReconUI=(()=>{
     }
   });
  }
- return {selectBill(month){if(!safeMonth(month))return;period=month;tab='bill';billFilter='all';editing=null;formKind='';personFilter='';},render(options){
-   const dom=$('#reconUI');if(!dom)return;api=options;if(root!==dom){root=dom;bind(dom);}paint();
+ return {parcelLabels(row,owner){return classificationNames(row,owner).map(chip).join('');},selectBill(month){if(!safeMonth(month))return;period=month;tab='bill';billFilter='all';editing=null;formKind='';personFilter='';},render(options){
+   const dom=$(options.parcel?'#parcelReconUI':'#reconUI');if(!dom)return;api=options;if(root!==dom){root=dom;bind(dom);}paint();
  }};
-})();
+}
+window.ReconUI=createReconUI();
+window.ParcelReconUI=createReconUI();

@@ -1,10 +1,10 @@
 'use strict';
-/* Diário Financeiro 4.0.3: formulário compacto e edição de toda a compra. */
+/* Diário Financeiro 4.0.4: recebimentos por pessoa e filtro por etiqueta. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
-const monthTitle=m=>{const d=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
-const shortMonthTitle=m=>{const d=new Date(m+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'short',year:'numeric'}).toLocaleLowerCase('pt-BR');return d.charAt(0).toLocaleUpperCase('pt-BR')+d.slice(1)};
+const monthTitle=m=>m.slice(5)+'/'+m.slice(0,4);
+const shortMonthTitle=monthTitle;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0'), dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const today=()=>dateKey(new Date()), monthNow=()=>today().slice(0,7);
@@ -218,7 +218,7 @@ function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.inv
 function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>!e.cardMonth&&e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
-function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
+function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){lab.textContent=shortMonthTitle(el.value)}else{lab.textContent=el.value.split('-').reverse().join('/')}}}
 const THEME_KEY='finances-pwa-theme-v3.12';
 const HEADER_ICONS={
   palette:'<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/>',
@@ -319,7 +319,7 @@ function renderInvestmentPanels(){
    return `<details class="investment-history-year" data-history-year="${year}" ${openHistoryYears.has(year)?'open':''}><summary><strong>${year}</strong><span><strong class="year-total">${money(yearAmount)}</strong><small>${entries.length} ${entries.length===1?'mês':'meses'}</small></span></summary><div class="investment-history-year-content">${rendered}</div></details>`;
  }).join('');
 }
-const dayAndMonth=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'});
+const dayAndMonth=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit'});
 const dayOfWeek=new Intl.DateTimeFormat('pt-BR',{weekday:'short'});
 const shortDate=date=>dayAndMonth.format(new Date(date+'T12:00:00')).replace(' de ',' ').replace('.','');
 const shortDay=date=>dayOfWeek.format(new Date(date+'T12:00:00')).replace('.','');

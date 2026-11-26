@@ -37,16 +37,12 @@
 .recon-edit .recon-check input{appearance:auto;width:20px;min-height:20px;flex:none}
 .recon-allocations{border:1px solid var(--edge);border-radius:10px;margin:10px 0;padding:7px;min-width:0}
 .recon-allocations legend{font-size:.77rem;padding-inline:4px;color:var(--text)}
-.recon-edit .recon-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,.47fr);align-items:center;gap:8px;margin:5px 0}
 .recon-allocation small{display:block;font-size:.68rem;color:var(--muted)}
-.recon-history{border-top:1px solid var(--edge);padding-top:8px;margin-top:12px}
-.recon-history summary{cursor:pointer;min-height:44px;align-content:center}
 @media(max-width:350px){.recon-fields{grid-template-columns:1fr}.recon-edit{padding:8px}}
 .recon-month-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px;align-items:center}
 .recon-screen .recon-month-controls button{margin:0;padding:0;font-size:1.15rem}
 .recon-period input[type=month]{min-inline-size:0;max-width:100%;text-align:left}
 .recon-period input[type=month]::-webkit-date-and-time-value{text-align:left}
-.recon-person-group h2{margin:14px 0 3px;font-size:1rem;color:var(--accent)}
 
 /* Equal-width controls avoid native iOS month inputs encroaching on the arrows. */
 .recon-screen .recon-period{max-width:26rem;margin:0 auto 16px}
@@ -62,9 +58,6 @@
 .recon-receipt-form{margin-top:10px;padding:14px}
 .recon-receipt-form h2{font-size:1.08rem;margin:0 0 12px}
 .recon-pix-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
-.recon-receipt-form input[type=date]{display:block;box-sizing:border-box;min-inline-size:0;max-inline-size:100%;width:100%;appearance:none;-webkit-appearance:none;text-align:left;overflow:hidden}
-.recon-receipt-form input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}
-.recon-receipt-form .recon-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .recon-receipt-form .recon-actions button{white-space:normal;font-size:.85rem}
 .recon-allocation-summary{padding:8px 9px;margin:9px 0 0;border-radius:8px;background:var(--surface);color:var(--text);font-size:.76rem;line-height:1.4}
 @media(max-width:420px){.recon-pix-fields{grid-template-columns:minmax(0,1fr);gap:0}}
@@ -136,3 +129,35 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 
 .recon-edit .recon-label-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .recon-edit .recon-label-actions button{width:100%;min-width:0;padding:6px 2px;margin:0;white-space:nowrap;font-size:clamp(.7rem,3.25vw,.87rem)}
+
+/* Receipt fields match the date controls elsewhere in the app, including iOS. */
+.recon-pix-fields>div{min-width:0}
+.recon-screen .recon-quick-amount{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}
+.recon-screen .recon-quick-amount button{width:auto;min-height:44px;margin:0;padding:0 9px;font-size:.76rem;white-space:nowrap}
+.recon-screen .recon-quick-amount input{font-size:16px}
+.recon-screen .recon-quick-amount button:disabled{opacity:.5;cursor:default}
+.recon-allocation-month{border-top:1px solid var(--edge);padding:7px 0}
+.recon-allocation-month:first-child{border:0;padding-top:2px}
+.recon-allocation-month>strong{font-size:.75rem;color:var(--accent)}
+.recon-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(132px,.8fr);gap:8px;align-items:center;padding:4px 0}
+.recon-edit .recon-allocation label{margin:0;overflow-wrap:anywhere;font-weight:600;color:var(--text)}
+.recon-allocation-summary:empty{display:none}
+.recon-screen .recon-pix,.recon-receipt-form .recon-actions button{display:block;width:100%;text-align:center}
+.recon-receipt-form .recon-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.recon-receipt-form .recon-actions .secondary{width:auto;justify-self:center}
+.recon-debt-list{display:grid;gap:7px}
+.recon-person-group,.recon-debt-month{min-width:0;border:1px solid var(--edge);border-radius:11px;background:var(--surface-alt)}
+.recon-debt-month{background:var(--surface)}
+:is(.recon-person-group,.recon-debt-month)>summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-height:44px;padding:7px 10px;list-style:none;cursor:pointer;font-size:.85rem}
+:is(.recon-person-group,.recon-debt-month)>summary::-webkit-details-marker{display:none}
+:is(.recon-person-group,.recon-debt-month)>summary:after{content:'›';font-size:1.1em;color:var(--accent)}
+:is(.recon-person-group,.recon-debt-month)[open]>summary:after{transform:rotate(90deg)}
+:is(.recon-person-group,.recon-debt-month)>summary span{overflow-wrap:anywhere;font-weight:700}
+:is(.recon-person-group,.recon-debt-month)>summary small{display:block;color:var(--muted);font-size:.68rem;font-weight:400;margin-top:2px}
+:is(.recon-person-group,.recon-debt-month)>summary strong{font-size:.8rem;overflow-wrap:anywhere;text-align:right;max-width:35vw}
+.recon-debt-months{display:grid;gap:6px;padding:0 7px 7px}
+.recon-month-debts{padding:0 8px}
+.recon-label-filter{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:8px;align-items:center;padding:8px 0 0}
+.recon-label-filter label{font-size:.77rem}
+.recon-label-filter select{min-width:0;max-width:100%;width:100%;margin:0}
+@media(max-width:370px){.recon-allocation{grid-template-columns:minmax(0,1fr);gap:4px}.recon-allocation .recon-quick-amount{max-width:100%}}

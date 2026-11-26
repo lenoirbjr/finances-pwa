@@ -15,7 +15,7 @@ function reconValidate(r){
  const classification=(x,total)=>{const p=x.parts??[];if(!parts(p))return false;const n=p.reduce((a,z)=>a+z.cents,0);return x.label==='other'?n===total:x.label==='split'?n>0&&n<total:(!x.label||x.label==='mine')&&n===0};
  if(!r.statements.every(st=>st&&isMonth(st.month)&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
  if(!r.bankRows.every(x=>x&&str(x.id)&&str(x.name,300)&&isDate(x.date)&&typeof x.time==='string'&&/^\d{2}:\d{2}:\d{2}$/.test(x.time)&&cent(x.cents)&&cent(x.balanceCents))||!unique(r.bankRows,x=>x.id))return false;
- if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
+ if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,180)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
  if(!(r.payments??[]).every(x=>x&&isMonth(x.month)&&isDate(x.date))||!unique(r.payments??[],x=>x.month))return false;
  return r.receipts.every(x=>x&&str(x.id)&&isDate(x.date)&&str(x.accountId,80)&&str(x.person,100)&&pos(x.cents)&&typeof x.inBaseline==='boolean'&&arr(x.allocations,500)&&x.allocations.length>0&&x.allocations.every(a=>a&&str(a.rowId)&&isMonth(a.month)&&pos(a.cents))&&unique(x.allocations,a=>a.month+'|'+a.rowId)&&x.allocations.reduce((a,z)=>a+z.cents,0)===x.cents)&&unique(r.receipts,x=>x.id);
 }
@@ -35,7 +35,15 @@ function reconScale(parts,label,basis,to){
 function reconRawRows(s,m){
  const statements=s.reconciliation?.statements??[];
  const exact=statements.find(x=>x.month===m);
- if(exact)return exact.rows.map(x=>({...x,source:'statement'}));
+ const manual=s.expenses.filter(e=>e.cardMonth===m).map(e=>({id:'cashcard:'+e.id,name:e.name,date:e.date,cents:Math.round(e.amount*100),kind:'charge',source:'manual'}));
+ if(exact){
+  const linked=new Set(exact.rows.flatMap(x=>x.legacyIds??[]));
+  for(const e of s.parcels){
+   const cents=Math.round(newPartAmount(e,m)*100);
+   if(e.cardAdded&&!linked.has(e.id)&&cents>0)manual.push({id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'manual'});
+  }
+  return [...exact.rows.map(x=>({...x,source:'statement'})),...manual];
+ }
  const prior=statements.filter(x=>x.month<m).sort((a,b)=>b.month.localeCompare(a.month));
  const covered=new Set(), projected=[], seen=new Set();
  for(const st of prior){
@@ -55,9 +63,9 @@ function reconRawRows(s,m){
  for(const e of oldParts(s,m))if(!covered.has(e.id))projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents:Math.round(e.payment*100),kind:'charge',count:e.remaining,number:monthDiff(e.start,m)+1,source:'legacy'});
  for(const e of s.parcels){
   const cents=Math.round(newPartAmount(e,m)*100);
-  if(!covered.has(e.id)&&cents>0)projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'legacy'});
+  if(!covered.has(e.id)&&cents>0)projected.push({id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:e.cardAdded?'manual':'legacy'});
  }
- return projected;
+ return [...projected,...manual];
 }
 function reconRows(s,m){
  const overrides=s.reconciliation?.overrides??[];
@@ -68,7 +76,8 @@ function reconRows(s,m){
   if(!o)return row;
   const parts=reconScale(o.parts,o.label,o.basis,row.cents);
   const label=parts.length?(parts.reduce((a,p)=>a+p.cents,0)===row.cents?'other':'split'):o.label?'mine':undefined;
-  return {...row,label,parts};
+  const name=o.name??earlier?.name??row.name;
+  return {...row,label,parts,name,originalName:name===row.name?undefined:row.name};
  });
 }
 function reconMonths(s){
@@ -76,6 +85,7 @@ function reconMonths(s){
  const cur=monthNow();
  const m=new Set([cur,shiftMonth(cur,1)]);
  for(const st of r?.statements??[]){m.add(st.month);for(const row of st.rows)if(row.count>row.number){for(let i=1;i<=row.count-row.number;i++)m.add(shiftMonth(st.month,i))}}
+ for(const x of s.expenses)if(x.cardMonth)m.add(x.cardMonth);
  for(const o of r?.overrides??[])m.add(o.month);
  for(const p of r?.receipts??[])for(const a of p.allocations)m.add(a.month);
  for(const e of [...s.parcels,...s.baseParcels])for(let i=0;i<(e.count??e.remaining);i++){const a=shiftMonth(e.start,i);if(a>=cur)m.add(a)}
@@ -92,7 +102,7 @@ function reconDebt(s){
   return {rowId:row.id,month,person:part.person,cents:part.cents,received:n,remaining:Math.max(0,part.cents-n),name:row.name,number:row.number,count:row.count};
  })));
 }
-function reconSetLabel(s,month,rowId,label,parts,scope){
+function reconSetLabel(s,month,rowId,label,parts,scope,name){
  const row=reconRows(s,month).find(x=>x.id===rowId&&x.kind==='charge');if(!row)throw Error('Lançamento não encontrado.');
  const r=reconInit(s);
  let p=(parts??[]).map(x=>({person:x.person.trim().normalize('NFC'),cents:x.cents}));
@@ -106,7 +116,9 @@ function reconSetLabel(s,month,rowId,label,parts,scope){
  }
  if(scope==='future')r.overrides=r.overrides.filter(x=>x.rowId!==rowId||x.month<month);
  else r.overrides=r.overrides.filter(x=>x.rowId!==rowId||x.month!==month||x.scope!=='one');
- r.overrides.push({month,rowId,label:label||null,scope,basis:row.cents,parts:p});
+ const editedName=name===undefined?undefined:String(name).trim();
+ if(editedName!==undefined&&(!editedName||editedName.length>180))throw Error('Informe um nome com até 180 caracteres.');
+ r.overrides.push({month,rowId,label:label||null,scope,basis:row.cents,parts:p,...(editedName?{name:editedName}:{})});
 }
 function reconAddReceipt(s,p){
  const r=reconInit(s);
@@ -141,7 +153,7 @@ function reconMarkPaid(s,m,date){
  if(date!==null)r.payments.push({month:m,date});
 }
 function reconInvoice(s,m){
- if(!s.reconciliation?.statements?.some(st=>st.month<=m))return null;
+ if(!s.reconciliation?.statements?.some(st=>st.month<=m)&&!s.expenses.some(e=>e.cardMonth===m))return null;
  return Math.max(0,reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'?0:x.cents),0))/100;
 }
 function reconOpening(s){
@@ -155,4 +167,18 @@ function reconFixed(s,m){
  const st=s.reconciliation?.statements?.find(x=>x.month===m);
  const links=new Set(st?.rows.flatMap(x=>x.legacyIds??[])??[]);
  return activeFixed(s,m).filter(x=>!links.has(x.id));
+}
+
+function defaultCardMonth(d=today()){
+ const m=d.slice(0,7);
+ return Number(d.slice(-2))<5?m:shiftMonth(m,1);
+}
+function reconOutsideCard(s,m){
+ return [
+  ...s.expenses.filter(e=>!e.cardMonth&&e.date.startsWith(m)).map(e=>({name:e.name,date:e.date,cents:-Math.round(e.amount*100)})),
+  ...s.extraIncome.filter(e=>e.date.startsWith(m)).map(e=>({name:e.name,date:e.date,cents:Math.round(e.amount*100)}))
+ ].sort((a,b)=>b.date.localeCompare(a.date));
+}
+function reconHasAllocated(s,id){
+ return (s.reconciliation?.receipts??[]).some(r=>r.allocations.some(a=>a.rowId===id));
 }

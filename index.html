@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.0">
-<link rel="stylesheet" href="./recon.css?v=4.0.0">
+<link rel="stylesheet" href="./style.css?v=4.0.1">
+<link rel="stylesheet" href="./recon.css?v=4.0.1">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -64,6 +64,8 @@
 <label for="expenseDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="expenseDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseDate" type="date" required></div>
 <label for="expenseName">Descrição</label><input id="expenseName" type="text" maxlength="120" placeholder="Ex.: Jantar" required>
 <label for="expenseAmount">Valor (R$)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+<label for="expenseMethod">Forma de pagamento</label><select id="expenseMethod"><option value="cash">Pix, débito ou dinheiro</option><option value="credit">Cartão de crédito</option></select>
+<div id="expenseCardFields" class="hidden"><label for="expenseCardMonth">Mês da fatura</label><div class="calendar-field"><span class="calendar-label" data-for="expenseCardMonth" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="expenseCardMonth" type="month" disabled></div><p class="assistive">A compra entra na fatura escolhida, sem baixar o caixa hoje.</p></div>
 <button class="primary" type="submit">Adicionar gasto</button></form></div>
 <div class="surface"><div class="surface-heading"><h2>Histórico</h2><span class="count" id="expenseCount"></span></div>
 <p class="assistive">Gastos e entradas extras por mês de lançamento.</p>
@@ -173,7 +175,7 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.0" defer></script>
-<script src="./recon-ui.js?v=4.0.0" defer></script>
-<script src="./app.js?v=4.0.0" defer></script>
+<script src="./recon-model.js?v=4.0.1" defer></script>
+<script src="./recon-ui.js?v=4.0.1" defer></script>
+<script src="./app.js?v=4.0.1" defer></script>
 </body></html>

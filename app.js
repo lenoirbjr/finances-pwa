@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.0: fatura e reembolsos por lançamento. */
+/* Diário Financeiro 4.0.1: seletor da fatura, rateio e integração com lançamentos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -23,6 +23,7 @@ function validLegacyShape(s){return !!(s&&s.version===5&&s.mode==='items'&&Numbe
 function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
  const base={...s,version:5};if(!validLegacyShape(base)||!reconValidate(s.reconciliation))return false;
+ if(s.expenses.some(e=>e.cardMonth!==undefined&&!isMonth(e.cardMonth))||s.parcels.some(p=>(p.cardAdded!==undefined&&p.cardAdded!==true)||(p.purchaseDate!==undefined&&!isDate(p.purchaseDate))))return false;
  if(!s.profiles.every(p=>isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
  if(s.opening!==null&&(!s.opening||!isDate(s.opening.date)||!Number.isFinite(s.opening.amount)||s.opening.amount<0))return false;
@@ -80,7 +81,7 @@ function cashAt(s,end){
    }
  }
  projected+=s.extraIncome.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
- projected-=s.expenses.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
+ projected-=s.expenses.filter(e=>!e.cardMonth&&included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected-=s.extraInvestments.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected+=reconCashReceipts(s,opened.closing?addDays(start,1):start,end);
  return round(projected);
@@ -216,7 +217,7 @@ function invoiceAmount(s,m){return reconInvoice(s,m)??round(baseAmount(s,m)+newA
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
 function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-base-extra-applied-p.margin)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
-function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
+function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>!e.cardMonth&&e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
 const THEME_KEY='finances-pwa-theme-v3.12';
 const HEADER_ICONS={
@@ -258,7 +259,7 @@ function breakdown(s,m){
  };
  const fixed=s.mode==='legacy'?[{name:'Total antigo de fixos',amount:z.fixed}]:reconFixed(s,m).map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
  const reconciled=reconInvoice(s,m);
- const base=reconciled!==null?reconRawRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
+ const base=reconciled!==null?reconRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
  const newer=reconciled!==null?[]:s.parcels.map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
  const confirmed=settled(s,m),extra=extraInvested(s,m),investmentItems=[];
  if(confirmed)investmentItems.push({name:'Aporte principal realizado',amount:confirmed.amount,meta:confirmed.date.split('-').reverse().join('/')});
@@ -374,7 +375,8 @@ function renderExpenseHistory(){
  $('expenseCount').textContent=`${entries.length} ${entries.length===1?'lançamento':'lançamentos'}`;
  const row=entry=>{
    const incoming=entry.direction==='in';
-   return `<div class="entry history-entry"><div class="entry-main"><div class="entry-title">${esc(entry.name)}</div><time class="entry-description" datetime="${entry.date}">${readableDate(entry.date)}</time></div><div class="entry-right"><span class="entry-price ${incoming?'entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</span>${incoming?`<button class="entry-remove" type="button" data-delete-income-extra="${esc(entry.id)}" aria-label="Excluir entrada: ${esc(entry.name)}">×</button>`:`<button class="entry-remove" type="button" data-delete-expense="${esc(entry.id)}" aria-label="Excluir ${esc(entry.name)}">×</button>`}</div></div>`;
+   const renamed=entry.cardMonth?reconRows(state,entry.cardMonth).find(x=>x.id==='cashcard:'+entry.id)?.name:undefined;
+   return `<div class="entry history-entry"><div class="entry-main"><div class="entry-title">${esc(renamed??entry.name)}</div><time class="entry-description" datetime="${entry.date}">${readableDate(entry.date)}</time>${entry.cardMonth?`<small class="entry-description">Crédito · ${esc(monthTitle(entry.cardMonth))}</small>`:''}</div><div class="entry-right"><span class="entry-price ${incoming?'entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</span>${incoming?`<button class="entry-remove" type="button" data-delete-income-extra="${esc(entry.id)}" aria-label="Excluir entrada: ${esc(entry.name)}">×</button>`:`<button class="entry-remove" type="button" data-delete-expense="${esc(entry.id)}" aria-label="Excluir ${esc(entry.name)}">×</button>`}</div></div>`;
  };
  $('expenses').innerHTML=byMonth(entries,item=>item.date).map(([month,items])=>
    `<details class="history-month-fold" data-expense-month="${month}" ${openExpenseMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><small>${items.length} ${items.length===1?'lançamento':'lançamentos'}</small></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`).join('')||'<p class="empty">Nenhum lançamento registrado.</p>';
@@ -421,7 +423,7 @@ function showScreenNoScroll(){
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
  for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
- if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),accounts:reconAccounts(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope)=>update(s=>reconSetLabel(s,m,id,l,p,scope)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),accounts:reconAccounts(state),rows:m=>reconRows(state,m),cashRows:m=>reconOutsideCard(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  const area=launch?'week':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
@@ -429,9 +431,41 @@ function showScreenNoScroll(){
    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
  }
 }
-function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?round(total/count):0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
-async function saveExpense(e){e.preventDefault();const name=$('expenseName').value.trim(),value=amount('expenseAmount'),date=$('expenseDate').value;if(!name||!(value>0)||!isDate(date))return notice('Informe data, descrição e valor positivo.','warning');if(await update(s=>s.expenses.push({id:newId(),name,amount:round(value),date}))){$('expenseName').value='';$('expenseAmount').value=''}}
-async function saveNew(e){e.preventDefault();const name=$('parcelName').value.trim(),total=amount('parcelTotal'),count=Number($('parcelCount').value),start=$('parcelStart').value;if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120)return notice('Confira os campos da compra.','warning');if(await update(s=>{const item={id:editingNew||newId(),name,total:round(total),payment:round(total/count),count,start};if(editingNew)s.parcels=s.parcels.map(p=>p.id===editingNew?item:p);else s.parcels.push(item)})){editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden')}}
+function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?Math.floor(Math.round(total*100)/count)/100:0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
+function expenseCardFields(resetMonth=false){
+ const card=$('expenseMethod').value==='credit';
+ const month=$('expenseCardMonth');
+ $('expenseCardFields').classList.toggle('hidden',!card);
+ month.required=card;month.disabled=!card;
+ const date=$('expenseDate').value;
+ if(card&&(resetMonth||!month.value))month.value=defaultCardMonth(isDate(date)?date:today());
+ calendarLabels();
+}
+async function saveExpense(e){
+ e.preventDefault();
+ const name=$('expenseName').value.trim(),value=round(amount('expenseAmount')),date=$('expenseDate').value;
+ const cardMonth=$('expenseMethod').value==='credit'?$('expenseCardMonth').value:null;
+ if(!name||!(value>0)||!isDate(date)||(cardMonth!==null&&!isMonth(cardMonth)))return notice('Confira a data, a descrição, o valor e o mês da fatura.','warning');
+ if(cardMonth&&reconRawRows(state,cardMonth).some(x=>x.kind==='charge'&&x.cents===Math.round(value*100)&&reconPersonKey(x.name)===reconPersonKey(name))&&!confirm('Já existe um gasto com esse nome e valor nesta fatura. Adicionar mesmo assim?'))return;
+ if(await update(s=>s.expenses.push({id:newId(),name,amount:value,date,...(cardMonth?{cardMonth}:{})}))){
+  $('expenseName').value='';$('expenseAmount').value='';
+ }
+}
+async function saveNew(e){
+ e.preventDefault();
+ const name=$('parcelName').value.trim(),total=round(amount('parcelTotal')),count=Number($('parcelCount').value),start=$('parcelStart').value;
+ if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120||Math.round(total*100)<count)return notice('Confira os campos da compra. Cada parcela deve ter ao menos um centavo.','warning');
+ if(await update(s=>{
+  const old=editingNew?s.parcels.find(p=>p.id===editingNew):null;
+  const payment=old&&old.total===total&&old.count===count?old.payment:Math.floor(Math.round(total*100)/count)/100;
+  if(old&&reconHasAllocated(s,old.id)&&(old.total!==total||old.count!==count||old.start!==start))throw Error('Há um Pix vinculado a esta compra. Desfaça o recebimento antes de mudar as parcelas.');
+  const item={...old,id:old?.id??newId(),name,total,payment,count,start,...(!old?{cardAdded:true,purchaseDate:today()}:{})};
+  if(old)s.parcels=s.parcels.map(p=>p.id===old.id?item:p);
+  else s.parcels.push(item);
+ })){
+  editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');
+ }
+}
 function fillProfileInputs(){if(!state)return;const p=profile(state,$('effectiveMonth').value||monthNow());$('income').value=p.income;$('investment').value=p.investments;$('margin').value=p.margin}
 async function saveBaseline(e){e.preventDefault();const income=amount('income'),investment=amount('investment'),margin=amount('margin'),date=$('started').value,from=$('effectiveMonth').value;if(![income,investment,margin].every(v=>Number.isFinite(v)&&v>=0)||!isDate(date)||!isMonth(from))return notice('Confira os valores e as datas.','warning');await update(s=>{const p={from,income:round(income),investments:round(investment),margin:round(margin)};s.profiles=s.profiles.filter(x=>x.from!==from);s.profiles.push(p);s.profiles.sort((a,b)=>a.from.localeCompare(b.from));s.started=monday(new Date(date+'T12:00:00'))})}
 async function saveFixed(e){e.preventDefault();const name=$('fixedName').value.trim(),value=amount('fixedAmount'),start=$('fixedStart').value,end=$('fixedEnd').value;if(!name||!Number.isFinite(value)||value<0||!Number.isInteger(Number($('fixedDay').value))||Number($('fixedDay').value)<1||Number($('fixedDay').value)>31||!isMonth(start)||(end&&!isMonth(end))||(end&&end<start))return notice('Confira os dados da despesa fixa.','warning');if(await update(s=>{const item={id:editingFixed||newId(),name,amount:round(value),day:Number($('fixedDay').value),start,end:end||null};if(editingFixed)s.fixedItems=s.fixedItems.map(p=>p.id===editingFixed?item:p);else s.fixedItems.push(item)})){editingFixed=null;$('fixedForm').reset();$('fixedStart').value=monthNow();$('fixedDay').value='5';$('fixedSubmit').textContent='Adicionar despesa fixa';$('fixedCancel').classList.add('hidden');calendarLabels()}}
@@ -509,7 +543,7 @@ async function init(){try{
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
  openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
- updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
+ $('parcelStart').value=defaultCardMonth();expenseCardFields();updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
@@ -524,6 +558,7 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click'
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
+$('expenseMethod').addEventListener('change',()=>expenseCardFields());$('expenseDate').addEventListener('change',()=>expenseCardFields(true));
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);
 
@@ -551,6 +586,6 @@ rememberAccordion('parcels','parcelMonth',openParcelMonths);
 rememberAccordion('investmentHistory','historyYear',openHistoryYears);
 rememberAccordion('investmentHistory','historyMonth',openHistoryMonths);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
-document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>s[field]=s[field].filter(x=>x.id!==id));return}}const income=target.closest('[data-delete-income-extra]');if(income){if(confirm('Excluir esta entrada extra?'))update(s=>s.extraIncome=s.extraIncome.filter(x=>x.id!==income.dataset.deleteIncomeExtra));return}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>s.expenses=s.expenses.filter(x=>x.id!==exp.dataset.deleteExpense));return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
+document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');s[field]=s[field].filter(x=>x.id!==id);});return}}const income=target.closest('[data-delete-income-extra]');if(income){if(confirm('Excluir esta entrada extra?'))update(s=>s.extraIncome=s.extraIncome.filter(x=>x.id!==income.dataset.deleteIncomeExtra));return}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>{const id=exp.dataset.deleteExpense;if(reconHasAllocated(s,'cashcard:'+id))throw Error('Há um Pix vinculado a este gasto. Desfaça o recebimento antes de excluir.');s.expenses=s.expenses.filter(x=>x.id!==id);});return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
 init();
 if('serviceWorker' in navigator){let reloading=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload()});window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});reg.update().catch(()=>{})}catch{}})}

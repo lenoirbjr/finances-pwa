@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 3.14.5: entradas extras com exclusão no histórico. */
+/* Diário Financeiro 4.0.0: fatura e reembolsos por lançamento. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -22,7 +22,7 @@ function validLegacyShape(s){return !!(s&&s.version===5&&s.mode==='items'&&Numbe
 
 function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
- const base={...s,version:5};if(!validLegacyShape(base))return false;
+ const base={...s,version:5};if(!validLegacyShape(base)||!reconValidate(s.reconciliation))return false;
  if(!s.profiles.every(p=>isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
  if(s.opening!==null&&(!s.opening||!isDate(s.opening.date)||!Number.isFinite(s.opening.amount)||s.opening.amount<0))return false;
@@ -59,27 +59,30 @@ function eventDate(m,day){const [y,mo]=m.split('-').map(Number),last=new Date(y,
 function fixedDate(s,item,m){return eventDate(m,item.day||5)}
 function confirmedFixed(s,id,m){return (s.fixedPaid||[]).find(x=>x.id===id&&x.month===m)||null}
 function cashAt(s,end){
- if(!s.opening)return null;
- const start=s.opening.date;
- if(end<start)return round(s.opening.amount);
- let projected=s.opening.amount;
+ const opened=reconOpening(s);
+ if(!opened)return null;
+ const start=opened.date;
+ const included=d=>(opened.closing?d>start:d>=start)&&d<=end;
+ if(end<start)return round(opened.amount);
+ let projected=opened.amount;
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
-   const p=profile(s,m),salaryDay=eventDate(m,30),invoiceDay=eventDate(m,5),paid=settled(s,m);
+   const p=profile(s,m),salaryDay=eventDate(m,30),invoiceDay=reconPayment(s,m)?.date??eventDate(m,5),paid=settled(s,m);
    if(salaryDay>start&&salaryDay<=end)projected+=p.income;
-   if(paid&&paid.date>=start&&paid.date<=end)projected-=paid.amount;
-   if(invoiceDay>start&&invoiceDay<=end)projected-=baseAmount(s,m)+newAmount(s,m);
+   if(paid&&included(paid.date))projected-=paid.amount;
+   if(invoiceDay>start&&invoiceDay<=end)projected-=invoiceAmount(s,m);
  }
  // Fixos são debitados automaticamente no dia configurado. Pagamentos históricos já confirmados prevalecem.
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
-   for(const item of activeFixed(s,m)){
+   for(const item of reconFixed(s,m)){
      const confirmed=confirmedFixed(s,item.id,m);
      if(confirmed){if(confirmed.date>start&&confirmed.date<=end)projected-=confirmed.amount;}
      else {const due=fixedDate(s,item,m);if(due>start&&due<=end)projected-=item.amount;}
    }
  }
- projected+=s.extraIncome.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
- projected-=s.expenses.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
- projected-=s.extraInvestments.filter(e=>e.date>=start&&e.date<=end).reduce((v,e)=>v+e.amount,0);
+ projected+=s.extraIncome.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
+ projected-=s.expenses.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
+ projected-=s.extraInvestments.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
+ projected+=reconCashReceipts(s,opened.closing?addDays(start,1):start,end);
  return round(projected);
 }
 // Previsão separada: futuros pagamentos são assumidos, mas nunca debitados do caixa atual
@@ -87,7 +90,7 @@ function cashAt(s,end){
 function cashForecast(s,end,asOf=today()){
  let projected=cashAt(s,end);
  if(projected===null)return null;
- const start=s.opening.date;
+ const start=reconOpening(s).date;
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
    const payDay=eventDate(m,30);
    if(!settled(s,m)&&!skipped(s,m)&&payDay>asOf&&payDay<=end&&payDay>start)projected-=investmentAmount(s,m);
@@ -96,9 +99,9 @@ function cashForecast(s,end,asOf=today()){
  return round(projected);
 }
 function overdueReserved(s,asOf=today()){
- if(!s.opening)return 0;
+ if(!reconOpening(s))return 0;
  let total=0;
- const start=s.opening.date;
+ const start=reconOpening(s).date;
  for(let m=start.slice(0,7);m<=asOf.slice(0,7);m=shiftMonth(m,1)){
    const day=eventDate(m,30);
    if(day>start&&day<=asOf&&!settled(s,m)&&!skipped(s,m))total+=investmentAmount(s,m);
@@ -119,11 +122,11 @@ function nextSunday(date){const d=new Date(date+'T12:00:00');return addDays(date
 function nextInvoiceCoverage(s,asOf){
  const m=asOf.slice(0,7),thisDue=eventDate(m,5);
  const invoiceMonth=thisDue>asOf?m:shiftMonth(m,1);
- const invoiceDate=eventDate(invoiceMonth,5);
+ const invoiceDate=reconPayment(s,invoiceMonth)?.date??eventDate(invoiceMonth,5);
  const salaryMonth=shiftMonth(invoiceMonth,-1),salaryDate=eventDate(salaryMonth,30);
  const incomingSalary=salaryDate>asOf&&salaryDate<=invoiceDate?profile(s,salaryMonth).income:0;
- const invoice=invoiceDate>asOf?round(baseAmount(s,invoiceMonth)+newAmount(s,invoiceMonth)):0;
- const fixed=round(activeFixed(s,invoiceMonth).reduce((sum,item)=>{
+ const invoice=invoiceDate>asOf?invoiceAmount(s,invoiceMonth):0;
+ const fixed=round(reconFixed(s,invoiceMonth).reduce((sum,item)=>{
    const confirmed=confirmedFixed(s,item.id,invoiceMonth);
    const paidDate=confirmed?.date||fixedDate(s,item,invoiceMonth);
    return sum+(paidDate>asOf?confirmed?confirmed.amount:item.amount:0);
@@ -138,7 +141,7 @@ function nextInvoiceCoverage(s,asOf){
 // A margem é um piso de caixa, e não uma saída bancária nem um valor somado todos os meses.
 function cycleBudget(s,asOf=today()){
  const next=nextPayday(asOf), days=Math.max(1,daysBetween(asOf,next));
- const current=s.opening&&s.opening.date<=asOf?cashAt(s,asOf):null;
+ const current=reconOpening(s)&&reconOpening(s).date<=asOf?cashAt(s,asOf):null;
  if(current===null)return {ready:false,reason:'Configure um saldo de abertura com data igual ou anterior a hoje.'};
  const horizon=nextPayday(nextPayday(next));
  const checkpoints=new Set([asOf,next,horizon]);
@@ -146,7 +149,7 @@ function cycleBudget(s,asOf=today()){
    for(const day of [5,30]){const t=eventDate(month,day);if(t>asOf&&t<=horizon)checkpoints.add(t)}
    for(const item of activeFixed(s,month)){const due=fixedDate(s,item,month);if(due>asOf&&due<=horizon)checkpoints.add(due)}
  }
- for(const group of [s.monthlyPaid||[],s.extraIncome||[],s.extraInvestments||[],s.expenses||[]]){
+ for(const group of [s.monthlyPaid||[],s.extraIncome||[],s.extraInvestments||[],s.expenses||[],s.reconciliation?.receipts||[],s.reconciliation?.payments||[]]){
    for(const item of group){if(item.date>asOf&&item.date<=horizon)checkpoints.add(item.date)}
  }
  const reserve=overdueReserved(s,asOf);
@@ -203,14 +206,15 @@ function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transa
 function notice(msg,kind='ok'){$('notice').textContent=msg;$('notice').className='notice'+(kind==='ok'?'':' '+kind);window.scrollTo({top:0,behavior:'instant'})}
 async function update(fn){if(writing)return false;writing=true;try{const next=structuredClone(state);fn(next);if(!valid(next))throw Error('Dados inválidos. Confira os campos.');await write(RECORD,next);state=next;render();$('notice').className='notice hidden';return true}catch(e){notice('Não foi possível salvar: '+e.message,'error');return false}finally{writing=false}}
 function activeFixed(s,m){return s.fixedItems.filter(e=>e.start<=m&&(!e.end||e.end>=m))}
-function fixedAmount(s,m){return s.mode==='legacy'?s.legacyFixed:round(activeFixed(s,m).reduce((a,e)=>a+e.amount,0))}
+function fixedAmount(s,m){return s.mode==='legacy'?s.legacyFixed:round(reconFixed(s,m).reduce((a,e)=>a+e.amount,0))}
 function oldParts(s,m){return s.baseParcels.filter(e=>{const d=monthDiff(e.start,m);return d>=0&&d<e.remaining})}
 function baseAmount(s,m){return s.mode==='legacy'?(s.legacyInvoices[m]??0):round(oldParts(s,m).reduce((a,e)=>a+e.payment,0))}
 const newBaseAmount=baseAmount;
 function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.count)return 0;const cents=Math.round(e.total*100),unit=Math.round(e.payment*100);return (off===e.count-1?cents-unit*(e.count-1):unit)/100}
 function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+newPartAmount(e,m),0))}
+function invoiceAmount(s,m){return reconInvoice(s,m)??round(baseAmount(s,m)+newAmount(s,m))}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
-function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),base=newBaseAmount(s,m),extra=newAmount(s,m),investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-base-extra-applied-p.margin)}}
+function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-base-extra-applied-p.margin)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){const [y,m]=el.value.split('-').map(Number);lab.textContent=shortMonthTitle(el.value)}else{const [y,m,d]=el.value.split('-').map(Number);lab.textContent=new Date(y,m-1,d,12).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}}}
@@ -252,9 +256,10 @@ function breakdown(s,m){
    const content=items.slice().sort((a,b)=>b.amount-a.amount||a.name.localeCompare(b.name,'pt-BR')).map(e=>line(e.name,e.amount,e.meta||'',e.sign||sign)).join('');
    return `<details class="breakdown-group"><summary><span>${esc(label)} <small>${items.length} itens</small></span><span class="group-money"><strong>${sign} ${money(total)}</strong><small>${pct(total,income)} da renda</small></span></summary><div class="breakdown-rows">${content||'<p class="empty">Nenhum item neste mês.</p>'}</div></details>`;
  };
- const fixed=s.mode==='legacy'?[{name:'Total antigo de fixos',amount:z.fixed}]:activeFixed(s,m).map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
- const base=s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
- const newer=s.parcels.map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
+ const fixed=s.mode==='legacy'?[{name:'Total antigo de fixos',amount:z.fixed}]:reconFixed(s,m).map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
+ const reconciled=reconInvoice(s,m);
+ const base=reconciled!==null?reconRawRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
+ const newer=reconciled!==null?[]:s.parcels.map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
  const confirmed=settled(s,m),extra=extraInvested(s,m),investmentItems=[];
  if(confirmed)investmentItems.push({name:'Aporte principal realizado',amount:confirmed.amount,meta:confirmed.date.split('-').reverse().join('/')});
  else if(skipped(s,m))investmentItems.push({name:'Aporte mensal não realizado',amount:0,meta:`Meta: ${money(z.investment)}`});
@@ -263,7 +268,7 @@ function breakdown(s,m){
  const extras=s.extraIncome.filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.amount}));
  const extraTotal=round(extras.reduce((sum,e)=>sum+e.amount,0));
  return `<div class="detail-line detail-percent"><span>Renda líquida</span><div class="line-amount"><strong>${money(income)}</strong><small>100% da renda</small></div></div>`+
- group('Despesas fixas',fixed)+group('Parcelas anteriores',base)+group('Compras parceladas novas',newer)+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
+ group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',base)+(reconciled===null?group('Compras parceladas novas',newer):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
  line('Margem protegida',z.margin)+
  `<div class="detail-line detail-total detail-percent"><span>Livre no mês (planejado)</span><div class="line-amount"><strong>${z.known?money(round(z.available+extraTotal)):'—'}</strong><small>${z.known?pct(round(z.available+extraTotal),income):'—'} da renda</small></div></div>`;
 }
@@ -406,7 +411,7 @@ $('forecast').innerHTML=Array.from({length:12},(_,i)=>{
  renderInvestmentPanels();
 $('started').value=state.started;const editingMonth=$('effectiveMonth').value||m;$('effectiveMonth').value=editingMonth;fillProfileInputs();
 $('exportLegacy').classList.toggle('hidden',!archived);
-previewParcel();calendarLabels();showScreenNoScroll()}
+previewParcel();renderImportedBank();calendarLabels();showScreenNoScroll()}
 function showScreenNoScroll(){
  const auxiliary=screen==='settings'||screen==='info',launch=screen==='week'||screen==='installments',plan=screen==='planning'||screen==='investments';
  document.body.classList.toggle('settings-view',auxiliary);
@@ -415,7 +420,8 @@ function showScreenNoScroll(){
  $('launch-tabs').classList.toggle('hidden',!launch);
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
- for(const name of ['home','week','installments','planning','investments','settings','info'])$('screen-'+name).classList.toggle('hidden',name!==screen);
+ for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
+ if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),accounts:reconAccounts(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope)=>update(s=>reconSetLabel(s,m,id,l,p,scope)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  const area=launch?'week':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
@@ -451,14 +457,39 @@ async function saveMonthlyContribution(status){
  })){updateInvestmentForm();}
 }
 
-async function saveOpening(e){e.preventDefault();const date=$('openingDate').value,v=amount('openingAmount');if(!isDate(date)||!Number.isFinite(v)||v<0)return notice('Informe data e saldo de abertura válidos.','warning');if(state.opening&&!confirm('Alterar o saldo de abertura recalculará o caixa. Deseja continuar?'))return;await update(s=>{s.opening={date,amount:round(v)}})}
+function renderImportedBank(){
+ const r=state.reconciliation,b=r?.baseline, byBank=$('reconOpeningAccounts'), rows=r?.bankRows??[];
+ $('reconOpeningNote').classList.toggle('hidden',!b);byBank.classList.toggle('hidden',!b);
+ $('originalOpeningAmount').classList.toggle('hidden',!!b);$('openingAmount').disabled=!!b;
+ if(b){
+  $('openingDate').value=b.date;
+  $('reconOpeningNote').textContent='O saldo é o fechamento do dia. Os lançamentos daquele dia não são somados novamente.';
+  byBank.innerHTML=b.accounts.map((a,i)=>`<label for="reconAccount${i}">${esc(a.name)} (R$)</label><input id="reconAccount${i}" type="number" step="0.01" inputmode="decimal" required value="${(a.cents/100).toFixed(2)}">`).join('');
+ }else byBank.replaceChildren();
+ $('importedBank').classList.toggle('hidden',!rows.length);
+ $('bankRows').innerHTML=rows.map(x=>`<div class="entry"><div class="entry-main"><div class="entry-title">${esc(x.name)}</div><div class="entry-description">${esc(readableDate(x.date))} · ${esc(x.time)}</div></div><div class="entry-right"><div><strong>${money(x.cents/100)}</strong><div class="entry-description">Saldo ${money(x.balanceCents/100)}</div></div></div></div>`).join('');
+}
+async function saveOpening(e){
+ e.preventDefault();const date=$('openingDate').value,b=state.reconciliation?.baseline;
+ if(!isDate(date)||date>today())return notice('Informe uma data de referência até hoje.','warning');
+ if(b){
+   const cents=b.accounts.map((a,i)=>Math.round(100*amount('reconAccount'+i)));
+   if(cents.some(n=>!Number.isSafeInteger(n)))return notice('Confira os saldos por conta.','warning');
+   if(!confirm('Usar o fechamento desse dia como novo saldo de partida? Os movimentos até essa data passam a estar refletidos no saldo.'))return;
+   return update(s=>{s.reconciliation.baseline={date,accounts:b.accounts.map((a,i)=>({...a,cents:cents[i]}))}});
+ }
+ const v=amount('openingAmount');
+ if(!Number.isFinite(v)||v<0)return notice('Informe um saldo de abertura válido.','warning');
+ if(state.opening&&!confirm('Alterar o saldo de abertura recalculará o caixa. Deseja continuar?'))return;
+ await update(s=>{s.opening={date,amount:round(v)}});
+}
 async function saveExtraIncome(e){e.preventDefault();const date=$('incomeExtraDate').value,name=$('incomeExtraName').value.trim()||'Entrada extra',v=round(amount('incomeExtraAmount'));if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Confira a data e o valor da entrada extra.','warning');if(await update(s=>s.extraIncome.push({id:newId(),date,name,amount:v}))){$('incomeExtraName').value='';$('incomeExtraAmount').value=''}}
 
 function resetForms(){editingFixed=editingBase=editingNew=null;for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
 function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Backup preparado. Confirme se ele foi salvo no aplicativo Arquivos.','warning')}
-async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write(RECORD,incoming);state=incoming;resetForms();updateInvestmentForm();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
+async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write('state-before-last-import',state);await write(RECORD,incoming);state=incoming;resetForms();updateInvestmentForm();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
 async function init(){try{
  db=await openDb();let v=await read(RECORD);archived=!!(await read(ARCHIVE));
  if(v){
@@ -498,7 +529,7 @@ $('effectiveMonth').addEventListener('change',fillProfileInputs);
 
 
 $('exportBackup').addEventListener('click',exportBackup);$('restoreFile').addEventListener('change',restoreBackup);$('exportLegacy').addEventListener('click',async()=>{const old=await read(ARCHIVE);if(old)downloadFile(JSON.stringify(old,null,2),`financas-arquivo-anterior-${today()}.json`)});
-$('exportPrevious').addEventListener('click',async()=>{const old=await read('state-before-v3.7')||await read(BEFORE35)||await read(BEFORE34)||await read(BEFORE33)||await read(PREVIOUS);if(old)downloadFile(JSON.stringify(old,null,2),`financas-versao-anterior-${today()}.json`);else notice('Arquivo da versão anterior indisponível.','warning')});
+$('exportPrevious').addEventListener('click',async()=>{const old=await read('state-before-last-import')||await read('state-before-v3.7')||await read(BEFORE35)||await read(BEFORE34)||await read(BEFORE33)||await read(PREVIOUS);if(old)downloadFile(JSON.stringify(old,null,2),`financas-versao-anterior-${today()}.json`);else notice('Arquivo da versão anterior indisponível.','warning')});
 for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).addEventListener('click',()=>{resetForms();render()});
 $('investmentFocusMonth').addEventListener('change',()=>{updateInvestmentForm();renderInvestmentPanels()});
 $('investmentDone').addEventListener('change',showInvestmentFields);

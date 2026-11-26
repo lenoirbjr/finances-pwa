@@ -13,12 +13,15 @@ window.ReconUI=(()=>{
  const partName=p=>p.person??p.name??'';
  const partValue=p=>p.cents??0;
  const norm=x=>String(x||'').trim().normalize('NFC').toLocaleLowerCase('pt-BR');
+ const ownerKey=x=>norm(x).normalize('NFD').replace(/\p{M}/gu,'').replace(/\s+/g,' ');
+ const isOwner=x=>(api.owner?.aliases||['eu']).some(a=>ownerKey(a)===ownerKey(x));
  const knownLabel=x=>Object.hasOwn(labels,x)?x:'';
  const personHue=name=>{let h=2166136261;for(const c of norm(name)){h=Math.imul(h^c.codePointAt(0),16777619);}return (h>>>0)%48;};
  const chip=name=>`<span class="recon-person-chip" data-person-color="${personHue(name)}">${escape(name)}</span>`;
  function classificationButton(r,i){
    const parts=(r.parts||[]).filter(x=>partName(x));
-   const names=r.label==='mine'?['Eu']:r.label==='split'?['Eu',...parts.map(partName)]:r.label==='other'?parts.map(partName):[];
+   const mine=r.ownerName||api.owner?.name||'Minha parte';
+   const names=r.label==='mine'?[mine]:r.label==='split'?[mine,...parts.map(partName)]:r.label==='other'?parts.map(partName):[];
    return `<button type="button" class="recon-classification ${names.length?'has-people':'is-unclassified'}" data-recon-edit="${i}" aria-label="${names.length?'Editar classificação':'Classificar'}: ${escape(r.name)}${names.length?' ('+escape(names.join(', '))+')':''}">${names.length?names.map(chip).join(''):'Classificar'}</button>`;
  }
  const statement=m=>{const obj=api.state?.reconciliation?.statements||{};return Array.isArray(obj)?obj.find(x=>x.month===m):obj[m];};
@@ -76,14 +79,13 @@ window.ReconUI=(()=>{
  function editor(r){
    const label=knownLabel(r.label), rows=(r.parts||[]).filter(p=>partName(p)).filter(p=>!p.mine);
    const shared=label==='split'||(label==='other'&&rows.length>1);
-   const owner=label==='mine'?'Eu':(!shared&&rows.length?partName(rows[0]):'');
+   const owner=label==='mine'?(r.ownerName||api.owner?.name||''):(!shared&&rows.length?partName(rows[0]):'');
    return `<form class="recon-edit" data-recon-form="label" aria-label="Classificação do lançamento">
       <label for="reconLineName">Nome do lançamento</label><input id="reconLineName" name="lineName" maxlength="250" value="${escape(r.name)}" required>
-      <fieldset class="recon-divided"><legend>Dividi?</legend><label><input type="radio" name="divided" value="no" ${!shared?'checked':''}> Não</label><label><input type="radio" name="divided" value="yes" ${shared?'checked':''}> Sim</label></fieldset>
-      <div class="recon-owner" ${shared?'hidden':''}><label for="reconOwner">De quem é o gasto?</label><div class="recon-owner-control"><input id="reconOwner" name="owner" maxlength="100" placeholder="Seu nome ou de outra pessoa" value="${escape(owner)}"><button type="button" class="secondary" data-recon-own>Eu</button></div><p class="recon-note">Em branco, o lançamento fica sem classificação.</p></div>
+      <fieldset class="recon-divided"><legend>Dividida?</legend><label><input type="radio" name="divided" value="no" ${!shared?'checked':''}> Não</label><label><input type="radio" name="divided" value="yes" ${shared?'checked':''}> Sim</label></fieldset>
+      <div class="recon-owner" ${shared?'hidden':''}><label for="reconOwner">De quem é o gasto?</label><div><input id="reconOwner" name="owner" maxlength="100" placeholder="Seu nome ou de outra pessoa" value="${escape(owner)}"></div><p class="recon-note">Em branco, o lançamento fica sem classificação.</p></div>
       <div class="recon-shares" ${shared?'':'hidden'}><label for="reconUnit">Dividir por</label><select id="reconUnit" name="unit" data-previous-unit="amount"><option value="amount">Valor em reais (R$)</option><option value="percent">Percentual (%)</option></select><p class="recon-note">Informe a parte de cada outra pessoa. O restante é a sua parte.</p><div data-recon-people>${rows.length?rows.map(p=>personRow(partName(p),partValue(p),true,!shared)).join(''):personRow('',0,true,!shared)}</div><button type="button" class="secondary" data-recon-add>+ Pessoa</button><p class="recon-note" data-recon-left></p></div>
-      ${r.count>1?`<label for="reconScope">Aplicar a</label><select id="reconScope" name="scope"><option value="one">Só esta parcela</option><option value="future">Esta e as próximas</option></select>`:''}
-      <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button>${label?'<button type="button" class="secondary" data-recon-clear>Limpar classificação</button>':''}</div>
+      <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary" data-recon-clear>Limpar</button></div>
     </form>`;
  }
  function debt(){
@@ -157,10 +159,9 @@ window.ReconUI=(()=>{
    
    if(b.hasAttribute('data-recon-pix')){formKind='receipt';paint();$('#reconPerson',root)?.focus();return;}
    if(b.hasAttribute('data-recon-cancel')){close();return;}
-   if(b.hasAttribute('data-recon-own')){b.form.elements.owner.value='Eu';b.form.elements.owner.focus();return;}
    if(b.hasAttribute('data-recon-clear')){
-     const r=displayed.find(x=>x.id===editing),name=b.form.elements.lineName.value.trim()||r?.name;
-     if(r)apply(()=>api.label(period,r.id,null,[],b.form.elements.scope?.value||'one',name),'Classificação limpa.');
+     const r=displayed.find(x=>x.id===editing),name=r?.name;
+     if(r)apply(()=>api.label(period,r.id,null,[],'all',name),'Classificação limpa.');
      return;
    }
    if(b.hasAttribute('data-recon-add')){
@@ -179,7 +180,7 @@ window.ReconUI=(()=>{
       const f=el.form,show=f.elements.divided.value==='yes',shares=$('.recon-shares',f);
       shares.hidden=!show;$('.recon-owner',f).hidden=show;
       for(const x of shares.querySelectorAll('input'))x.disabled=!show;
-      if(show&&!$('[name=person]',shares)?.value&&f.elements.owner.value.trim()&&norm(f.elements.owner.value)!=='eu')$('[name=person]',shares).value=f.elements.owner.value.trim();
+      if(show&&!$('[name=person]',shares)?.value&&f.elements.owner.value.trim()&&!isOwner(f.elements.owner.value))$('[name=person]',shares).value=f.elements.owner.value.trim();
       preview(f);return;
     }
     if(el.id==='reconUnit'){
@@ -197,16 +198,16 @@ window.ReconUI=(()=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
     if(f.dataset.reconForm==='label'){
       const r=displayed.find(x=>x.id===editing);if(!r)return;
-      const shared=f.elements.divided.value==='yes',scope=f.elements.scope?.value||'one',unit=f.elements.unit?.value||'amount',name=f.elements.lineName?.value.trim();
+      const shared=f.elements.divided.value==='yes',scope='all',unit=f.elements.unit?.value||'amount',name=f.elements.lineName?.value.trim();
       if(!name||name.length>250){error('Informe o nome do lançamento.');return;}
-      let parts=[],label=null;
+      let parts=[],label=null,ownerName;
       if(!shared){
         const owner=f.elements.owner.value.trim();
-        if(norm(owner)==='eu')label='mine';
+        if(owner&&isOwner(owner)){label='mine';ownerName=owner;}
         else if(owner){label='other';parts=[{person:owner,cents:r.cents}];}
       }else{
         const shares=[...f.querySelectorAll('.recon-share')].map(x=>({person:$('[name=person]',x).value.trim(),raw:cents($('[name=partCents]',x)?.value)}));
-        if(!shares.length||shares.some(x=>!x.person||norm(x.person)==='eu'||!Number.isSafeInteger(x.raw)||x.raw<=0)||new Set(shares.map(x=>norm(x.person))).size!==shares.length){error('Informe nomes distintos e um valor positivo para cada pessoa. Sua parte é calculada pelo restante.');return;}
+        if(!shares.length||shares.some(x=>!x.person||isOwner(x.person)||!Number.isSafeInteger(x.raw)||x.raw<=0)||new Set(shares.map(x=>norm(x.person))).size!==shares.length){error('Informe nomes distintos e um valor positivo para cada pessoa. Sua parte é calculada pelo restante.');return;}
         const raw=shares.map(x=>x.raw),converted=roundedParts(raw,r.cents,unit);
         if(!converted){error('Os percentuais não podem passar de 100%.');return;}
         parts=converted.map((c,i)=>({person:shares[i].person,cents:c}));
@@ -214,7 +215,7 @@ window.ReconUI=(()=>{
         if(used>r.cents||parts.some(x=>x.cents<=0)){error('A divisão não pode ultrapassar o total e deve ter pelo menos R$ 0,01 para cada pessoa.');return;}
         label=used===r.cents?'other':'split';
       }
-      apply(()=>api.label(period,r.id,label||null,parts,scope,name),'Lançamento atualizado.');
+      apply(()=>api.label(period,r.id,label||null,parts,scope,name,ownerName),'Lançamento atualizado.');
     }else {
       const {person,date,amount,accountId,inBaseline}=f.elements;
       const total=cents(amount.value);

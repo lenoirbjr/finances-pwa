@@ -15,7 +15,7 @@ function reconValidate(r){
  const classification=(x,total)=>{const p=x.parts??[];if(!parts(p))return false;const n=p.reduce((a,z)=>a+z.cents,0);return x.label==='other'?n===total:x.label==='split'?n>0&&n<total:(!x.label||x.label==='mine')&&n===0};
  if(!r.statements.every(st=>st&&isMonth(st.month)&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
  if(!r.bankRows.every(x=>x&&str(x.id)&&str(x.name,300)&&isDate(x.date)&&typeof x.time==='string'&&/^\d{2}:\d{2}:\d{2}$/.test(x.time)&&cent(x.cents)&&cent(x.balanceCents))||!unique(r.bankRows,x=>x.id))return false;
- if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,180)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
+ if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future','all'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,250))&&(x.ownerName===undefined||str(x.ownerName,100))&&(x.seriesKey===undefined||str(x.seriesKey,500)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
  if(!(r.payments??[]).every(x=>x&&isMonth(x.month)&&isDate(x.date))||!unique(r.payments??[],x=>x.month))return false;
  return r.receipts.every(x=>x&&str(x.id)&&isDate(x.date)&&str(x.accountId,80)&&str(x.person,100)&&pos(x.cents)&&typeof x.inBaseline==='boolean'&&arr(x.allocations,500)&&x.allocations.length>0&&x.allocations.every(a=>a&&str(a.rowId)&&isMonth(a.month)&&pos(a.cents))&&unique(x.allocations,a=>a.month+'|'+a.rowId)&&x.allocations.reduce((a,z)=>a+z.cents,0)===x.cents)&&unique(r.receipts,x=>x.id);
 }
@@ -40,8 +40,72 @@ function reconPreviousCreditRows(s,m){
 function reconPreviousCredit(s,m){
  return reconPreviousCreditRows(s,m).reduce((n,x)=>n+x.cents,0)/100;
 }
+function reconOwner(s){
+ const names=(s.reconciliation?.statements??[]).flatMap(st=>st.rows.map(x=>x.source?.Portador)).filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim().replace(/\s+/g,' '));
+ const first=names[0]?.split(' ')[0];
+ const key=x=>reconPersonKey(x).normalize('NFD').replace(/\p{M}/gu,'');
+ if(!first||names.some(n=>key(n.split(' ')[0])!==key(first)))return {name:'',aliases:['eu']};
+ const name=first.charAt(0).toLocaleUpperCase('pt-BR')+first.slice(1).toLocaleLowerCase('pt-BR');
+ return {name,aliases:['eu',first,...new Set(names)]};
+}
+function reconSeriesId(row){return row.seriesKey??'id:'+row.id}
+function reconStatementRows(st){
+ const duplicates=new Map();
+ return st.rows.map(x=>{
+  let seriesKey;
+  if(x.kind==='charge'&&x.count>1){
+   const merchant=reconPersonKey(x.source?.Estabelecimento||x.name);
+   const key=JSON.stringify([x.date,merchant,reconPersonKey(x.source?.Portador),x.count,x.cents,shiftMonth(st.month,1-x.number)]);
+   const n=duplicates.get(key)??0;duplicates.set(key,n+1);
+   seriesKey='csv:'+key+':'+n;
+  }
+  return {...x,seriesKey,source:'statement'};
+ });
+}
+// Link rounded installments only when the statement history has one unambiguous
+// purchase candidate (including the cardholder) and amounts differ by one cent.
+function reconStatementLinks(statements,receipts){
+ const buckets=new Map(), normalized=new Map(), groups=new Map(), ambiguous=new Set();
+ for(const st of statements){
+  const rows=reconStatementRows(st);
+  normalized.set(st.month,rows);
+  for(const x of rows){
+   if(statements.length<2||!x.seriesKey)continue;
+   const key=JSON.stringify([x.date,reconPersonKey(x.source?.Estabelecimento||x.name),
+    reconPersonKey(x.source?.Portador),x.count,shiftMonth(st.month,1-x.number)]);
+   if(!buckets.has(key))buckets.set(key,[]);
+   buckets.get(key).push(x);
+  }
+ }
+ if(!buckets.size)return {normalized,groups,ambiguous};
+ const pins=new Map();
+ for(const p of receipts)for(const a of p.allocations){
+  if(!pins.has(a.rowId))pins.set(a.rowId,new Set());
+  pins.get(a.rowId).add(a.month);
+ }
+ for(const rows of buckets.values()){
+  if(rows.length<2)continue;
+  const cents=rows.map(x=>x.cents);
+  if(Math.max(...cents)-Math.min(...cents)!==1)continue;
+  if(new Set(rows.map(x=>x.number)).size!==rows.length){for(const x of rows)ambiguous.add(x);continue;}
+  const pinned=new Map();
+  let conflict=false;
+  for(const x of rows)for(const month of pins.get(x.id)??[]){
+   if(pinned.has(month)&&pinned.get(month)!==x.id)conflict=true;
+   pinned.set(month,x.id);
+  }
+  if(conflict){for(const x of rows)ambiguous.add(x);continue;}
+  const aliases=[...new Set(rows.map(x=>x.seriesKey))].sort();
+  const group={key:aliases[0],aliases,pinned,byId:new Map(rows.map(x=>[x.id,x]))};
+  for(const x of rows)groups.set(x,group);
+ }
+ return {normalized,groups,ambiguous};
+}
+function reconLinkedSeries(row,key){return reconSeriesId(row)===key||row.seriesAliases?.includes(key)}
 function reconRawRows(s,m){
  const statements=s.reconciliation?.statements??[];
+ const {normalized,groups,ambiguous}=reconStatementLinks(statements,s.reconciliation?.receipts??[]);
+ const rowWithSeries=x=>{const g=groups.get(x);return g?{...x,seriesKey:g.key,seriesAliases:g.aliases}:ambiguous.has(x)?{...x,forecastKey:x.seriesKey,seriesKey:undefined}:x};
  const exact=statements.find(x=>x.month===m);
  if(exact){
   const manual=[];
@@ -50,22 +114,26 @@ function reconRawRows(s,m){
    const cents=Math.round(newPartAmount(e,m)*100);
    if(e.cardAdded&&!linked.has(e.id)&&cents>0)manual.push({id:e.id,name:e.name,date:e.purchaseDate??eventDate(e.start,5),cents,kind:'charge',count:e.count,number:monthDiff(e.start,m)+1,source:'manual'});
   }
-  return [...exact.rows.map(x=>({...x,source:'statement'})),...manual];
+  return [...normalized.get(m).map(rowWithSeries),...manual];
  }
  const prior=statements.filter(x=>x.month<m).sort((a,b)=>b.month.localeCompare(a.month));
  const covered=new Set(), projected=[], seen=new Set();
  for(const st of prior){
   const off=monthDiff(st.month,m);
-  for(const x of st.rows){
+  for(const raw of normalized.get(st.month)){
+   const x=rowWithSeries(raw);
    if(x.kind!=='charge'||!x.count)continue;
    const aliases=x.legacyIds??[];
-   const anchor=x.date+'|'+x.name+'|'+x.count+'|'+x.cents;
-   const peers=st.rows.filter(a=>a.kind==='charge'&&a.date===x.date&&a.name===x.name&&a.cents===x.cents&&a.count===x.count);
-   const key=anchor+'|'+peers.findIndex(a=>a.id===x.id);
+   const key=x.forecastKey??reconSeriesId(x);
+   const group=groups.get(raw);
+   if(group)for(const id of aliases)covered.add(id);
    if(seen.has(key))continue;
    seen.add(key);
    for(const id of aliases)covered.add(id);
-   if(x.number+off<=x.count)projected.push({...x,number:x.number+off,source:'forecast'});
+   if(x.number+off<=x.count){
+    const pinned=group?.byId.get(group.pinned.get(m));
+    projected.push({...x,...(pinned&&{id:pinned.id,cents:pinned.cents,label:pinned.label,parts:pinned.parts}),number:x.number+off,source:'forecast'});
+   }
   }
  }
  for(const e of oldParts(s,m))if(!covered.has(e.id))projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents:Math.round(e.payment*100),kind:'charge',count:e.remaining,number:monthDiff(e.start,m)+1,source:'legacy'});
@@ -81,12 +149,13 @@ function reconRows(s,m,includePreviousCredit=false){
  return (includePreviousCredit?[...rows,...reconPreviousCreditRows(s,m)]:rows).map(row=>{
   const exact=overrides.find(o=>o.rowId===row.id&&o.month===m&&o.scope==='one')??overrides.find(o=>o.rowId===row.id&&o.month===m&&o.scope==='future');
   const earlier=overrides.filter(o=>o.rowId===row.id&&o.scope==='future'&&o.month<m).sort((a,b)=>b.month.localeCompare(a.month))[0];
-  const o=exact??earlier;
+  const all=overrides.find(o=>o.scope==='all'&&(reconLinkedSeries(row,o.seriesKey)||o.rowId===row.id));
+  const o=all??exact??earlier;
   if(!o)return row;
   const parts=reconScale(o.parts,o.label,o.basis,row.cents);
   const label=parts.length?(parts.reduce((a,p)=>a+p.cents,0)===row.cents?'other':'split'):o.label?'mine':undefined;
   const name=o.name??earlier?.name??row.name;
-  return {...row,label,parts,name,originalName:name===row.name?undefined:row.name};
+  return {...row,label,parts,name,ownerName:o.ownerName,originalName:name===row.name?undefined:row.name};
  });
 }
 function reconMonths(s){
@@ -97,7 +166,7 @@ function reconMonths(s){
  for(const x of s.expenses)if(x.cardMonth)m.add(x.cardMonth);
  for(const o of r?.overrides??[])m.add(o.month);
  for(const p of r?.receipts??[])for(const a of p.allocations)m.add(a.month);
- for(const e of [...s.parcels,...s.baseParcels])for(let i=0;i<(e.count??e.remaining);i++){const a=shiftMonth(e.start,i);if(a>=cur)m.add(a)}
+ for(const e of [...s.parcels,...s.baseParcels])for(let i=0;i<(e.count??e.remaining);i++){const a=shiftMonth(e.start,i);m.add(a)}
  return [...m].sort();
 }
 function reconDebt(s){
@@ -111,23 +180,29 @@ function reconDebt(s){
   return {rowId:row.id,month,person:part.person,cents:part.cents,received:n,remaining:Math.max(0,part.cents-n),name:row.name,number:row.number,count:row.count};
  })));
 }
-function reconSetLabel(s,month,rowId,label,parts,scope,name){
+function reconSetLabel(s,month,rowId,label,parts,scope,name,ownerName){
  const row=reconRows(s,month).find(x=>x.id===rowId&&x.kind==='charge');if(!row)throw Error('Lançamento não encontrado.');
  const r=reconInit(s);
  let p=(parts??[]).map(x=>({person:x.person.trim().normalize('NFC'),cents:x.cents}));
  if(!label||label==='mine')p=[];
- if(!['one','future'].includes(scope))throw Error('Escolha o alcance da alteração.');
- const newParts=new Map(p.map(x=>[reconPersonKey(x.person),x.cents]));
- for(const d of reconDebt(s))if(d.rowId===rowId&&(d.month===month||(scope==='future'&&d.month>month))&&d.received>0){
-  const target=reconRows(s,d.month).find(t=>t.id===rowId);
-  const capacity=d.month===month?newParts.get(reconPersonKey(d.person)):reconScale(p,label,row.cents,target.cents).find(x=>reconPersonKey(x.person)===reconPersonKey(d.person))?.cents;
-  if((capacity??0)<d.received)throw Error('Já há um Pix vinculado. O rateio não pode ficar abaixo do valor recebido.');
- }
- if(scope==='future')r.overrides=r.overrides.filter(x=>x.rowId!==rowId||x.month<month);
- else r.overrides=r.overrides.filter(x=>x.rowId!==rowId||x.month!==month||x.scope!=='one');
+ if(!['one','future','all'].includes(scope))throw Error('Não foi possível identificar as parcelas.');
  const editedName=name===undefined?undefined:String(name).trim();
- if(editedName!==undefined&&(!editedName||editedName.length>180))throw Error('Informe um nome com até 180 caracteres.');
- r.overrides.push({month,rowId,label:label||null,scope,basis:row.cents,parts:p,...(editedName?{name:editedName}:{})});
+ const editedOwner=label==='mine'&&ownerName?String(ownerName).trim().normalize('NFC'):undefined;
+ if(editedName!==undefined&&(!editedName||editedName.length>250))throw Error('Informe um nome com até 250 caracteres.');
+ if(editedOwner&&editedOwner.length>100)throw Error('Informe um nome com até 100 caracteres.');
+ const seriesKey=reconSeriesId(row),related=new Set([rowId]);
+ const touches=(other,id,m)=> scope==='all'?(id===rowId||reconSeriesId(other)===seriesKey):(id===rowId&&(m===month||(scope==='future'&&m>month)));
+ if(scope==='all')for(const m of reconMonths(s))for(const item of reconRawRows(s,m))if(reconSeriesId(item)===seriesKey)related.add(item.id);
+ for(const d of reconDebt(s))if(d.received>0&&(related.has(d.rowId)||d.rowId===rowId)){
+  const target=reconRawRows(s,d.month).find(t=>t.id===d.rowId);
+  if(!target||!touches(target,d.rowId,d.month))continue;
+  const capacity=reconScale(p,label,row.cents,target.cents).find(x=>reconPersonKey(x.person)===reconPersonKey(d.person))?.cents;
+  if((capacity??0)<d.received)throw Error('Já há um Pix vinculado. Mantenha o valor recebido no rateio ou ajuste o Pix antes.');
+ }
+ if(scope==='all')r.overrides=r.overrides.filter(x=>!related.has(x.rowId)&&!reconLinkedSeries(row,x.seriesKey));
+ else if(scope==='future')r.overrides=r.overrides.filter(x=>x.rowId!==rowId||x.month<month);
+ else r.overrides=r.overrides.filter(x=>x.rowId!==rowId||x.month!==month||x.scope!=='one');
+ r.overrides.push({month,rowId,label:label||null,scope,basis:row.cents,parts:p,...(editedName?{name:editedName}:{}),...(editedOwner?{ownerName:editedOwner}:{}),...(scope==='all'?{seriesKey}:{})});
 }
 function reconAddReceipt(s,p){
  const r=reconInit(s);

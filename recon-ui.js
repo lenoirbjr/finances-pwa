@@ -124,13 +124,57 @@ function createReconUI(){
  function paymentDateField(id,label,date=api.today){
    return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(date)}" max="${escape(api.today)}" required></div>`;
  }
+ let ledgerRows=[];
+ function settlementEditor(r){
+   const purchase=r.kind==='purchase';
+   const dateId='settlementDate', dateLabel=purchase?'Primeiro vencimento':'Data';
+   const amount=(id,v)=>`<input id="${id}" name="ledgerValue" inputmode="decimal" placeholder="0,00" value="${coin(v).replace('.',',')}" required>`;
+   return `<form class="recon-edit recon-value-form recon-settlement-form" data-recon-form="settlement">
+   ${purchase?`<label for="settlementName">Descrição</label><input id="settlementName" name="description" value="${escape(r.name)}" placeholder="E.x. Compra" maxlength="120" required>
+   <label for="settlementPerson">Pessoa</label><input id="settlementPerson" name="person" value="${escape(r.person)}" maxlength="100" required>`:''}
+   <label for="${dateId}">${dateLabel}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(r.date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${dateId}" name="date" type="date" value="${escape(r.date)}" ${purchase?'':`max="${escape(api.today)}"`} required></div>
+   ${purchase?`<label for="settlementCount">Parcelas</label><input id="settlementCount" name="count" type="number" min="1" max="120" value="${r.count}" required><label for="settlementAmount">Valor (R$)</label>${amount('settlementAmount',r.cents)}`:
+      r.allocations.map((a,i)=>`<label for="settlementAmount${i}">Valor (R$)${r.allocations.length>1?` <small>${escape(a.name)} · ${monthTitle(a.month)}</small>`:''}</label>${amount('settlementAmount'+i,a.cents)}`).join('')}
+   <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-recon-settlement-delete>Excluir</button></div>
+   </form>`;
+ }
+ function ledgerSection(){
+   ledgerRows=api.settlements?.()??[];
+   const signed=(c,showPlus=false)=>(c<0?'− ':c>0&&showPlus?'+ ':'')+brl(Math.abs(c));
+   const entry=(r,i)=>{
+     const purchase=r.kind==='purchase',open=formKind==='settlement'&&editing===r.key;
+     const title=purchase?r.name:r.kind==='in'?'Recebido de '+r.person:'Pago a '+r.person;
+     return `<article class="recon-row recon-card-line recon-invoice-line movement-statement-line">
+      <button type="button" class="recon-entry-name recon-invoice-name" data-recon-settlement="${i}" aria-expanded="${open}">${escape(title)}</button>
+      <strong class="recon-invoice-amount${r.kind==='in'?' entry-credit':''}">${signed(r.kind==='out'?-r.cents:r.cents,r.kind==='in')}</strong>
+      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${escape(r.date)}">${when(r.date)}</time>${purchase?' · '+escape(r.person):''}</small></div>
+     </article>${open?settlementEditor(r):''}`;
+   };
+   const groups=(purchase)=>{
+     const months=new Map();
+     ledgerRows.forEach((r,i)=>{
+       if((r.kind==='purchase')!==purchase)return;
+       const m=r.date.slice(0,7);
+       if(!months.has(m))months.set(m,[]);
+       months.get(m).push([r,i]);
+     });
+     return [...months].map(([m,rows])=>{
+       const key='ledger-'+(purchase?'purchase':'payment')+':'+m,sum=rows.reduce((n,[r])=>n+(r.kind==='out'?-r.cents:r.cents),0);
+       return `<details class="history-month-fold" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>${monthTitle(m)}</span><strong class="statement-month-total${!purchase&&sum>0?' entry-credit':''}">${signed(sum,!purchase)}</strong></summary><div class="history-month-content">${rows.map(([r,i])=>entry(r,i)).join('')}</div></details>`;
+     }).join('');
+   };
+   const payments=groups(false),purchases=groups(true);
+   return `<section class="surface recon-screen movement-statement recon-settlement-ledger" aria-label="Extrato de acertos">
+   ${payments||'<p class="empty">Nenhum pagamento ou recebimento registrado.</p>'}
+   ${purchases?`<h3>Compras a pagar</h3>${purchases}`:''}</section>`;
+ }
  function moneyViews(){
    return `<div class="recon-money-views"><div class="subtabs recon-money-tabs" role="group" aria-label="Pagamentos e recebimentos">
-     ${[['payable','A Pagar'],['receivable','A Receber']].map(([key,label])=>`<button type="button" class="${moneyTab===key?'active':''}" aria-pressed="${moneyTab===key}" data-recon-money="${key}">${label}</button>`).join('')}</div>
-     ${moneyTab==='payable'?payableSection(currentPayables):debt()}</div>`;
+     ${[['payable','A Pagar'],['receivable','A Receber'],['ledger','Extrato']].map(([key,label])=>`<button type="button" class="${moneyTab===key?'active':''}" aria-pressed="${moneyTab===key}" data-recon-money="${key}">${label}</button>`).join('')}</div>
+     ${moneyTab==='payable'?payableSection(currentPayables):moneyTab==='ledger'?ledgerSection():debt()}</div>`;
  }
  function selectMoney(view){
-   if(!['payable','receivable'].includes(view)||moneyTab===view)return;
+   if(!['payable','receivable','ledger'].includes(view)||moneyTab===view)return;
    moneyTab=view;editing=null;formKind='';personFilter='';
  }
  function bill(){
@@ -328,6 +372,19 @@ function createReconUI(){
    }
    const b=e.target.closest('button');if(!b||busy)return;
    if(b.hasAttribute('data-recon-money')){if(b.dataset.reconMoney!==moneyTab){selectMoney(b.dataset.reconMoney);paint();}return;}
+   if(b.hasAttribute('data-recon-settlement')){
+     const row=ledgerRows[Number(b.dataset.reconSettlement)];
+     if(!row||moneyTab!=='ledger')return;
+     if(editing===row.key){close();return;}
+     editing=row.key;formKind='settlement';paint();return;
+   }
+   if(b.hasAttribute('data-recon-settlement-delete')){
+     const row=ledgerRows.find(r=>r.key===editing);
+     if(!row||formKind!=='settlement'||!api.editSettlement)return;
+     const question=row.kind==='purchase'?'Excluir esta compra e todas as parcelas?':'Excluir este registro? Os valores vinculados voltarão a ficar em aberto.';
+     if(window.confirm(question))apply(()=>api.editSettlement(row.key,null),'Lançamento excluído.');
+     return;
+   }
    if(b.hasAttribute('data-recon-edit-tab'))return keepPosition(()=>{
      const panel=b.dataset.reconEditTab,label=$('#reconLineLabelPanel',root),value=$('#reconLineValuePanel',root);
      if(!label||!value||!['label','adjust-installment'].includes(panel))return;
@@ -435,12 +492,20 @@ function createReconUI(){
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
-    if(el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate')syncPixDate(el);
+    if(el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate'||el.id==='settlementDate')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate'||e.target.id==='settlementDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
+    if(f.dataset.reconForm==='settlement'){
+      const row=ledgerRows.find(r=>r.key===editing);
+      if(formKind!=='settlement'||!row||!api.editSettlement)return;
+      const date=f.elements.date.value,values=[...f.querySelectorAll('[name=ledgerValue]')].map(x=>cents(x.value));
+      if(!safeDate(date)||row.kind!=='purchase'&&date>api.today||values.some(v=>!Number.isSafeInteger(v)||v<0||v>1e12)){error('Confira a data e os valores.');return;}
+      const fields=row.kind==='purchase'?{name:f.elements.description.value.trim(),person:f.elements.person.value.trim(),date,cents:values[0],count:Number(f.elements.count.value)}:{date,values};
+      apply(()=>api.editSettlement(row.key,fields),'Lançamento atualizado.');return;
+    }
     if(f.dataset.reconForm==='credit-label'){
       if(formKind==='credit-label'&&api.creditTag)apply(()=>api.creditTag(period,editing,f.elements.tag.value.trim()),'Etiqueta atualizada.');
       return;

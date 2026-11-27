@@ -255,3 +255,10 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-value-form .recon-label-actions{margin-top:12px}
 .recon-value-reset{text-align:right;margin-top:6px}
 .recon-value-reset .secondary{min-height:30px;margin:0;padding:4px 8px;font-size:.73rem}
+
+.recon-money-views .recon-money-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.recon-money-tabs button{white-space:nowrap;padding-inline:2px}
+.recon-settlement-ledger .history-month-fold{margin-block:6px}
+.recon-settlement-ledger .history-month-content{padding-inline:10px}
+.recon-settlement-ledger h3{margin:14px 0 6px;font-size:.88rem}
+.recon-settlement-form label small{display:block;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}

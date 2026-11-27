@@ -106,7 +106,8 @@ async function importClosedCard(event){
   }
  }catch(e){notice(e.message,'error');}
 }
-function showCardEntry(mode){
+function showCardEntry(mode){return keepScrollPosition(()=>paintCardEntry(mode))}
+function paintCardEntry(mode){
  const refund=mode==='refund';
  $('cardPurchasePanel').classList.toggle('hidden',refund);
  $('cardRefundPanel').classList.toggle('hidden',!refund);

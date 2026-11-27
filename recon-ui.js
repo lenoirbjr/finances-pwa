@@ -45,13 +45,16 @@ function createReconUI(){
  }
  let api,root,tab='bill',period='',editing=null,formKind='',personFilter='',billFilter='all',busy=false,displayed=[],debts=[];
  const openGroups=new Set();
+ let moneyTab='payable';
+ const payablePersonKey=person=>JSON.stringify(['payable-person',norm(person)]);
+ const payableMonthKey=(person,month)=>JSON.stringify(['payable-month',norm(person),month]);
  function months(){
    const obj=api.state?.reconciliation?.statements||{};
    return [...new Set([...(api.months||[]),...(Array.isArray(obj)?obj.map(x=>x.month):Object.keys(obj)),api.today.slice(0,7),period].filter(safeMonth))].sort().reverse();
  }
  function reset(){editing=null;formKind='';personFilter='';billFilter='all';}
  function close(){editing=null;formKind='';personFilter='';if(api.parcel){api.closeParcel?.();return;}paint();}
- function error(t){const el=$(`[data-recon-form="${formKind}"] [data-recon-form-message]`,root)||$('[data-recon-message]',root);if(el)el.textContent=t;}
+ function error(t,kind='error'){const form=$(`[data-recon-form="${formKind}"] [data-recon-form-message]`,root);if(form){form.textContent=t;return;}if(api.notify){if(t)api.notify(t,kind);return;}const el=$('[data-recon-message]',root);if(el)el.textContent=t;}
  function billList(all){
    const options=new Map([['all','Todos'],['unlabeled','Sem etiqueta']]);
    const names=new Map();
@@ -69,27 +72,45 @@ function createReconUI(){
    return options;
  }
  function payableRows(){
-   return (api.payable?.(period)||[]).filter(x=>x.cents>0);
+   return (api.payables?.()??api.payable?.()??[]).filter(x=>x.cents>0);
  }
  let currentPayables=[];
  function payableSection(items){
-   const groups=new Map();
-   for(const item of items){
+   const byPerson=new Map();
+   const pending=rows=>rows.reduce((n,r)=>n+(r.paidDate?0:r.cents),0);
+   const paid=rows=>rows.reduce((n,r)=>n+(r.paidDate?r.cents:0),0);
+   const activeRow=r=>formKind==='payable'&&editing?.id===r.id&&editing?.month===r.month;
+   for(const [i,item] of items.entries()){
      const key=norm(item.person);
-     if(!groups.has(key))groups.set(key,{name:item.person,rows:[]});
-     groups.get(key).rows.push(item);
+     if(!byPerson.has(key))byPerson.set(key,{name:item.person,rows:[]});
+     byPerson.get(key).rows.push({...item,index:i});
    }
-   const sortPending=g=>g.rows.reduce((n,r)=>n+(r.paidDate?0:r.cents),0);
-   return `<details class="recon-payable recon-person-group" data-recon-group="payable:${period}" ${openGroups.has('payable:'+period)||formKind==='payable'?'open':''}><summary><span>A pagar a pessoas<small>${monthTitle(period)} · Em aberto</small></span><strong>${brl(items.filter(r=>!r.paidDate).reduce((n,r)=>n+r.cents,0))}</strong></summary>
-   <div class="recon-payable-groups">${items.length?[...groups.values()].sort((a,b)=>sortPending(b)-sortPending(a)||a.name.localeCompare(b.name,'pt-BR')).map(g=>{
-     const key='payable:'+period+':'+norm(g.name);
-     return `<details class="recon-debt-month" data-recon-group="${escape(key)}" ${openGroups.has(key)||g.rows.some(r=>formKind==='payable'&&editing?.id===r.id&&editing?.month===r.month)?'open':''}><summary><span>${escape(g.name)}</span><strong>${sortPending(g)?brl(sortPending(g)):'Quitado'}</strong></summary>
-      <div class="recon-payable-lines">${g.rows.map(r=>{
-       const i=items.indexOf(r);
-       const active=formKind==='payable'&&editing?.id===r.id&&editing?.month===r.month;
-       return `<article class="recon-row"><div><strong>${escape(r.name)}</strong><small>${r.paidDate?'Pix registrado em '+when(r.paidDate):'Vence '+when(r.due||r.date)}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong><button type="button" class="secondary" ${r.paidDate?'data-recon-undo-payable':'data-recon-mark-payable'}="${i}" aria-label="${r.paidDate?'Desfazer Pix':'Registrar Pix'}: ${escape(r.name)}">${r.paidDate?'Desfazer':'Registrar Pix'}</button></div></article>${active?`<form class="recon-edit recon-payable-form" data-recon-form="payable"><label for="reconPayableDate">Data do Pix</label><input id="reconPayableDate" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required><p class="assistive">Só registre depois de pagar. O app não faz a transferência.</p><div class="recon-actions"><button type="submit">Salvar Pix</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div><p class="recon-message" data-recon-form-message role="status"></p></form>`:''}`;
-      }).join('')}</div></details>`;
-    }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas neste mês.</p>'}</div></details>`;
+   const groups=[...byPerson.values()].sort((a,b)=>pending(b.rows)-pending(a.rows)||a.name.localeCompare(b.name,'pt-BR'));
+   return `<section class="surface recon-screen recon-payable" aria-labelledby="reconPayablesTitle">
+   <div class="recon-money-heading"><h2 id="reconPayablesTitle">A Pagar</h2><p>Todos os meses</p></div>
+   <dl class="recon-totals"><div><dt>Total em aberto</dt><dd>${brl(pending(items))}</dd></div><div><dt>Já pago</dt><dd>${brl(paid(items))}</dd></div></dl>
+   <div class="recon-rows recon-debt-list">${groups.length?groups.map(g=>{
+     const personKey=payablePersonKey(g.name);
+     return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)||g.rows.some(activeRow)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
+       <div class="recon-debt-months">${groupByMonth(g.rows).map(([month,rows])=>{
+         const monthKey=payableMonthKey(g.name,month);
+         const total=pending(rows);
+         return `<details class="recon-debt-month" data-recon-group="${escape(monthKey)}" ${openGroups.has(monthKey)||rows.some(activeRow)?'open':''}><summary><span>${monthTitle(month)}</span><strong>${total?brl(total):'Quitado'}</strong></summary>
+         <div class="recon-payable-lines">${[...rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
+           const i=r.index,active=activeRow(r);
+           return `<article class="recon-row"><div><strong>${escape(r.name)}</strong><small>${r.paidDate?'Pix registrado em '+when(r.paidDate):'Vence '+when(r.due||r.date)}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong><button type="button" class="secondary" ${r.paidDate?'data-recon-undo-payable':'data-recon-mark-payable'}="${i}" aria-label="${r.paidDate?'Desfazer Pix':'Registrar Pix'}: ${escape(r.name)}">${r.paidDate?'Desfazer':'Registrar Pix'}</button></div></article>${active?`<form class="recon-edit recon-payable-form" data-recon-form="payable"><label for="reconPayableDate">Data do Pix</label><input id="reconPayableDate" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required><p class="assistive">Só registre depois de pagar. O app não faz a transferência.</p><div class="recon-actions"><button type="submit">Salvar Pix</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div><p class="recon-message" data-recon-form-message role="status"></p></form>`:''}`;
+         }).join('')}</div></details>`;
+       }).join('')}</div></details>`;
+   }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas.</p>'}</div></section>`;
+ }
+ function moneyViews(){
+   return `<div class="recon-money-views"><div class="subtabs recon-money-tabs" role="group" aria-label="Pagamentos e recebimentos">
+     ${[['payable','A Pagar'],['receivable','A Receber']].map(([key,label])=>`<button type="button" class="${moneyTab===key?'active':''}" aria-pressed="${moneyTab===key}" data-recon-money="${key}">${label}</button>`).join('')}</div>
+     ${moneyTab==='payable'?payableSection(currentPayables):debt()}</div>`;
+ }
+ function selectMoney(view){
+   if(!['payable','receivable'].includes(view)||moneyTab===view)return;
+   moneyTab=view;editing=null;formKind='';personFilter='';
  }
  function bill(){
    const options=billList(api.rows(period)||[]);
@@ -217,7 +238,17 @@ function createReconUI(){
      $('[data-recon-left]',form).textContent=unit==='percent'?`${coin(entered).replace('.',',')}% distribuídos. ${text}`:text;
    }
  }
- function paint(){
+ let preservingPosition=false;
+ function keepPosition(work){
+   if(!api?.keepPosition||preservingPosition)return work();
+   return api.keepPosition(()=>{
+     preservingPosition=true;
+     try{return work();}
+     finally{preservingPosition=false;}
+   });
+ }
+ function paint(){return keepPosition(paintWork);}
+ function paintWork(){
    if(!root)return;
    if(api.parcel){
      const {row,month}=api.parcel;period=month;displayed=[row];editing=row.id;formKind='label';
@@ -225,8 +256,8 @@ function createReconUI(){
      preview($('[data-recon-form="label"]',root));return;
    }
    period=period||initialPeriod();
-   currentPayables=tab==='debt'?payableRows():[];
-   root.innerHTML='<p class="recon-message" data-recon-message role="status"></p>'+(tab==='bill'?bill():`<div class="recon-money-views"><section class="surface recon-screen" aria-label="Pagamentos a outras pessoas">${payableSection(currentPayables)}</section>${debt()}</div>`);
+   currentPayables=tab==='debt'&&moneyTab==='payable'?payableRows():[];
+   root.innerHTML='<p class="recon-message" data-recon-message role="status"></p>'+(tab==='bill'?bill():moneyViews());
    const pix=$('[data-recon-form="receipt"]',root);if(pix)allocations(pix);
    const edit=$('[data-recon-form="label"]',root);if(edit)preview(edit);
  }
@@ -236,7 +267,7 @@ function createReconUI(){
    let result;
    try{result=await fn();}catch(e){result={ok:false,error:e.message};}
    busy=false;
-   if(result===true||result?.ok){if(api.parcel){api.closeParcel?.(confirmed);return;}close();error(confirmed);}
+   if(result===true||result?.ok){if(api.parcel){api.closeParcel?.(confirmed);return;}close();error(confirmed,'ok');}
    else error(result?.error||'Não foi possível salvar. Confira os dados e tente novamente.');
  }
  function syncPixDate(input){
@@ -246,7 +277,8 @@ function createReconUI(){
  function bind(dom){
   dom.addEventListener('click',e=>{
    const b=e.target.closest('button');if(!b||busy)return;
-   if(b.hasAttribute('data-recon-edit-tab')){
+   if(b.hasAttribute('data-recon-money')){if(b.dataset.reconMoney!==moneyTab){selectMoney(b.dataset.reconMoney);paint();}return;}
+   if(b.hasAttribute('data-recon-edit-tab'))return keepPosition(()=>{
      const panel=b.dataset.reconEditTab,label=$('#reconLineLabelPanel',root),value=$('#reconLineValuePanel',root);
      if(!label||!value||!['label','adjust-installment'].includes(panel))return;
      formKind=panel;
@@ -255,8 +287,8 @@ function createReconUI(){
        const active=button.dataset.reconEditTab===panel;
        button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
      }
-     error('');return;
-   }
+     error('');
+   });
    if(b.hasAttribute('data-recon-exclude')){
      const item=displayed.find(x=>x.id===editing);if(formKind!=='adjust-installment'||!item||!api.canAdjust?.(period))return;
      if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Esta exclusão não tem opção de desfazer na fatura.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
@@ -268,45 +300,44 @@ function createReconUI(){
    if(b.hasAttribute('data-recon-mark-payable')||b.hasAttribute('data-recon-undo-payable')){
      const undo=b.hasAttribute('data-recon-undo-payable'),row=currentPayables[Number(undo?b.dataset.reconUndoPayable:b.dataset.reconMarkPayable)];if(!row||!api.setPayable||Boolean(row.paidDate)!==undo)return;
      if(undo){if(window.confirm('Desfazer o registro deste Pix? O pagamento voltará a ficar em aberto.'))apply(()=>api.setPayable(row.id,row.month,null),'Registro do Pix desfeito.');}
-     else{openGroups.add('payable:'+period);openGroups.add('payable:'+period+':'+norm(row.person));editing=row;formKind='payable';paint();$('#reconPayableDate',root)?.focus();}
+     else{openGroups.add(payablePersonKey(row.person));openGroups.add(payableMonthKey(row.person,row.month));editing=row;formKind='payable';paint();}
      return;
    }
    if(b.hasAttribute('data-recon-delete-pix')){if(api.deleteReceipt&&window.confirm('Desfazer este Pix no diário? As dívidas vinculadas voltarão a ficar em aberto.'))apply(()=>api.deleteReceipt(b.dataset.reconDeletePix),'Registro do Pix removido.');return;}
    if(b.hasAttribute('data-recon-fill-total')){autofill(b.form);return;}
    if(b.hasAttribute('data-recon-fill-debt')){autofill(b.form,Number(b.dataset.reconFillDebt));return;}
    
-   if(b.hasAttribute('data-recon-pix')){editing=null;formKind='receipt';paint();$('#reconPerson',root)?.focus();return;}
+   if(b.hasAttribute('data-recon-pix')){editing=null;formKind='receipt';paint();return;}
    if(b.hasAttribute('data-recon-cancel')){close();return;}
    if(b.hasAttribute('data-recon-clear')){
      const r=displayed.find(x=>x.id===editing),name=r?.name;
      if(r)apply(()=>api.label(period,r.id,null,[],'all',name),'Classificação limpa.');
      return;
    }
-   if(b.hasAttribute('data-recon-add')){
+   if(b.hasAttribute('data-recon-add'))return keepPosition(()=>{
      const people=b.form.querySelector('[data-recon-people]');if(people.children.length>=50)return;
      people.insertAdjacentHTML('beforeend',personRow('',0,true,false,b.form.elements.unit.value));
-     b.form.querySelector('.recon-share:last-child input').focus();return;
-   }
-   if(b.hasAttribute('data-recon-remove')){
+     preview(b.form);
+   });
+   if(b.hasAttribute('data-recon-remove'))return keepPosition(()=>{
      const f=b.form, container=$('[data-recon-people]',f);if(container.children.length>1)b.closest('.recon-share').remove();else for(const x of b.closest('.recon-share').querySelectorAll('input'))x.value='';preview(f);
-   }
+   });
   });
   dom.addEventListener('change',e=>{
     const el=e.target;
-    if(el.id==='reconBillFilter'){
+    if(el.id==='reconBillFilter')return keepPosition(()=>{
       billFilter=el.value;editing=null;formKind='';
       billList(api.rows(period)||[]);
       const list=$('#reconBillRows',root);
       if(list)list.innerHTML=billRows();
-      return;
-    }
-    if(el.name==='divided'){
+    });
+    if(el.name==='divided')return keepPosition(()=>{
       const f=el.form,show=f.elements.divided.value==='yes',shares=$('.recon-shares',f);
       shares.hidden=!show;$('.recon-owner',f).hidden=show;
       for(const x of shares.querySelectorAll('input'))x.disabled=!show;
       if(show&&!$('[name=person]',shares)?.value&&f.elements.owner.value.trim()&&!isOwner(f.elements.owner.value))$('[name=person]',shares).value=f.elements.owner.value.trim();
-      preview(f);return;
-    }
+      preview(f);
+    });
     if(el.id==='reconUnit'){
       const f=el.form,r=displayed.find(x=>x.id===editing),fields=[...f.querySelectorAll('[name=partCents]')], values=fields.map(x=>cents(x.value)||0);
       const base=el.dataset.previousUnit==='percent'?10000:r?.cents||0,total=el.value==='percent'?10000:r?.cents||0,used=values.reduce((n,x)=>n+x,0);
@@ -314,7 +345,7 @@ function createReconUI(){
       fields.forEach((x,i)=>{x.value=next[i]?coin(next[i]):'';x.placeholder=el.value==='percent'?'0,00%':'0,00';x.setAttribute('aria-label',el.value==='percent'?'Percentual desta pessoa':'Valor desta pessoa (R$)');});
       el.dataset.previousUnit=el.value;preview(f);return;
     }
-    if(el.id==='reconPerson'){personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);}
+    if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
     if(el.id==='reconPixDate')syncPixDate(el);
   });
   dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate')syncPixDate(e.target);if(f)preview(f);});
@@ -367,7 +398,7 @@ function createReconUI(){
     }
   });
  }
- return {parcelLabels(row,owner){return classificationNames(row,owner).map(chip).join('');},reset,selectBill(month){if(!safeMonth(month))return;period=month;tab='bill';reset();},render(options){
+ return {parcelLabels(row,owner){return classificationNames(row,owner).map(chip).join('');},reset,selectMoney,selectBill(month){if(!safeMonth(month))return;period=month;tab='bill';reset();},render(options){
    const dom=$(options.parcel?'#parcelReconUI':'#reconUI');if(!dom)return;
    api=options;
    if(!api.parcel){

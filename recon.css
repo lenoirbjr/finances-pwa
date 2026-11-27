@@ -195,3 +195,6 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-line-editor .recon-edit{margin:0}
 .recon-installment-form h3{margin:0 0 6px}
 .recon-edit .recon-label-actions .recon-exclude-installment{color:var(--negative,#ff928b)}
+
+.recon-money-views .recon-money-tabs{margin:0}
+.recon-money-views>.surface{margin:0}

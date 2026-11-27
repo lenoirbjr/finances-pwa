@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.36 */
-/* Diário Financeiro 4.0.36: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.37 */
+/* Diário Financeiro 4.0.37: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -286,6 +286,10 @@ function releaseCardScrollTail(){
 async function update(fn){if(writing)return false;writing=true;try{const next=structuredClone(state);fn(next);if(!valid(next))throw Error('Dados inválidos. Confira os campos.');await write(RECORD,next);state=next;render();clearNotice();return true}catch(e){notice('Não foi possível salvar: '+e.message,'error');return false}finally{writing=false}}
 function activeFixed(s,m){return s.fixedItems.filter(e=>e.start<=m&&(!e.end||e.end>=m))}
 function fixedAmount(s,m){return s.mode==='legacy'?s.legacyFixed:round(reconFixed(s,m).filter(e=>e.direction!=='in').reduce((a,e)=>a+e.amount,0))}
+function fixedIncomePlan(s,m){
+ const direct=reconFixed(s,m).filter(e=>e.direction==='in'),seen=new Set(direct.map(e=>e.id));
+ return [...direct,...activeFixed(s,m).filter(e=>reconNamedPix(e)&&!seen.has(e.id))];
+}
 function oldParts(s,m){return s.baseParcels.filter(e=>{const d=monthDiff(e.start,m);return d>=0&&d<e.remaining})}
 function baseAmount(s,m){return s.mode==='legacy'?(s.legacyInvoices[m]??0):round(oldParts(s,m).reduce((a,e)=>a+e.payment,0))}
 const newBaseAmount=baseAmount;
@@ -293,7 +297,7 @@ function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.coun
 function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+(e.payTo?0:newPartAmount(e,m)),0))}
 function invoiceAmount(s,m){return reconInvoice(s,m)??Math.max(0,round(baseAmount(s,m)+newAmount(s,m)-(s.reconciliation?.cardRefunds??[]).filter(x=>x.month===m).reduce((n,x)=>n+x.cents,0)/100))}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
-function monthly(s,m){const people=reconPayableEvents(s).filter(e=>e.date.slice(0,7)===m).reduce((n,e)=>n+e.cents,0)/100;const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),fixedIncome=round(reconFixed(s,m).filter(e=>e.direction==='in').reduce((sum,e)=>sum+e.amount,0)),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,fixedIncome,base,extra,investment,margin:p.margin,invested,applied,people,available:round(p.income+fixedIncome-fixed-priorCredit-base-extra-applied-p.margin-invested-people),quotaBase:round(p.income+fixedIncome-fixed-priorCredit-base-extra-applied-p.margin-people)}}
+function monthly(s,m){const people=reconPayableEvents(s).filter(e=>e.date.slice(0,7)===m).reduce((n,e)=>n+e.cents,0)/100;const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),fixedIncome=round(fixedIncomePlan(s,m).reduce((sum,e)=>sum+e.amount,0)),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,fixedIncome,base,extra,investment,margin:p.margin,invested,applied,people,available:round(p.income+fixedIncome-fixed-priorCredit-base-extra-applied-p.margin-invested-people),quotaBase:round(p.income+fixedIncome-fixed-priorCredit-base-extra-applied-p.margin-people)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>!e.cardMonth&&e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){lab.textContent=shortMonthTitle(el.value)}else{lab.textContent=el.value.split('-').reverse().join('/')}}}
@@ -342,7 +346,7 @@ function breakdown(s,m){
    return `<details class="breakdown-group"><summary><span>${esc(label)} <small>${items.length} itens</small></span><span class="group-money"><strong>${total<0?(sign==='−'?'+':'−'):sign} ${money(Math.abs(total))}</strong><small>${pct(Math.abs(total),income)} da renda</small></span></summary><div class="breakdown-rows">${content||'<p class="empty">Nenhum item neste mês.</p>'}</div></details>`;
  };
  const fixed=s.mode==='legacy'?[{name:'Total antigo de fixos',amount:z.fixed}]:reconFixed(s,m).filter(e=>e.direction!=='in').map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
- const fixedIncome=reconFixed(s,m).filter(e=>e.direction==='in').map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
+ const fixedIncome=fixedIncomePlan(s,m).map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
  const reconciled=reconInvoice(s,m);
  const base=reconciled!==null?reconRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
  const newer=reconciled!==null?[]:s.parcels.filter(e=>!e.payTo).map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
@@ -525,7 +529,7 @@ function fixedEditor(e,adding){
  ${adding?'':`<div class="subtabs recon-editor-tabs" role="group" aria-label="Editar valor fixo">${[['tag','Etiqueta'],['value','Valor']].map(([k,l])=>`<button type="button" data-fixed-edit-tab="${k}" class="${fixedEditTab===k?'active':''}" aria-pressed="${fixedEditTab===k}">${l}</button>`).join('')}</div>`}
  <form class="recon-edit recon-value-form fixed-editor" data-fixed-form="${adding?'add':fixedEditTab}">
  ${hasTag?`<label for="repeatName">Descrição</label><input id="repeatName" name="description" value="${esc(e.name)}" placeholder="E.x. ${fixedDirection==='in'?'Reembolso mensal':'Internet'}" maxlength="120" required>
- <label for="repeatTag">Etiqueta</label><input id="repeatTag" name="tag" value="${esc(e.tag)}" placeholder="E.x. ${fixedDirection==='in'?'Benefícios':'Casa'}" maxlength="100">`:''}
+ <label for="repeatTag">Pessoa / etiqueta</label><input id="repeatTag" name="tag" value="${esc(e.tag)}" placeholder="E.x. Nome da pessoa" maxlength="100">`:''}
  ${hasValue?`<label for="repeatAmount">Valor (R$)</label><input id="repeatAmount" name="amount" inputmode="decimal" value="${adding?'':Number(e.amount).toFixed(2).replace('.',',')}" placeholder="0,00" required>
  <label for="repeatChannel">Forma</label><select id="repeatChannel" name="channel"><option value="pix" ${card?'':'selected'}>Pix recorrente</option><option value="card" ${card?'selected':''}>Fatura do cartão</option></select>
  <label for="repeatDay" data-fixed-day-label>${card?'Dia do lançamento na fatura':fixedDirection==='in'?'Dia do recebimento':'Dia do pagamento'}</label><input id="repeatDay" name="day" type="number" inputmode="numeric" min="1" max="31" step="1" value="${e.day||5}" required>
@@ -553,7 +557,8 @@ function renderFixedValues(){
 function changeFixedValue(s,id,fields){
  const old=id?s.fixedItems.find(e=>e.id===id):null;
  if(id&&!old)throw Error('Valor fixo não encontrado.');
- const linked=old&&(reconHasAllocated(s,'recurring:'+id)||(s.fixedPaid??[]).some(p=>p.id===id));
+ const pixLinked=old&&reconHasAllocated(s,'fixedpix:'+id);
+ const linked=old&&(reconHasAllocated(s,'recurring:'+id)||pixLinked||(s.fixedPaid??[]).some(p=>p.id===id));
  if(fields===null){
   if(linked)throw Error('Remova primeiro os pagamentos vinculados.');
   s.fixedItems=s.fixedItems.filter(e=>e.id!==id);return;
@@ -562,8 +567,15 @@ function changeFixedValue(s,id,fields){
  if(!next.name||next.name.length>120||(next.tag??'').length>100||!Number.isFinite(next.amount)||next.amount<0||next.amount>1e10||!isMonth(next.start)||(next.end&&(!isMonth(next.end)||next.end<next.start))||
   next.day!==undefined&&(!Number.isInteger(next.day)||next.day<1||next.day>31))throw Error('Confira a descrição, o valor e o período.');
  if(!old&&next.amount<=0)throw Error('Informe um valor positivo.');
- if(linked&&['amount','day','start','end','channel','direction'].some(k=>next[k]!==old[k]))throw Error('Remova primeiro os pagamentos vinculados para alterar a recorrência.');
+ const protectedMonths=[...(s.fixedPaid??[]).filter(p=>p.id===id).map(p=>p.month),...(s.reconciliation?.receipts??[]).flatMap(p=>p.allocations.filter(a=>a.rowId==='fixedpix:'+id||a.rowId==='recurring:'+id).map(a=>a.month))];
+ const dropsPayment=next.end&&protectedMonths.some(m=>m>next.end);
+ if((pixLinked&&reconPersonKey(next.tag)!==reconPersonKey(old.tag))||(linked&&(['amount','day','start','channel','direction'].some(k=>next[k]!==old[k])||dropsPayment)))throw Error('Remova primeiro os pagamentos vinculados para alterar a recorrência.');
  if(old)s.fixedItems=s.fixedItems.map(e=>e.id===id?next:e);else s.fixedItems.push(next);
+}
+function openFixedSetting(id){
+ const item=state.fixedItems.find(e=>e.id===id);if(!item)return;
+ fixedDirection=item.direction??'out';fixedSelection=item.id;fixedEditTab='tag';
+ renderFixedValues();showScreen('settings');$('fixedValuesSection').open=true;
 }
 function fixedClick(e){
  const b=e.target.closest?.('button');if(!b||writing)return;
@@ -646,7 +658,7 @@ function paintScreen(){
    $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
  }
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),settlements:()=>reconOpenDebtEntries(state),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),fixedCommitments:m=>reconFixedCommitments(state,m),openFixedSetting,settlements:()=>reconOpenDebtEntries(state),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){

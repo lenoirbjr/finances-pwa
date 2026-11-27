@@ -95,7 +95,6 @@ function createReconUI(){
    const byPerson=new Map();
    const pending=rows=>rows.reduce((n,r)=>n+(r.paidDate?0:r.cents),0);
    const paid=rows=>rows.reduce((n,r)=>n+(r.paidDate?r.cents:0),0);
-   const activeRow=r=>formKind==='payable'&&editing?.id===r.id&&editing?.month===r.month;
    for(const [i,item] of items.entries()){
      const key=norm(item.person);
      if(!byPerson.has(key))byPerson.set(key,{name:item.person,rows:[]});
@@ -108,23 +107,25 @@ function createReconUI(){
    ${formKind==='payable-start'?payableForm(groups):`<button class="primary recon-pix" type="button" data-recon-payable-start ${pending(items)?'':'disabled'}>Registrar Pagamento</button>`}
    <div class="recon-rows recon-debt-list">${groups.length?groups.map(g=>{
      const personKey=payablePersonKey(g.name);
-     return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)||g.rows.some(activeRow)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
+     return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
        <div class="recon-debt-months">${groupByMonth(g.rows).map(([month,rows])=>{
          const monthKey=payableMonthKey(g.name,month);
          const total=pending(rows);
-         return `<details class="recon-debt-month" data-recon-group="${escape(monthKey)}" ${openGroups.has(monthKey)||rows.some(activeRow)?'open':''}><summary><span>${monthTitle(month)}</span><strong>${total?brl(total):'Quitado'}</strong></summary>
+         return `<details class="recon-debt-month" data-recon-group="${escape(monthKey)}" ${openGroups.has(monthKey)?'open':''}><summary><span>${monthTitle(month)}</span><strong>${total?brl(total):'Quitado'}</strong></summary>
          <div class="recon-payable-lines">${[...rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
-           const i=r.index,active=activeRow(r);
-           return `<article class="recon-row"><div><strong>${escape(r.name)}</strong><small>${r.paidDate?'Pix registrado em '+when(r.paidDate):'Vence '+when(r.due||r.date)}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong><button type="button" class="secondary" ${r.paidDate?'data-recon-undo-payable':'data-recon-mark-payable'}="${i}" aria-label="${r.paidDate?'Desfazer pagamento':'Registrar Pagamento'}: ${escape(r.name)}">${r.paidDate?'Desfazer':'Registrar'}</button></div></article>${active?payableForm():''}`;
+           const i=r.index;
+           return `<article class="recon-row"><div><strong>${escape(r.name)}</strong><small>${r.paidDate?'Pix registrado em '+when(r.paidDate):'Vence '+when(r.due||r.date)}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${r.paidDate?`<button type="button" class="secondary" data-recon-undo-payable="${i}" aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button>`:''}</div></article>`;
          }).join('')}</div></details>`;
        }).join('')}</div></details>`;
    }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas.</p>'}</div></section>`;
  }
+ function paymentDateField(id,label){
+   return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(api.today)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required></div>`;
+ }
  function payableForm(groups){
-   const choice=Array.isArray(groups);
-   return `<form class="recon-edit recon-payable-form" data-recon-form="${choice?'payable-start':'payable'}" aria-label="Registrar pagamento efetuado">
-    ${choice?`<h2>Registrar Pagamento</h2><label for="reconPayableChoice">Dívida a pagar</label><select id="reconPayableChoice" name="payableIndex" required><option value="">Selecione</option>${groups.map(g=>{const rows=g.rows.filter(r=>!r.paidDate);return rows.length?`<optgroup label="${escape(g.name)}">${rows.map(r=>`<option value="${r.index}">${escape(r.name)} · ${monthTitle(r.month)} · ${brl(r.cents)}</option>`).join('')}</optgroup>`:''}).join('')}</select>`:''}
-    <label for="reconPayableDate">Data do pagamento</label><input id="reconPayableDate" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required>
+   return `<form class="recon-edit recon-receipt-form recon-payable-form" data-recon-form="payable-start" aria-label="Registrar pagamento efetuado">
+    <h2>Registrar Pagamento</h2><label for="reconPayableChoice">Dívida a pagar</label><select id="reconPayableChoice" name="payableIndex" required><option value="">Selecione</option>${groups.map(g=>{const rows=g.rows.filter(r=>!r.paidDate);return rows.length?`<optgroup label="${escape(g.name)}">${rows.map(r=>`<option value="${r.index}">${escape(r.name)} · ${monthTitle(r.month)} · ${brl(r.cents)}</option>`).join('')}</optgroup>`:''}).join('')}</select>
+    ${paymentDateField('reconPayableDate','Data do pagamento')}
     <p class="assistive">Só registre depois de pagar. O app não faz a transferência.</p><div class="recon-actions"><button type="submit" class="primary">Registrar Pagamento</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div><p class="recon-message" data-recon-form-message role="status"></p></form>`;
  }
  function moneyViews(){
@@ -228,7 +229,7 @@ function createReconUI(){
  }
  function receiptForm(list){
    return `<form class="recon-edit recon-receipt-form" data-recon-form="receipt" aria-label="Registrar Pagamento Recebido"><h2>Registrar Pagamento Recebido</h2><label for="reconPerson">De quem veio</label><select id="reconPerson" name="person" required><option value="">Selecione</option>${list.map(p=>`<option ${norm(p)===norm(personFilter)?'selected':''}>${escape(p)}</option>`).join('')}</select>
-   <div class="recon-pix-fields"><div><label for="reconPixDate">Data do recebimento</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(api.today)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="reconPixDate" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required></div></div><div><label for="reconPixAmount">Valor recebido (R$)</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total em aberto desta pessoa" disabled>Total</button></div></div></div>
+   <div class="recon-pix-fields"><div>${paymentDateField('reconPixDate','Data do recebimento')}</div><div><label for="reconPixAmount">Valor recebido (R$)</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total em aberto desta pessoa" disabled>Total</button></div></div></div>
    <label class="recon-check"><input name="inBaseline" type="checkbox"> Este Pix já está incluído no saldo inicial.</label>
    <fieldset class="recon-allocations"><legend>Distribuir entre dívidas</legend><div data-recon-allocations></div><p class="recon-allocation-summary" data-recon-unallocated aria-live="polite"></p></fieldset>
    <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Registrar Pagamento</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
@@ -353,10 +354,10 @@ function createReconUI(){
      if(moneyTab!=='payable'||!currentPayables.some(x=>!x.paidDate))return;
      editing=null;formKind='payable-start';paint();return;
    }
-   if(b.hasAttribute('data-recon-mark-payable')||b.hasAttribute('data-recon-undo-payable')){
-     const undo=b.hasAttribute('data-recon-undo-payable'),row=currentPayables[Number(undo?b.dataset.reconUndoPayable:b.dataset.reconMarkPayable)];if(!row||!api.setPayable||Boolean(row.paidDate)!==undo)return;
-     if(undo){if(window.confirm('Desfazer o registro deste Pix? O pagamento voltará a ficar em aberto.'))apply(()=>api.setPayable(row.id,row.month,null),'Registro do Pix desfeito.');}
-     else{openGroups.add(payablePersonKey(row.person));openGroups.add(payableMonthKey(row.person,row.month));editing=row;formKind='payable';paint();}
+   if(b.hasAttribute('data-recon-undo-payable')){
+     const row=currentPayables[Number(b.dataset.reconUndoPayable)];
+     if(!row?.paidDate||!api.setPayable)return;
+     if(window.confirm('Desfazer o registro deste Pix? O pagamento voltará a ficar em aberto.'))apply(()=>api.setPayable(row.id,row.month,null),'Registro do Pix desfeito.');
      return;
    }
    if(b.hasAttribute('data-recon-delete-pix')){if(api.deleteReceipt&&window.confirm('Desfazer este Pix no diário? As dívidas vinculadas voltarão a ficar em aberto.'))apply(()=>api.deleteReceipt(b.dataset.reconDeletePix),'Registro do Pix removido.');return;}
@@ -408,9 +409,9 @@ function createReconUI(){
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
-    if(el.id==='reconPixDate')syncPixDate(el);
+    if(el.id==='reconPixDate'||el.id==='reconPayableDate')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate')syncPixDate(e.target);if(f)preview(f);});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate')syncPixDate(e.target);if(f)preview(f);});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
@@ -427,10 +428,10 @@ function createReconUI(){
       if(formKind!=='adjust-installment'||!r||!api.canAdjust?.(period)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para a parcela.');return;}
       apply(()=>api.adjustInstallment(period,r.id,value),'Parcela ajustada a partir de '+monthTitle(period)+'.');return;
     }
-    if(f.dataset.reconForm==='payable'||f.dataset.reconForm==='payable-start'){
-      if(formKind!==f.dataset.reconForm)return;
+    if(f.dataset.reconForm==='payable-start'){
+      if(formKind!=='payable-start')return;
       const selected=f.elements.payableIndex?.value;
-      const r=formKind==='payable-start'?(/^\d+$/.test(selected??'')?currentPayables[Number(selected)]:null):currentPayables.find(x=>x.id===editing?.id&&x.month===editing?.month);
+      const r=/^\d+$/.test(selected??'')?currentPayables[Number(selected)]:null;
       const d=f.elements.date.value;
       if(!r||r.paidDate){error('Selecione uma dívida em aberto.');return;}
       if(!safeDate(d)||d>api.today){error('Informe a data do pagamento, até hoje.');return;}

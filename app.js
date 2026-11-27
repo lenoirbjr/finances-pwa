@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.57 */
-/* Diário Financeiro 4.0.57: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.58 */
+/* Diário Financeiro 4.0.58: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);

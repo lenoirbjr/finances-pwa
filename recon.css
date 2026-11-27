@@ -1,4 +1,4 @@
-/* diario-shell:4.0.57 */
+/* diario-shell:4.0.58 */
 /* Finance reconciliation; use theme variables from the host app. */
 .recon-heading h1{margin:0}.recon-heading .recon-kicker{color:var(--accent);font-weight:780;letter-spacing:.13em;font-size:.65rem;margin:0 0 4px}
 .recon-tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 0 14px;gap:8px}

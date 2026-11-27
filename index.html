@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.57">
+<meta name="diario-shell" content="4.0.58">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.57">
-<link rel="stylesheet" href="./recon.css?v=4.0.57">
+<link rel="stylesheet" href="./style.css?v=4.0.58">
+<link rel="stylesheet" href="./recon.css?v=4.0.58">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -40,14 +40,15 @@
  <div id="budgetCoverage" class="budget-coverage" aria-label="Projeções das próximas três faturas"></div>
 </div>
 </details>
-<section class="balance-card movement-hero home-movement-hero" aria-labelledby="home-movement-title">
- <h2 id="home-movement-title"><button class="home-kpi-link" type="button" data-screen="week">Movimentações do Mês <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button></h2>
+<div class="home-overview" role="group" aria-label="Resumo financeiro">
+<section class="balance-card movement-hero home-movement-hero overview-row" aria-labelledby="home-movement-title">
+ <h2 id="home-movement-title"><button class="home-kpi-link" type="button" data-screen="week"><span class="overview-title"><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg></span>Movimentações do Mês</span> <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button></h2>
  <span class="hero-month" id="homeMovementMonth">—</span>
  <dl><div><dt>Entradas</dt><dd class="balance-amount" id="homeMovementInTotal">—</dd></div><div><dt>Saídas</dt><dd class="balance-amount" id="homeMovementOutTotal">—</dd></div></dl>
 </section>
-<details class="balance-card commitment-hero" aria-labelledby="homeCard-commitment-title">
+<details class="balance-card commitment-hero overview-row" aria-labelledby="homeCard-commitment-title">
 <summary>
- <h2 id="homeCard-commitment-title">Total de Compromissos</h2>
+ <h2 id="homeCard-commitment-title" class="overview-title"><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18m-13 5h4"/></svg></span>Total de Compromissos</h2>
  <span class="hero-month" id="homeCardMonth">—</span>
  <div class="balance-amount" id="homeCardCommitments">—</div>
  <div class="commitment-kicker" id="homeCardOpenStatus" aria-live="polite">—</div>
@@ -59,16 +60,17 @@
  <button class="home-kpi-link home-card-shortcut" type="button" data-screen="recon">Abrir Fatura <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
 </div>
 </details>
-<section class="balance-card movement-hero investment-hero home-investment-hero" aria-labelledby="home-investments-title">
- <h2 id="home-investments-title"><button class="home-kpi-link" type="button" data-screen="investments" id="homeInvestments">Investido no Mês <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button></h2>
+<section class="balance-card movement-hero investment-hero home-investment-hero overview-row" aria-labelledby="home-investments-title">
+ <h2 id="home-investments-title"><button class="home-kpi-link" type="button" data-screen="investments" id="homeInvestments"><span class="overview-title"><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M3 3v17h18M7 15l5-5 4 3 5-6m-5 0h5v5"/></svg></span>Investido no Mês</span> <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button></h2>
  <span class="hero-month" id="homeInvestmentMonth">—</span>
  <div class="balance-amount" id="homeInvestmentMonthTotal">—</div>
  <dl><div><dt>Primeiro aporte</dt><dd id="homeInvestmentMonthPrincipal">—</dd></div><div><dt>Aportes extras</dt><dd id="homeInvestmentMonthExtra">—</dd></div></dl>
 </section>
-<section class="dashboard-kpi home-wide-kpi" aria-labelledby="home-margin-title">
+<section class="dashboard-kpi home-wide-kpi overview-row overview-margin" aria-labelledby="home-margin-title">
 <h2 id="home-margin-title">Margem protegida</h2>
 <strong id="currentMargin">—</strong>
 </section>
+</div>
 </section>
 <section id="card-hub" class="card-hub hidden" aria-label="Área da fatura">
 <div class="section-heading"><span class="screen-kicker">CARTÃO E ACERTOS</span><h1>Fatura</h1></div>
@@ -249,9 +251,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.57" defer></script>
-<script src="./recon-ui.js?v=4.0.57" defer></script>
-<script src="./card-import.js?v=4.0.57" defer></script>
-<script src="./scenarios.js?v=4.0.57" defer></script>
-<script src="./app.js?v=4.0.57" defer></script>
+<script src="./recon-model.js?v=4.0.58" defer></script>
+<script src="./recon-ui.js?v=4.0.58" defer></script>
+<script src="./card-import.js?v=4.0.58" defer></script>
+<script src="./scenarios.js?v=4.0.58" defer></script>
+<script src="./app.js?v=4.0.58" defer></script>
 </body></html>

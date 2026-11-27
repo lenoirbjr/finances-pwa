@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.47 */
-/* Diário Financeiro 4.0.47: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.48 */
+/* Diário Financeiro 4.0.48: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -500,7 +500,7 @@ function movementEntries(s,month=null){
 function renderMovementOverview(){
  const select=$('movementMonth'),m=movementMonth;
  const records=movementEntries(state);
- const months=[...new Set([m,monthNow(),shiftMonth(m,-1),shiftMonth(m,1),...records.map(e=>e.date.slice(0,7))])].sort().reverse();
+ const months=[...new Set([m,monthNow(),shiftMonth(m,-1),shiftMonth(m,1),...state.expenses.map(e=>e.date.slice(0,7)),...records.map(e=>e.date.slice(0,7))])].sort().reverse();
  const signature=months.join(',');
  if(select.dataset.months!==signature){
   select.innerHTML=months.map(month=>`<option value="${month}">${monthTitle(month)}</option>`).join('');
@@ -519,7 +519,8 @@ function setMovementMonth(month){
 }
 function movementKey(direction,id){return JSON.stringify([direction,id]);}
 function movementEditor(entry,key){
- return `<form class="recon-edit recon-value-form movement-value-form" data-movement-editor="${key}" aria-label="Editar valor do lançamento">
+ return `<form class="recon-edit recon-value-form movement-value-form" data-movement-editor="${key}" aria-label="Editar lançamento">
+ <label for="movementEditName">Descrição</label><input id="movementEditName" name="description" type="text" value="${esc(entry.name)}" placeholder="E.x. ${entry.direction==='in'?'Bônus':'Jantar'}" maxlength="120" required>
  <label for="movementEditAmount">Valor (R$)</label><input id="movementEditAmount" name="amount" inputmode="decimal" placeholder="0,00" value="${entry.amount.toFixed(2).replace('.',',')}" required>
  <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-movement-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-movement-delete>Excluir</button></div></form>`;
 }
@@ -533,30 +534,45 @@ function renderExpenseHistory(){
  }
  const row=entry=>{
    const incoming=entry.direction==='in',key=movementKey(entry.direction,entry.id),open=editingMovement===key;
+   const renamed=entry.cardMonth?reconRows(state,entry.cardMonth,true).find(x=>x.id==='cashcard:'+entry.id)?.name:undefined;
    return `<article class="recon-row recon-card-line recon-invoice-line movement-statement-line">
-     <button type="button" class="recon-entry-name recon-invoice-name" data-movement-edit="${esc(key)}" aria-expanded="${open}">${esc(entry.name)}</button>
+     <button type="button" class="recon-entry-name recon-invoice-name" data-movement-edit="${esc(key)}" aria-expanded="${open}">${esc(renamed??entry.name)}</button>
      <strong class="recon-invoice-amount${incoming?' entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</strong>
-     <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${entry.date}">${readableDate(entry.date)}</time></small></div>
-   </article>${open?movementEditor(entry,esc(key)):''}`;
+     <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${entry.date}">${readableDate(entry.date)}</time>${entry.cardMonth?' · Cartão ' + monthTitle(entry.cardMonth):''}</small></div>
+   </article>${open?movementEditor({...entry,name:renamed??entry.name},esc(key)):''}`;
  };
- $('expenses').innerHTML=[...groups].sort(([a],[b])=>b.localeCompare(a)).map(([day,items])=>{
+ const direct=[...groups].sort(([a],[b])=>b.localeCompare(a)).map(([day,items])=>{
   const cents=items.reduce((sum,e)=>sum+(e.direction==='in'?1:-1)*Math.round(e.amount*100),0);
   const signed=cents<0?'− ':cents>0?'+ ':'';
   return `<details class="history-month-fold statement-day-fold" data-expense-day="${day}" ${openExpenseDays.has(day)?'open':''}><summary><span>${readableDate(day)}</span><strong class="statement-month-total${cents>0?' entry-credit':''}" aria-label="Total líquido: ${signed}${money(Math.abs(cents)/100)}">${signed}${money(Math.abs(cents)/100)}</strong></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`;
- }).join('')||'<p class="empty">Nenhum lançamento neste mês.</p>';
+ }).join('');
+ const legacy=state.expenses.filter(e=>e.cardMonth&&e.date.slice(0,7)===movementMonth)
+   .sort((a,b)=>b.date.localeCompare(a.date)).map(e=>({...e,direction:'out'}));
+ const legacyKey='legacy:'+movementMonth;
+ const historical=legacy.length?`<details class="history-month-fold statement-day-fold" data-expense-day="${legacyKey}" ${openExpenseDays.has(legacyKey)?'open':''}><summary><span>Créditos antigos</span></summary><div class="history-month-content">${legacy.map(row).join('')}</div></details>`:'';
+ $('expenses').innerHTML=(direct+historical)||'<p class="empty">Nenhum lançamento neste mês.</p>';
 }
 function closeMovementEditor(){
  return keepScrollPosition(()=>{editingMovement=null;renderExpenseHistory();});
 }
-function changeMovement(s,key,cents){
+function changeMovement(s,key,cents,description){
  const [direction,id]=JSON.parse(key);
  const field=direction==='in'?'extraIncome':direction==='out'?'expenses':null;
  const entry=field&&s[field].find(x=>x.id===id);
  if(!entry)throw Error('Lançamento não encontrado.');
  if(cents!==null&&(!Number.isSafeInteger(cents)||cents<=0||cents>1e12))throw Error('Informe um valor positivo.');
  if(direction==='out'&&reconHasAllocated(s,'cashcard:'+id)&&(cents===null||cents!==Math.round(entry.amount*100)))throw Error('Há um Pix vinculado a este lançamento. Desfaça o recebimento antes de alterá-lo.');
- if(cents===null)s[field]=s[field].filter(x=>x!==entry);
- else entry.amount=cents/100;
+ if(cents===null){s[field]=s[field].filter(x=>x!==entry);return;}
+ if(description!==undefined){
+  const name=String(description).trim();
+  if(!name||name.length>120)throw Error('Informe uma descrição com até 120 caracteres.');
+  entry.name=name;
+  // A classificação de um crédito antigo pode ter substituído o nome mostrado.
+  if(entry.cardMonth)for(const edit of s.reconciliation?.overrides??[]){
+   if(edit.rowId==='cashcard:'+entry.id&&edit.name!==undefined)edit.name=name;
+  }
+ }
+ entry.amount=cents/100;
 }
 let fixedDirection='out',fixedSelection=null,fixedEditTab='tag';
 const fixedMethod=e=>e.channel==='card'?'Fatura do cartão':'Pix recorrente';
@@ -948,9 +964,11 @@ $('expenses').addEventListener('submit',async e=>{
  if(key!==editingMovement)return;
  const cents=salaryInputCentsValue(f.elements.amount.value);
  if(!Number.isSafeInteger(cents)||cents<=0||cents>1e12){notice('Informe um valor positivo com até duas casas decimais.','warning');return;}
- if(await update(s=>changeMovement(s,key,cents))){
+ const name=f.elements.description.value.trim();
+ if(!name||name.length>120){notice('Informe uma descrição com até 120 caracteres.','warning');return;}
+ if(await update(s=>changeMovement(s,key,cents,name))){
   if(editingMovement===key)closeMovementEditor();
-  notice('Valor atualizado.');
+  notice('Lançamento atualizado.');
  }
 });
 $('parcelOrigin').addEventListener('change',()=>keepScrollPosition(()=>{syncParcelOrigin();previewParcel()}));

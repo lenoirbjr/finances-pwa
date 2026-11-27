@@ -109,7 +109,7 @@ function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
    // Overdue amounts may still be expected, but never counted as cash today.
    dates.set(debt.month,eve<tomorrow?tomorrow:eve);
   }
-  const date=dates.get(debt.month);
+  const date=debt.expected?(debt.expected<tomorrow?tomorrow:debt.expected):dates.get(debt.month);
   if(date<=through)totals.set(date,(totals.get(date)??0)+debt.remaining);
  }
  return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([date,cents])=>({date,cents}));

@@ -181,9 +181,11 @@ function reconRawRows(s,m){
  if(!applicable.length)return rows;
  return rows.flatMap(r=>{
   if(r.kind!=='charge'||!r.count||!r.number)return [r];
+  // Uma exclusão encerra a série em aberto, inclusive se já havia
+  // uma mudança de valor programada para uma das parcelas seguintes.
+  if(applicable.some(rule=>rule.cents===0&&reconAdjustmentMatches(r,rule)))return [];
   const x=applicable.reduce((best,rule)=>reconAdjustmentMatches(r,rule)&&(!best||rule.month>=best.month)?rule:best,null);
   if(!x)return [r];
-  if(!x.cents)return [];
   const parts=reconScale(r.parts,r.label,r.cents,x.cents);
   const label=parts.length?(parts.reduce((n,p)=>n+p.cents,0)===x.cents?'other':'split'):r.label==='mine'?'mine':undefined;
   return [{...r,cents:x.cents,label,parts,adjusted:true,originalCents:r.cents}];

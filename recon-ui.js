@@ -97,7 +97,7 @@ function createReconUI(){
    return `<div class="surface recon-screen recon-invoice">
    <p class="recon-due">Vencimento: <strong>${when(safeDate(due)?due:period+'-05')}</strong></p>
    <div class="recon-label-filter"><select id="reconBillFilter" aria-label="Filtrar por etiqueta">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select></div>
-   <div class="recon-rows" id="reconBillRows">${billRows()}</div>${installmentAdjustments()}</div>`;
+   <div class="recon-rows" id="reconBillRows">${billRows()}</div></div>`;
  }
  function billRows(){
    return `${displayed.length?displayed.map((r,i)=>{
@@ -116,12 +116,6 @@ function createReconUI(){
      <div id="reconLineLabelPanel"${value?' hidden':''}>${editor(r)}</div>
      <div id="reconLineValuePanel"${value?'':' hidden'}>${canAdjust?installmentEditor(r):'<div class="recon-edit"><p class="recon-note">O valor de uma fatura fechada ou paga não pode ser alterado.</p></div>'}</div>
    </section>`;
- }
- function installmentAdjustments(){
-   const items=api.installmentAdjustments?.(period)||[];
-   if(!items.length)return '';
-   const k='installment-adjustments:'+period;
-   return `<details class="recon-adjustments" data-recon-group="${k}" ${openGroups.has(k)?'open':''}><summary>Ajustes manuais (${items.length})</summary>${items.map(x=>`<article class="recon-row"><div><strong>${escape(x.name)}</strong><small>${x.cents?brl(x.cents):'Excluída'} desde ${monthTitle(x.month)}</small></div><button type="button" class="secondary" data-recon-undo-installment="${escape(x.id)}">Desfazer</button></article>`).join('')}</details>`;
  }
  function installmentEditor(r){
    return `<form class="recon-edit recon-installment-form" data-recon-form="adjust-installment" aria-label="Ajustar valor da parcela"><h3>${escape(r.name)}</h3><p class="recon-note">Vale para esta parcela e as próximas em aberto, a partir de <strong>${monthTitle(period)}</strong>. Não altera o banco nem as parcelas anteriores ou fechadas.</p><label for="reconInstallmentAmount">Valor por parcela (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Salvar valor</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div><button type="button" class="text-button recon-exclude-installment" data-recon-exclude>Excluir a partir deste mês</button></form>`;
@@ -265,15 +259,11 @@ function createReconUI(){
    }
    if(b.hasAttribute('data-recon-exclude')){
      const item=displayed.find(x=>x.id===editing);if(formKind!=='adjust-installment'||!item||!api.canAdjust?.(period))return;
-     if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Você pode desfazer em Ajustes manuais.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
-     return;
-   }
-   if(b.hasAttribute('data-recon-undo-installment')){
-     if(window.confirm('Desfazer este ajuste nas faturas em aberto?'))apply(()=>api.undoInstallment(b.dataset.reconUndoInstallment),'Ajuste desfeito.');
+     if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Esta exclusão não tem opção de desfazer na fatura.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
      return;
    }
    if(b.hasAttribute('data-recon-edit')){
-     const item=displayed[Number(b.dataset.reconEdit)];if(!item)return;editing=item.id;formKind='label';paint();$('#reconLineName',root)?.focus();return;
+     const item=displayed[Number(b.dataset.reconEdit)];if(!item)return;editing=item.id;formKind='label';paint();return;
    }
    if(b.hasAttribute('data-recon-mark-payable')||b.hasAttribute('data-recon-undo-payable')){
      const undo=b.hasAttribute('data-recon-undo-payable'),row=currentPayables[Number(undo?b.dataset.reconUndoPayable:b.dataset.reconMarkPayable)];if(!row||!api.setPayable||Boolean(row.paidDate)!==undo)return;

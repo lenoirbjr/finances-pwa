@@ -193,9 +193,5 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-line-editor{min-width:0;margin:0 0 9px}
 .recon-editor-tabs{margin:0 0 6px}
 .recon-line-editor .recon-edit{margin:0}
-.recon-adjustments{margin-top:12px;padding:10px;border:1px solid var(--edge);border-radius:12px}
-.recon-adjustments summary{cursor:pointer;font-size:.85rem;font-weight:700}
-.recon-adjustments article:first-of-type{margin-top:8px}
-.recon-adjustments .recon-row>button{width:auto;margin:0;align-self:center}
 .recon-installment-form h3{margin:0 0 6px}
 .recon-exclude-installment{color:var(--negative,#ff928b);margin-top:8px;text-align:left}

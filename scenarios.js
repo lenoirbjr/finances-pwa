@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.45 */
+/* diario-shell:4.0.46 */
 // Read-only cash scenarios. Inputs use integer cents and ISO local dates.
 function pixScenarioReceipts(people,mode,at,inclusive=true,cutoff=at){
  const eligible=people.filter(p=>p.date<=cutoff&&(inclusive?p.date<=at:p.date<at)&&(mode!=='custom'||p.selected));

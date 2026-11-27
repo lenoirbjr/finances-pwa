@@ -96,3 +96,89 @@ function pixScenarioEvaluate(snapshot,people,mode){
  return {sunday:week+extra,due,simulatedAtBill,sundayPayments,billGap:Math.max(0,-billCash),
    marginGap:billCash>=0?Math.max(0,-dueMargin):0,earlierDeficit};
 }
+
+// One timeline for the Home spending limits. Future Pix are projections, not cash.
+function budgetExpectedReceipts(s,months,asOf,through){
+ const given=new Map(),inCents=[];
+ for(const p of s.reconciliation?.receipts??[])for(const a of p.allocations){
+  const key=JSON.stringify([a.month,a.rowId,reconPersonKey(p.person)]);
+  given.set(key,(given.get(key)??0)+a.cents);
+ }
+ const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
+ for(const month of months){
+  const date=addDays(pixScenarioDue(statements.get(month),month),-1);
+  if(date<=asOf||date>through)continue;
+  let total=0;
+  for(const row of reconRows(s,month,true))for(const part of row.parts??[]){
+   const key=JSON.stringify([month,row.id,reconPersonKey(part.person)]);
+   total+=Math.max(0,part.cents-(given.get(key)??0));
+  }
+  if(total>0)inCents.push({date,cents:total});
+ }
+ return inCents.sort((a,b)=>a.date.localeCompare(b.date));
+}
+function spendingTimeline(s,asOf,current){
+ const sunday=nextSunday(asOf),payday=nextPayday(s,asOf),beforePayday=addDays(payday,-1);
+ const bill=pixScenarioInvoice(s,asOf),first=nextMonthEndPayday(asOf);
+ const horizon=[sunday,payday,bill?.date??asOf,eventDate(shiftMonth(first.slice(0,7),2),30)].sort().at(-1);
+ if(current===null||!reconOpening(s)||reconOpening(s).date>asOf)return {ready:false,sunday,payday,bill,horizon};
+ const opening=reconOpening(s).date;
+ const points=new Set([asOf,sunday,beforePayday,horizon]);
+ const events=(date)=>{if(isDate(date)&&date>=asOf&&date<=horizon)points.add(date);};
+ if(bill)events(bill.date);
+ const start=asOf.slice(0,7),end=horizon.slice(0,7),months=[shiftMonth(start,-1)],relocations=[],extraGoals=[];
+ const statementByMonth=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
+ const reserve=Math.round(overdueReserved(s,asOf)*100);
+ for(let m=start;m<=end;m=shiftMonth(m,1)){
+  months.push(m);
+  const modeled=eventDate(m,5),due=pixScenarioDue(statementByMonth.get(m),m),investDay=eventDate(m,30);
+  events(eventDate(m,1));events(modeled);events(due);events(investDay);
+  for(const salary of salaryEvents(s,m))events(salary.date);
+  for(const fixed of reconFixed(s,m))events(confirmedFixed(s,fixed.id,m)?.date??fixedDate(s,fixed,m));
+  const contribution=settled(s,m);
+  if(contribution){
+   events(contribution.date);
+   const remaining=Math.round((investmentAmount(s,m)-contribution.amount)*100);
+   if(!skipped(s,m)&&investDay>opening){
+    if(remaining>0)extraGoals.push({date:investDay,cents:remaining});
+    // If a contribution is registered for later, reserve its part at the target date first.
+    if(contribution.date>investDay){
+     const target=Math.round(investmentAmount(s,m)*100),paid=Math.round(contribution.amount*100);
+     const bridge=Math.min(target,paid);
+     if(bridge>0)extraGoals.push({date:investDay,cents:bridge},{date:contribution.date,cents:-bridge});
+    }
+   }
+  }
+ }
+ for(const [m,st] of statementByMonth){
+  const modeled=eventDate(m,5),due=pixScenarioDue(st,m);
+  if(modeled===due||reconPayment(s,m)||modeled<=opening||due<=opening||modeled>horizon&&due>horizon)continue;
+  events(modeled);events(due);
+  relocations.push({modeled,due,cents:Math.round((invoiceAmount(s,m)+reconPreviousCredit(s,m))*100)});
+ }
+ for(const list of [s.expenses,s.extraIncome,s.extraInvestments,s.monthlyPaid,s.reconciliation?.receipts,s.reconciliation?.payments]){
+  for(const x of list??[])events(x.date);
+ }
+ for(const p of reconPayableEvents(s))events(p.date);
+ const expected=budgetExpectedReceipts(s,months,asOf,horizon);
+ for(const p of expected)events(p.date);
+ const days=[...points].sort().map(date=>{
+  const currentForecast=Math.round(cashForecast(s,date,asOf)*100);
+  const credit=expected.reduce((sum,p)=>sum+(p.date<=date?p.cents:0),0);
+  const correct=relocations.reduce((sum,p)=>sum+(date>=p.modeled?p.cents:0)-(date>=p.due?p.cents:0),0);
+  const goal=extraGoals.reduce((sum,p)=>sum+(p.date<=date?p.cents:0),reserve);
+  const margin=Math.round(profile(s,date.slice(0,7)).margin*100);
+  return {date,credit,room:currentForecast+credit+correct-goal-margin};
+ });
+ const weakest=days.reduce((a,b)=>b.room<a.room?b:a);
+ const limit=date=>{
+  if(days.some(p=>p.date<date&&p.room<0))return 0;
+  let room=Math.max(0,Math.min(...days.filter(p=>p.date>=date).map(p=>p.room)));
+  // The opening-day ceiling must also fit cash available now, never a future Pix.
+  if(date===asOf)room=Math.min(room,Math.max(0,Math.round((current-profile(s,start).margin)*100)));
+  return room;
+ };
+ return {ready:true,horizon,bill,sunday,payday,todayLimit:limit(asOf),sundayLimit:limit(sunday),paydayLimit:limit(beforePayday),billLimit:bill?limit(bill.date):null,
+  expectedToBill:bill?expected.reduce((n,p)=>n+(p.date<=bill.date?p.cents:0),0):0,
+  shortage:weakest.room<0?{date:weakest.date,cents:-weakest.room}:null,days};
+}

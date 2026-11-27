@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.30">
-<link rel="stylesheet" href="./recon.css?v=4.0.30">
+<link rel="stylesheet" href="./style.css?v=4.0.31">
+<link rel="stylesheet" href="./recon.css?v=4.0.31">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -30,14 +30,17 @@
 <section class="dashboard-kpi home-availability" aria-labelledby="home-availability-title">
 <div class="availability-heading"><h2 id="home-availability-title">Disponível para gastar</h2></div>
 <dl class="availability-list">
- <div class="availability-row availability-primary"><dt><span>Até domingo</span><time id="sundayDate">—</time></dt><dd class="availability-amount" id="sundayReference">—</dd></div>
+ <div class="availability-row availability-primary"><dt><span>Quanto posso gastar hoje</span></dt><dd class="availability-amount" id="todayAvailable">—</dd></div>
+ <div class="availability-row"><dt><span>Até domingo</span><time id="sundayDate">—</time></dt><dd class="availability-amount" id="sundayReference">—</dd></div>
  <div class="availability-row"><dt><span>Até o próximo salário</span><time id="paydayDate">—</time></dt><dd class="availability-amount" id="paydayAvailable">—</dd></div>
  <div class="availability-row"><dt><span>Até a fatura</span><time id="billAvailableDate">—</time></dt><dd class="availability-amount" id="billAvailable">—</dd></div>
 </dl>
 <small id="sundaySetup" class="availability-note hidden"></small>
-<details id="pixScenarios" class="pix-scenarios availability-simulator">
-<summary>Simular reembolsos<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></summary>
-<div id="pixScenarioContent"></div>
+<details class="pix-scenarios availability-simulator">
+<summary>Cenário: todos pagam<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></summary>
+<p>O app projeta os Pix em aberto para a véspera de cada fatura. Pix com essa data já passada ou igual a hoje só entram quando registrados. Nenhum Pix previsto entra no Saldo.</p>
+<p>Os limites reservam a fatura, o que está em A Pagar, os fixos, os aportes e a margem. O teto até o salário não usa o crédito do próprio dia.</p>
+<p id="budgetDetails"></p>
 </details>
 </section>
 <section class="dashboard-kpi home-wide-kpi" aria-labelledby="home-investments-title">
@@ -189,9 +192,9 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.30" defer></script>
-<script src="./recon-ui.js?v=4.0.30" defer></script>
-<script src="./card-import.js?v=4.0.30" defer></script>
-<script src="./scenarios.js?v=4.0.30" defer></script>
-<script src="./app.js?v=4.0.30" defer></script>
+<script src="./recon-model.js?v=4.0.31" defer></script>
+<script src="./recon-ui.js?v=4.0.31" defer></script>
+<script src="./card-import.js?v=4.0.31" defer></script>
+<script src="./scenarios.js?v=4.0.31" defer></script>
+<script src="./app.js?v=4.0.31" defer></script>
 </body></html>

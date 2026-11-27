@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.41 */
+/* diario-shell:4.0.42 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){

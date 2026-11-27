@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.41 */
-/* Diário Financeiro 4.0.41: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.42 */
+/* Diário Financeiro 4.0.42: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -455,10 +455,11 @@ function renderAvailability(asOf,calc){
    if(!people.has(key))people.set(key,d.person);
   }
   for(const key of budgetSelected)if(!people.has(key))budgetSelected.delete(key);
-  budgetData={state,asOf,debts,calc,limits:new Map()};
-  $('budgetPeople').innerHTML=[...people].sort(([,a],[,b])=>a.localeCompare(b,'pt-BR')).map(([key,name])=>
+  budgetData={state,asOf,debts,people,calc,limits:new Map()};
+  const buttons=[...people].sort(([,a],[,b])=>a.localeCompare(b,'pt-BR')).map(([key,name])=>
    `<button type="button" data-budget-person="${esc(key)}" aria-pressed="${budgetSelected.has(key)}"><span aria-hidden="true">✓ </span>${esc(name)}</button>`
-  ).join('')||'<span>Ninguém em aberto</span>';
+  ).join('');
+  $('budgetPeople').innerHTML=buttons?(people.size>1?`<button type="button" data-budget-all aria-pressed="${budgetSelected.size===people.size}"><span aria-hidden="true">✓ </span>Todos</button>`:'')+buttons:'<span>Ninguém em aberto</span>';
  }
  renderTodayLimit();
 }
@@ -468,19 +469,33 @@ function renderTodayLimit(){
  const key=JSON.stringify([...budgetSelected].sort());
  if(!limits.has(key)){
   if(limits.size>=24)limits.clear();
-  const p=spendingTimeline(state,asOf,current,budgetSelected,debts);
-  limits.set(key,p.ready?money(p.todayLimit/100):'—');
+  limits.set(key,spendingTimeline(state,asOf,current,budgetSelected,debts));
  }
- const amount=$('todayAvailable'),next=limits.get(key);
- if(amount.textContent!==next)amount.textContent=next;
+ const p=limits.get(key);
+ for(const [id,cents] of [['todayAvailable',p.todayLimit],['sundayAvailable',p.sundayLimit],['paydayAvailable',p.paydayLimit]]){
+  const el=$(id),text=p.ready?money(cents/100):'—';
+  if(el.textContent!==text)el.textContent=text;
+ }
+ for(const [id,date] of [['sundayAvailableDate',p.sunday],['paydayAvailableDate',p.payday]]){
+  const el=$(id);if(el.dateTime!==date){el.dateTime=date;el.textContent=shortDate(date);}
+ }
 }
 function toggleBudgetPerson(event){
- const button=event.target.closest('button[data-budget-person]');
+ const button=event.target.closest('button[data-budget-person],button[data-budget-all]');
  if(!button||!budgetData)return;
- const key=button.dataset.budgetPerson;
- const selected=!budgetSelected.delete(key);
- if(selected)budgetSelected.add(key);
- button.setAttribute('aria-pressed',String(selected));
+ const {people}=budgetData;
+ if(button.dataset.budgetAll!==undefined){
+  const all=budgetSelected.size===people.size;
+  budgetSelected.clear();
+  if(!all)for(const key of people.keys())budgetSelected.add(key);
+ }else{
+  const key=button.dataset.budgetPerson;
+  if(!people.has(key))return;
+  const selected=!budgetSelected.delete(key);
+  if(selected)budgetSelected.add(key);
+  button.setAttribute('aria-pressed',String(selected));
+ }
+ $('budgetPeople').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.budgetAll!==undefined?budgetSelected.size===people.size:budgetSelected.has(el.dataset.budgetPerson))));
  renderTodayLimit();
 }
 

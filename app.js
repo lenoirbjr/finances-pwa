@@ -1,5 +1,6 @@
 'use strict';
-/* Diário Financeiro 4.0.35: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.36 */
+/* Diário Financeiro 4.0.36: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -811,11 +812,11 @@ async function init(){try{
    if(legacy){state=toV8(migratePilot(legacy));if(!valid(state))throw Error('Dados anteriores incompatíveis.');await write(ARCHIVE,legacy);archived=true}
    else state=empty();await write(RECORD,state);
  }
- $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
+ $('app').hidden=false;$('expenseDate').value=today();
  for(const id of ['parcelStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
  openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
- $('parcelStart').value=defaultCardMonth();$('cardImportMonth').value=defaultCardMonth();$('cardRefundMonth').value=defaultCardMonth();$('cardRefundDate').value=today();$('cardRefundDate').max=today();showMovementForm('expense');updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
- }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
+ $('parcelStart').value=defaultCardMonth();$('cardImportMonth').value=defaultCardMonth();$('cardRefundMonth').value=defaultCardMonth();$('cardRefundDate').value=today();$('cardRefundDate').max=today();showMovementForm('expense');updateInvestmentForm();render();$('loading').hidden=true;document.dispatchEvent(new Event('diario-ready'));navigator.storage?.persist?.().catch(()=>{});
+ }catch(e){$('app').hidden=true;const m=$('bootMessage');if(m){m.textContent='Não foi possível abrir o diário. '+e.message;$('bootRetry').hidden=false;}else notice('Não foi possível carregar seus dados: '+e.message,'error');document.dispatchEvent(new Event('diario-ready'));}
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
 document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',calendarLabels);el.addEventListener('change',calendarLabels)});
@@ -915,4 +916,3 @@ rememberAccordion('investmentHistory','historyMonth',openHistoryMonths);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
 document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');if(kind==='new'&&s.parcels.find(p=>p.id===id)?.payments?.length)throw Error('Desfaça os pagamentos registrados antes de excluir a compra.');s[field]=s[field].filter(x=>x.id!==id);});return}}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();return}});
 init();
-if('serviceWorker' in navigator){let reloading=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload()});window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});reg.update().catch(()=>{})}catch{}})}

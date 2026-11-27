@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.49 */
-/* Diário Financeiro 4.0.49: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.50 */
+/* Diário Financeiro 4.0.50: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -469,7 +469,11 @@ function renderTodayLimit(){
  const key=JSON.stringify([...budgetSelected].sort());
  if(!limits.has(key)){
   if(limits.size>=24)limits.clear();
-  limits.set(key,spendingTimeline(state,asOf,current,budgetSelected,debts));
+  const projection=spendingTimeline(state,asOf,current,budgetSelected,debts);
+  const month=projection.bill?.month??defaultCardMonth(asOf);
+  const scoped=debts.filter(d=>d.month!==month).concat(reconDebt(state,month));
+  projection.coverage=commitmentScenario(state,asOf,month,budgetSelected,scoped,projection.days);
+  limits.set(key,projection);
  }
  const p=limits.get(key);
  for(const [id,cents] of [['todayAvailable',p.todayLimit],['sundayAvailable',p.sundayLimit],['paydayAvailable',p.paydayLimit],['billAvailable',p.billLimit]]){
@@ -479,6 +483,21 @@ function renderTodayLimit(){
  for(const [id,date] of [['sundayAvailableDate',p.sunday],['paydayAvailableDate',p.payday],['billAvailableDate',p.bill?.date??'']]){
   const el=$(id);if(el.dateTime!==date){el.dateTime=date;el.textContent=date?shortDate(date):'';}
  }
+ renderCommitmentScenario(p.coverage);
+}
+function renderCommitmentScenario(c){
+ const root=$('budgetCoverage'),t=c.totals;
+ if(t.total===0&&c.excluded.length===0&&c.pix===0&&c.late===0){root.innerHTML='';delete root.dataset.coverage;return;}
+ const line=(label,value)=>`<div><dt>${label}</dt><dd>${money(value/100)}</dd></div>`;
+ const ownLine=(label,open,pix)=>open?`<div><dt>${label}</dt><dd>${money(open/100)}<small>${money(pix/100)} em Pix previsto</small></dd></div>`:'';
+ const next=`<h3>Compromissos · ${monthTitle(c.month)}</h3>
+  <dl>${line('Total de Compromissos',t.total)}${t.paid?line('Já pago',t.paid):''}
+  ${ownLine('Meu Cartão em aberto',t.cardOpen,c.viaPix.card)}${ownLine('Fora do cartão em aberto',t.outsideOpen,c.viaPix.outside)}
+  ${line('Coberto pelos Pix simulados',c.pix)}${line('A cobrir com seu caixa',c.own)}</dl>
+  ${c.excluded.length?`<p>Fora da simulação: ${c.excluded.map(e=>`${esc(e.name)} · ${money(e.cents/100)}`).join('; ')}.</p>`:''}
+  ${c.late?`<p>${money(c.late/100)} em Pix simulado chega após o último vencimento deste mês.</p>`:''}
+  ${c.gap?`<p class="coverage-gap">Falta projetada no caixa: ${money(c.gap.cents/100)} em ${shortDate(c.gap.date)}, mantendo a margem e os aportes.</p>`:''}`;
+ if(root.dataset.coverage!==next){root.innerHTML=next;root.dataset.coverage=next;}
 }
 function toggleBudgetPerson(event){
  const button=event.target.closest('button[data-budget-person]');

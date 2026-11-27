@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.49 */
+/* diario-shell:4.0.50 */
 // Read-only cash scenarios. Inputs use integer cents and ISO local dates.
 function pixScenarioReceipts(people,mode,at,inclusive=true,cutoff=at){
  const eligible=people.filter(p=>p.date<=cutoff&&(inclusive?p.date<=at:p.date<at)&&(mode!=='custom'||p.selected));
@@ -114,6 +114,35 @@ function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
   if(date<=through)totals.set(date,(totals.get(date)??0)+debt.remaining);
  }
  return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([date,cents])=>({date,cents}));
+}
+// Reconcile one month with Total de Compromissos. Allocate simulated Pix
+// only against obligations of the same month and only when they arrive in time.
+function commitmentScenario(s,asOf,month,selected,debts,days=[]){
+ const totals=reconCommitmentTotals(s,month),st=s.reconciliation?.statements?.find(x=>x.month===month);
+ const cardDue=pixScenarioDue(st,month),nextDay=d=>d<asOf?asOf:d;
+ const rows=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)];
+ const schedule=[
+  ...(totals.cardOpen?[{side:'card',date:nextDay(cardDue),cents:totals.cardOpen}]:[]),
+  ...rows.filter(x=>x.remaining>0).map(x=>({side:'outside',date:nextDay(x.due),cents:x.remaining}))
+ ].sort((a,b)=>a.date.localeCompare(b.date));
+ const last=schedule.at(-1)?.date??asOf;
+ const monthDebts=debts.filter(d=>d.month===month&&d.remaining>0);
+ const receipts=budgetExpectedReceipts(s,asOf,last,selected,monthDebts);
+ const excluded=new Map();
+ for(const debt of monthDebts)if(!selected.has(reconPersonKey(debt.person))){
+  const k=reconPersonKey(debt.person),e=excluded.get(k)??{name:debt.person,cents:0};e.cents+=debt.remaining;excluded.set(k,e);
+ }
+ const simulated=monthDebts.reduce((n,d)=>n+(selected.has(reconPersonKey(d.person))?d.remaining:0),0);
+ const viaPix={card:0,outside:0};let j=0,available=0;
+ for(const item of schedule){
+  while(j<receipts.length&&receipts[j].date<=item.date)available+=receipts[j++].cents;
+  const covered=Math.min(item.cents,available);
+  viaPix[item.side]+=covered;available-=covered;
+ }
+ const pix=viaPix.card+viaPix.outside;
+ const late=simulated-receipts.reduce((n,p)=>n+p.cents,0);
+ const tight=schedule.length?days.filter(p=>p.date<=last&&p.room<0).reduce((a,p)=>!a||p.room<a.room?p:a,null):null;
+ return {month,totals,last,viaPix,pix,own:totals.open-pix,late,excluded:[...excluded.values()].sort((a,b)=>b.cents-a.cents||a.name.localeCompare(b.name,'pt-BR')),gap:tight?{cents:-tight.room,date:tight.date}:null};
 }
 function spendingTimeline(s,asOf,current,selected,debts){
  const sunday=nextSunday(asOf),payday=nextPayday(s,asOf),beforePayday=addDays(payday,-1);

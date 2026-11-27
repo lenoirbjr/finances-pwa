@@ -132,7 +132,6 @@ async function saveCardRefund(event){
  }
 }
 function editCardRefund(s,m,id,fields){
- if(!reconCanAdjustMonth(s,m))throw Error('Não é possível alterar um estorno de fatura fechada ou paga.');
  const r=s.reconciliation,old=r?.cardRefunds,record=old?.find(x=>x.id===id&&x.month===m);
  if(!record||!reconRawRows(s,m).some(x=>x.id===id&&x.source==='manual-refund'))throw Error('Este estorno não está na fatura em aberto.');
  const rest=old.filter(x=>x!==record);

@@ -121,8 +121,8 @@ function createReconUI(){
        }).join('')}</div></details>`;
    }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas.</p>'}</div></section>`;
  }
- function paymentDateField(id,label){
-   return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(api.today)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(api.today)}" max="${escape(api.today)}" required></div>`;
+ function paymentDateField(id,label,date=api.today){
+   return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(date)}" max="${escape(api.today)}" required></div>`;
  }
  function moneyViews(){
    return `<div class="recon-money-views"><div class="subtabs recon-money-tabs" role="group" aria-label="Pagamentos e recebimentos">
@@ -149,23 +149,26 @@ function createReconUI(){
    return `${displayed.length?displayed.map((r,i)=>{
     const credit=canEditCredit(r),canEdit=charge(r)||credit,name=escape(r.name),part=r.count>1&&r.number?` · Parcela ${r.number}/${r.count}`:'';
     const tags=charge(r)||r.creditTag?classificationChips(r):credit?`<button type="button" class="recon-edit-chip" data-recon-edit-refund="${i}" aria-label="Editar: ${name}">Editar</button>`:'';
-    const notes=(r.adjusted||r.bankEdited?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:'')+(r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':'');
+    const notes=(r.adjusted&&r.kind==='charge'?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:'')+(r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':'');
     return `<article class="recon-row recon-card-line recon-invoice-line">
       ${canEdit?`<button type="button" class="recon-entry-name recon-invoice-name" data-recon-edit="${i}" aria-label="Editar lançamento: ${name}">${name}</button>`:`<strong class="recon-invoice-name">${name}</strong>`}
-      <strong class="recon-invoice-amount">${brl(r.cents)}</strong><small class="recon-invoice-date">${when(r.date)}${part}</small>
-      ${tags?`<div class="recon-invoice-tags">${tags}</div>`:''}${notes?`<div class="recon-invoice-notes">${notes}</div>`:''}
+      <strong class="recon-invoice-amount">${brl(r.cents)}</strong><div class="recon-invoice-meta"><small class="recon-invoice-date">${when(r.date)}${part}</small>${notes}</div>
+      ${tags?`<div class="recon-invoice-tags">${tags}</div>`:''}
     </article>${editing===r.id&&['label','credit-label','adjust-installment','refund'].includes(formKind)?billEditor(r):''}`;
    }).join(''):`<p class="empty">${billFilter==='all'?'Nenhuma linha nesta fatura.':'Nenhum lançamento com esse filtro.'}</p>`}`;
  }
+ function valueActions(restore=''){
+   return `<div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-recon-exclude>Excluir</button></div>${restore?'<div class="recon-value-reset">'+restore+'</div>':''}`;
+ }
  function refundEditor(r){
-   const bank=bankCredit(r),payment=r.kind==='prior-payment';
-   const subject=payment?'pagamento anterior':'estorno';
-   return `<form class="recon-edit" data-recon-form="refund" aria-label="Editar ${subject}">
-   ${bank?`<p class="recon-note">${payment?'Este pagamento anterior não entra no total da fatura.':'O ajuste muda o total no Diário.'} O registro original do banco é preservado.</p>`:''}
+   const bank=bankCredit(r),payment=r.kind==='prior-payment',subject=payment?'pagamento anterior':'estorno';
+   const restore=r.bankEdited?'<button type="button" class="secondary" data-recon-reset-bank-credit>Restaurar original</button>':'';
+   return `<form class="recon-edit recon-value-form" data-recon-form="refund" aria-label="Editar ${subject}">
+   ${payment?'<p class="recon-note">Este pagamento anterior não entra no total da fatura.</p>':''}
    <label for="reconRefundName">Descrição</label><input id="reconRefundName" name="description" value="${escape(r.name)}" maxlength="${bank?250:120}" required>
-   <label for="reconRefundDate">Data do ${subject}</label><input id="reconRefundDate" name="date" type="date" value="${escape(r.date)}" max="${escape(api.today)}" required>
+   ${paymentDateField('reconRefundDate','Data do '+subject,r.date)}
    <label for="reconRefundValue">Valor do ${subject} (R$)</label><input id="reconRefundValue" name="amount" inputmode="decimal" value="${coin(-r.cents)}" required>
-   <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions recon-label-actions recon-refund-actions${bank&&!r.bankEdited?' recon-two-actions':''}"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button>${bank?(r.bankEdited?'<button type="button" class="secondary" data-recon-reset-bank-credit>Restaurar</button>':''):'<button type="button" class="secondary" data-recon-delete-refund>Excluir</button>'}</div></form>`;
+   <p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
  }
  function creditLabelEditor(r){
    return `<form class="recon-edit" data-recon-form="credit-label" aria-label="Etiqueta do lançamento">
@@ -187,8 +190,8 @@ function createReconUI(){
  function installmentEditor(r){
    const series=r.count>1&&r.number&&api.canAdjust?.(period);
    const note=series?`Válido de ${monthTitle(period)} em diante.`:`Válido apenas para ${monthTitle(period)}. Não altera o registro do banco.`;
-   const third=series?'<button type="button" class="secondary recon-exclude-installment" data-recon-exclude>Excluir</button>':r.singleEdited?'<button type="button" class="secondary" data-recon-reset-charge>Restaurar</button>':'';
-   return `<form class="recon-edit recon-installment-form" data-recon-form="adjust-installment" aria-label="Ajustar valor do lançamento"><h3>${escape(r.name)}</h3><p class="recon-note">${note}</p><label for="reconInstallmentAmount">${series?'Valor por parcela':'Valor do lançamento'} (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions recon-label-actions${third?'':' recon-two-actions'}"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button>${third}</div></form>`;
+   const restore=r.singleEdited?'<button type="button" class="secondary" data-recon-reset-charge>Restaurar original</button>':'';
+   return `<form class="recon-edit recon-installment-form recon-value-form" data-recon-form="adjust-installment" aria-label="Ajustar valor do lançamento"><h3>${escape(r.name)}</h3><p class="recon-note">${note}</p><label for="reconInstallmentAmount">${series?'Valor por parcela':'Valor do lançamento'} (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
  }
  function personRow(person='',c=0,showValue=true,disabled=false,unit='amount'){
    return `<div class="recon-share"><input name="person" aria-label="Nome da pessoa" placeholder="Nome da pessoa" maxlength="100" value="${escape(person)}" required ${disabled?'disabled':''}>${showValue?`<input name="partCents" aria-label="${unit==='percent'?'Percentual desta pessoa':'Valor desta pessoa (R$)'}" type="text" inputmode="decimal" placeholder="${unit==='percent'?'0,00%':'0,00'}" value="${c?coin(c):''}" required ${disabled?'disabled':''}>`:''}<button type="button" data-recon-remove aria-label="Remover pessoa">×</button></div>`;
@@ -354,10 +357,6 @@ function createReconUI(){
      if(formKind==='refund'&&r&&bankCredit(r)&&api.editBankCredit)apply(()=>api.editBankCredit(period,r.id,null),'Valor original restaurado.');
      return;
    }
-   if(b.hasAttribute('data-recon-delete-refund')){
-     if(formKind==='refund'&&api.editRefund&&window.confirm('Excluir este estorno da fatura?'))apply(()=>api.editRefund(period,editing,null),'Estorno excluído.');
-     return;
-   }
    if(b.hasAttribute('data-recon-clear-credit')){
      if(formKind==='credit-label'&&api.creditTag)apply(()=>api.creditTag(period,editing,''),'Etiqueta removida.');
      return;
@@ -367,8 +366,11 @@ function createReconUI(){
      return;
    }
    if(b.hasAttribute('data-recon-exclude')){
-     const item=displayed.find(x=>x.id===editing);if(formKind!=='adjust-installment'||!item||!api.canAdjust?.(period))return;
-     if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Esta exclusão não tem opção de desfazer na fatura.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
+     const item=displayed.find(x=>x.id===editing);
+     if(!['adjust-installment','refund'].includes(formKind)||!item||!api.excludeLine)return;
+     const forward=charge(item)&&item.count>1&&item.number&&api.canAdjust?.(period);
+     const prompt=forward?'Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'?':'Excluir este lançamento apenas da fatura de '+monthTitle(period)+' no Diário? Isso não altera o extrato do banco.';
+     if(window.confirm(prompt))apply(()=>api.excludeLine(period,item.id),'Lançamento excluído.');
      return;
    }
    if(b.hasAttribute('data-recon-edit')){
@@ -438,9 +440,9 @@ function createReconUI(){
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
-    if(el.id==='reconPixDate'||el.id==='reconPayableDate')syncPixDate(el);
+    if(el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate')syncPixDate(e.target);if(f)preview(f);});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate')syncPixDate(e.target);if(f)preview(f);});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');

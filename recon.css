@@ -218,7 +218,7 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 /* Invoice: titles and amounts share the first baseline; date and tags share a lower edge. */
 .recon-screen .recon-card-line.recon-invoice-line{
   grid-template-columns:minmax(0,1fr) minmax(0,max-content);
-  grid-template-areas:"name amount" "date tags" "notes notes";
+  grid-template-areas:"name amount" "meta tags";
   column-gap:10px;
   row-gap:0;
   align-items:baseline;
@@ -227,8 +227,7 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-invoice-name{grid-area:name;min-width:0;overflow-wrap:anywhere}
 .recon-invoice-amount{grid-area:amount;justify-self:end;text-align:right}
 .recon-screen .recon-invoice-line .recon-invoice-date{
-  grid-area:date;
-  align-self:end;
+  display:block;
   min-width:0;
   overflow-wrap:anywhere;
   line-height:1.25;
@@ -246,7 +245,14 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
   align-content:flex-end;
   padding-block:0;
 }
-.recon-invoice-notes{grid-area:notes}
+.recon-invoice-meta{grid-area:meta;min-width:0;align-self:end;overflow-wrap:anywhere}
+.recon-invoice-meta > small{line-height:1.25}
 .recon-screen .recon-invoice-tags .recon-edit-chip,
 .recon-invoice-tags .recon-empty-chip{margin-top:0}
 .recon-edit .recon-label-actions.recon-two-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+.recon-value-form{min-width:0}
+.recon-value-form .calendar-field{width:100%;min-width:0;max-width:100%}
+.recon-value-form .recon-label-actions{margin-top:12px}
+.recon-value-reset{text-align:right;margin-top:6px}
+.recon-value-reset .secondary{min-height:30px;margin:0;padding:4px 8px;font-size:.73rem}

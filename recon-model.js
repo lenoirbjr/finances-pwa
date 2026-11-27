@@ -10,6 +10,7 @@ function reconValidate(r){
  if(!r||!arr(r.statements,120)||!arr(r.bankRows,30000)||!arr(r.receipts,10000)||!arr(r.overrides,20000)||!arr(r.payments??[],120))return false;
  if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
  if(r.bankCreditEdits!==undefined&&(!arr(r.bankCreditEdits,5000)||!r.bankCreditEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&str(x.name,250)&&isDate(x.date)&&pos(x.cents))||!unique(r.bankCreditEdits,x=>x.month+'|'+x.rowId)))return false;
+ if(r.excludedLines!==undefined&&(!arr(r.excludedLines,30000)||!r.excludedLines.every(x=>x&&isMonth(x.month)&&str(x.rowId))||!unique(r.excludedLines,x=>x.month+'|'+x.rowId)))return false;
  if(r.singleChargeEdits!==undefined&&(!arr(r.singleChargeEdits,10000)||!r.singleChargeEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&pos(x.cents))||!unique(r.singleChargeEdits,x=>x.month+'|'+x.rowId)))return false;
  if(r.creditTags!==undefined&&(!arr(r.creditTags,10000)||!r.creditTags.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&str(x.tag,100))||!unique(r.creditTags,x=>x.month+'|'+x.rowId)))return false;
  if(r.installmentAdjustments!==undefined&&(!arr(r.installmentAdjustments,5000)||!r.installmentAdjustments.every(x=>x&&str(x.id)&&str(x.rowId)&&str(x.key,900)&&str(x.name,250)&&isMonth(x.month)&&cent(x.cents)&&x.cents>=0&&Number.isInteger(x.count)&&x.count>0&&x.count<=240)||!unique(r.installmentAdjustments,x=>x.id)))return false;
@@ -180,7 +181,8 @@ function reconAdjustmentMatches(r,x){
 function reconRawRows(s,m){
  const adjustments=s.reconciliation?.installmentAdjustments??[];
  const credits=new Map((s.reconciliation?.bankCreditEdits??[]).filter(x=>x.month===m).map(x=>[x.rowId,x]));
- const rows=reconUnadjustedRows(s,m).map(r=>{
+ const excluded=new Set((s.reconciliation?.excludedLines??[]).filter(x=>x.month===m).map(x=>x.rowId));
+ const rows=reconUnadjustedRows(s,m).filter(x=>!excluded.has(x.id)).map(r=>{
   const x=credits.get(r.id);
   return x&&r.source==='statement'&&(r.kind==='credit'||r.kind==='prior-payment')?{...r,name:x.name,date:x.date,cents:-x.cents,bankEdited:true,originalCents:r.cents}:r;
  });
@@ -227,6 +229,13 @@ function reconSetChargeAmount(s,m,id,cents){
  if(reconCanAdjustMonth(s,m)&&row[0].count>1)return reconSetInstallmentAdjustment(s,m,id,cents);
  if(cents<=0)throw Error('Informe um valor positivo.');
  reconGuardAdjustment(s,a=>[...a.filter(x=>x.month!==m||x.rowId!==id),...(cents===row[0].cents?[]:[{month:m,rowId:id,cents}])],'singleChargeEdits');
+}
+function reconExcludeInvoiceLine(s,m,id){
+ const visible=reconRows(s,m).filter(x=>x.id===id);
+ if(visible.length!==1)throw Error('Lançamento não encontrado.');
+ const row=visible[0];
+ if(row.kind==='charge'&&row.count>1&&row.number&&reconCanAdjustMonth(s,m))return reconSetInstallmentAdjustment(s,m,id,0);
+ reconGuardAdjustment(s,a=>[...a,{month:m,rowId:id}],'excludedLines');
 }
 function reconRestoreChargeAmount(s,m,id){
  reconGuardAdjustment(s,a=>a.filter(x=>x.month!==m||x.rowId!==id),'singleChargeEdits');
@@ -358,9 +367,11 @@ function reconMarkPaid(s,m,date){
 }
 function reconInvoice(s,m){
  const recon=s.reconciliation,hasStatements=recon?.statements?.some(st=>st.month<=m);
- if(!hasStatements&&!recon?.installmentAdjustments?.some(x=>x.month<=m)&&!recon?.cardRefunds?.some(x=>x.month===m)&&!recon?.singleChargeEdits?.some(x=>x.month===m))return null;
+ if(!hasStatements&&!recon?.installmentAdjustments?.some(x=>x.month<=m)&&!recon?.cardRefunds?.some(x=>x.month===m)&&!recon?.singleChargeEdits?.some(x=>x.month===m)&&!recon?.excludedLines?.some(x=>x.month===m))return null;
  const useLegacy=!hasStatements&&s.mode==='legacy',legacy=useLegacy?Math.round((s.legacyInvoices[m]??0)*100):0;
- return Math.max(0,legacy+reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'||(useLegacy&&x.source==='legacy')?0:x.cents),0))/100;
+ const rows=reconRawRows(s,m);
+ const legacyDetail=useLegacy?reconUnadjustedRows(s,m).filter(x=>x.source==='legacy').reduce((n,x)=>n+x.cents,0):0;
+ return Math.max(0,legacy-legacyDetail+rows.reduce((sum,x)=>sum+(x.kind==='prior-payment'?0:x.cents),0))/100;
 }
 function reconOpening(s){
  const b=s.reconciliation?.baseline;

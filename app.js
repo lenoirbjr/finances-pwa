@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.29: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.30: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -410,11 +410,7 @@ function renderDashboard(asOf,calc,m){
  $('weekRange').textContent=since.slice(0,7)===sunday.slice(0,7)?`${since.slice(-2)}–${shortDate(sunday)}`:`${shortDate(since)} – ${shortDate(sunday)}`;
  $('cashBalance').textContent=calc.ready?money(calc.current):'—';
  $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
- $('sundayReference').textContent=calc.ready?money(calc.week):'—';
- $('sundayDate').dateTime=sunday;
- $('sundayDate').textContent=shortDate(sunday);
- $('sundaySetup').textContent=calc.ready?'':calc.reason;
- $('sundaySetup').classList.toggle('hidden',calc.ready);
+ renderAvailability(asOf,calc);
  const invested=investmentsStatus(state,m);
  $('homeInvestmentTotal').textContent=money(invested.paid?.amount??0);
  $('homeInvestmentTarget').textContent=`de ${money(invested.plan)}`;
@@ -431,6 +427,27 @@ function renderDashboard(asOf,calc,m){
  $('currentMargin').textContent=money(profile(state,m).margin);
  renderPixScenario(asOf,calc);
 }
+function setAvailableDate(id,date){
+ const time=$(id);
+ if(date)time.dateTime=date;else time.removeAttribute('datetime');
+ time.textContent=date?shortDate(date):'—';
+}
+function renderAvailability(asOf,calc){
+ const snapshot=calc.ready?(pixAvailability?.asOf===asOf&&pixAvailability.state===state?pixAvailability.snapshot:pixScenarioSnapshot(state,asOf,calc)):null;
+ pixAvailability={asOf,state,snapshot};
+ const bill=snapshot?.bill??(!calc.ready?pixScenarioInvoice(state,asOf):null);
+ const due=snapshot?pixScenarioEvaluate(snapshot,[],'none').due:null;
+ setAvailableDate('sundayDate',calc.sunday??nextSunday(asOf));
+ setAvailableDate('paydayDate',calc.next??nextPayday(state,asOf));
+ setAvailableDate('billAvailableDate',bill?.date);
+ $('sundayReference').textContent=calc.ready?money(calc.week):'—';
+ $('paydayAvailable').textContent=calc.ready?money(calc.available):'—';
+ $('billAvailable').textContent=due===null?'—':pixMoney(due);
+ const note=$('sundaySetup');
+ note.textContent=calc.ready?'Os valores se sobrepõem. Não some os três.':calc.reason;
+ note.classList.toggle('hidden',!note.textContent);
+}
+let pixAvailability=null;
 let pixSim=null,pixSimPreferences={month:'',dates:new Map(),selected:new Map()};
 const pixModes=[
  ['none','Ninguém paga'],['all','Todos pagam'],
@@ -442,7 +459,7 @@ function renderPixScenario(asOf,calc){
  const details=$('pixScenarios'),content=$('pixScenarioContent');
  if(!details?.open||!content)return;
  if(!calc.ready){pixSim=null;content.innerHTML='<p>Configure o saldo de abertura para simular.</p>';return;}
- const snapshot=pixScenarioSnapshot(state,asOf,calc);
+ const snapshot=pixAvailability?.asOf===asOf&&pixAvailability.state===state?pixAvailability.snapshot:pixScenarioSnapshot(state,asOf,calc);
  if(!snapshot){pixSim=null;content.innerHTML='<p>Nenhuma fatura futura com valor lançado para simular.</p>';return;}
  const {bill,last}=snapshot;
  if(pixSimPreferences.month!==bill.month)pixSimPreferences={month:bill.month,dates:new Map(),selected:new Map()};
@@ -526,8 +543,11 @@ function renderExpenseHistory(){
      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${entry.date}">${readableDate(entry.date)}</time></small></div>
    </article>${open?movementEditor(entry,esc(key)):''}`;
  };
- $('expenses').innerHTML=byMonth(entries,item=>item.date).map(([month,items])=>
-   `<details class="history-month-fold" data-expense-month="${month}" ${openExpenseMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`).join('')||'<p class="empty">Nenhum lançamento registrado.</p>';
+ $('expenses').innerHTML=byMonth(entries,item=>item.date).map(([month,items])=>{
+  const cents=items.reduce((sum,e)=>sum+(e.direction==='in'?1:-1)*Math.round(e.amount*100),0);
+  const signed=cents<0?'− ':cents>0?'+ ':'';
+  return `<details class="history-month-fold" data-expense-month="${month}" ${openExpenseMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><strong class="statement-month-total${cents>0?' entry-credit':''}" aria-label="Total líquido: ${signed}${money(Math.abs(cents)/100)}">${signed}${money(Math.abs(cents)/100)}</strong></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`;
+ }).join('')||'<p class="empty">Nenhum lançamento registrado.</p>';
 }
 function closeMovementEditor(){
  return keepScrollPosition(()=>{editingMovement=null;renderExpenseHistory();});

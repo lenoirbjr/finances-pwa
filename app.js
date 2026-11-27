@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.55 */
-/* Diário Financeiro 4.0.55: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.56 */
+/* Diário Financeiro 4.0.56: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -387,9 +387,11 @@ function renderInvestmentMonth(m){
  if(el.dataset.months!==signature){el.innerHTML=list.map(x=>`<option value="${x}">${monthTitle(x)}</option>`).join('');el.dataset.months=signature;}
  if(el.value!==m)el.value=m;
  const x=investmentsStatus(state,m);
- $('investmentMonthTotal').textContent=money(x.total);
- $('investmentMonthPrincipal').textContent=money(x.paid?.amount??0);
- $('investmentMonthExtra').textContent=money(x.extra);
+ $('homeInvestmentMonth').textContent=shortMonthTitle(m);
+ for(const [id,value] of [['InvestmentMonthTotal',x.total],['InvestmentMonthPrincipal',x.paid?.amount??0],['InvestmentMonthExtra',x.extra]]){
+  $(id[0].toLowerCase()+id.slice(1)).textContent=money(value);
+  $('home'+id).textContent=money(value);
+ }
 }
 function setInvestmentMonth(m,syncExtra=true){
  if(!isMonth(m)||!state)return;
@@ -452,19 +454,7 @@ function renderDashboard(asOf,calc,m){
  $('cashBalance').textContent=calc.ready?money(calc.current):'—';
  $('cashBalance').classList.toggle('negative',calc.ready&&calc.current<0);
  renderAvailability(asOf,calc);
- const invested=investmentsStatus(state,m);
- $('homeInvestmentTotal').textContent=money(invested.paid?.amount??0);
- $('homeInvestmentTarget').textContent=`de ${money(invested.plan)}`;
- $('homeExtraTotal').textContent=money(invested.extra);
- const latestExtra=state.extraInvestments.reduce((last,entry)=>entry.date.startsWith(m)&&entry.date>last?entry.date:last,'');
- $('homeExtraDate').classList.toggle('hidden',!latestExtra);
- if(latestExtra){
-   $('homeExtraDate').dateTime=latestExtra;
-   $('homeExtraDate').textContent=`Último em ${shortDate(latestExtra)}`;
- }else{
-   $('homeExtraDate').removeAttribute('datetime');
-   $('homeExtraDate').textContent='';
- }
+ renderCommitmentTotals(state,cardMonth??defaultCardMonth(asOf));
  $('currentMargin').textContent=money(profile(state,m).margin);
 }
 const budgetSelected=new Set();
@@ -543,7 +533,11 @@ function renderMovementOverview(){
  let incoming=0,outgoing=0;
  const entries=records.filter(e=>e.date.slice(0,7)===m);
  for(const e of entries){const cents=Math.round(e.amount*100);if(e.direction==='in')incoming+=cents;else outgoing+=cents;}
- $('movementInTotal').textContent=money(incoming/100);$('movementOutTotal').textContent=money(outgoing/100);
+ if($('homeMovementMonth'))$('homeMovementMonth').textContent=shortMonthTitle(m);
+ for(const [id,value] of [['movementInTotal',incoming],['movementOutTotal',outgoing]]){
+  $(id).textContent=money(value/100);
+  const home=$('home'+id[0].toUpperCase()+id.slice(1));if(home)home.textContent=money(value/100);
+ }
  return entries;
 }
 function setMovementMonth(month){
@@ -732,18 +726,19 @@ function renderCardHub(){
 }
 function renderCommitmentTotals(s,m){
  const {card,outside,total,open,cardPaid,cardOpen,outsidePaid,outsideOpen}=reconCommitmentTotals(s,m);
+ const targets=id=>[$(id),$('home'+id[0].toUpperCase()+id.slice(1))].filter(Boolean);
+ const monthLabel=$('homeCardMonth');if(monthLabel)monthLabel.textContent=shortMonthTitle(m);
  const amounts={cardCommitments:total,cardOwnTotal:card,cardPeopleTotal:outside,
   cardOwnPaid:cardPaid,cardOwnOpen:cardOpen,cardPeoplePaid:outsidePaid,cardPeopleOpen:outsideOpen};
- for(const [id,cents] of Object.entries(amounts)){
-  const el=$(id),text=money(cents/100);if(el.textContent!==text)el.textContent=text;
+ for(const [id,cents] of Object.entries(amounts))for(const el of targets(id)){
+  const text=money(cents/100);if(el.textContent!==text)el.textContent=text;
  }
  for(const [id,base,remaining] of [['cardOwnOpen',card,cardOpen],['cardPeopleOpen',outside,outsideOpen]]){
-  const el=$(id),settled=base>0&&remaining===0;
-  const label=el.previousElementSibling;
-  const text=settled?'Quitado':'Em Aberto';if(label&&label.textContent!==text)label.textContent=text;
+  const text=base>0&&remaining===0?'Quitado':'Em Aberto';
+  for(const el of targets(id)){const label=el.previousElementSibling;if(label&&label.textContent!==text)label.textContent=text;}
  }
- const status=$('cardOpenStatus'),text=total>0&&open===0?'Quitado':`Em aberto: ${money(open/100)}`;
- if(status.textContent!==text)status.textContent=text;
+ const text=total>0&&open===0?'Quitado':`Em aberto: ${money(open/100)}`;
+ for(const status of targets('cardOpenStatus'))if(status.textContent!==text)status.textContent=text;
 }
 function showScreenNoScroll(){return keepScrollPosition(paintScreen)}
 function paintScreen(){
@@ -753,7 +748,7 @@ function paintScreen(){
  $('quickInfo').classList.toggle('hidden',screen==='settings');
  $('card-hub').classList.toggle('hidden',!card);
  refreshHeaderButtons();
- for(const name of ['home','week','installments','planning','investments','settings','info','recon']){
+ for(const name of ['home','week','installments','investments','settings','info','recon']){
    $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
  }
  if(card)renderCardHub();
@@ -941,7 +936,7 @@ for(const event of ['pointerdown','touchmove','wheel','keydown'])window.addEvent
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>{
  showScreen(b.dataset.screen);
  if(b.id==='homeInvestments'){
-   showInvestmentPanel(false);setInvestmentMonth(monthNow());
+   showInvestmentPanel(false);
  }
 }));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));

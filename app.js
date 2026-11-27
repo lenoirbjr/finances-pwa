@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.30: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.31: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -425,92 +425,31 @@ function renderDashboard(asOf,calc,m){
    $('homeExtraDate').textContent='';
  }
  $('currentMargin').textContent=money(profile(state,m).margin);
- renderPixScenario(asOf,calc);
 }
 function setAvailableDate(id,date){
  const time=$(id);
  if(date)time.dateTime=date;else time.removeAttribute('datetime');
  time.textContent=date?shortDate(date):'—';
 }
+let homeProjection=null;
 function renderAvailability(asOf,calc){
- const snapshot=calc.ready?(pixAvailability?.asOf===asOf&&pixAvailability.state===state?pixAvailability.snapshot:pixScenarioSnapshot(state,asOf,calc)):null;
- pixAvailability={asOf,state,snapshot};
- const bill=snapshot?.bill??(!calc.ready?pixScenarioInvoice(state,asOf):null);
- const due=snapshot?pixScenarioEvaluate(snapshot,[],'none').due:null;
- setAvailableDate('sundayDate',calc.sunday??nextSunday(asOf));
- setAvailableDate('paydayDate',calc.next??nextPayday(state,asOf));
+ const current=calc.ready?calc.current:null;
+ const projection=homeProjection?.state===state&&homeProjection.asOf===asOf?homeProjection.value:spendingTimeline(state,asOf,current);
+ homeProjection={state,asOf,value:projection};
+ const {ready,sunday,payday,bill,shortage}=projection;
+ setAvailableDate('sundayDate',sunday);
+ setAvailableDate('paydayDate',payday);
  setAvailableDate('billAvailableDate',bill?.date);
- $('sundayReference').textContent=calc.ready?money(calc.week):'—';
- $('paydayAvailable').textContent=calc.ready?money(calc.available):'—';
- $('billAvailable').textContent=due===null?'—':pixMoney(due);
+ const display=(id,cents)=>{$(id).textContent=ready&&cents!=null?money(cents/100):'—';};
+ display('todayAvailable',projection.todayLimit);
+ display('sundayReference',projection.sundayLimit);
+ display('paydayAvailable',projection.paydayLimit);
+ display('billAvailable',projection.billLimit);
  const note=$('sundaySetup');
- note.textContent=calc.ready?'Os valores se sobrepõem. Não some os três.':calc.reason;
+ note.textContent=!ready?calc.reason:shortage?`Em ${shortDate(shortage.date)}, faltam ${money(shortage.cents/100)} para cobrir compromissos, aporte e margem.`:'Tetos acumulados, não somáveis. Antes de gastar hoje, use o primeiro valor.';
  note.classList.toggle('hidden',!note.textContent);
-}
-let pixAvailability=null;
-let pixSim=null,pixSimPreferences={month:'',dates:new Map(),selected:new Map()};
-const pixModes=[
- ['none','Ninguém paga'],['all','Todos pagam'],
- ['late1','Até 1 pessoa atrasa'],['late2','Até 2 pessoas atrasam'],
- ['custom','Pessoas selecionadas']
-];
-const pixMoney=cents=>money(cents/100);
-function renderPixScenario(asOf,calc){
- const details=$('pixScenarios'),content=$('pixScenarioContent');
- if(!details?.open||!content)return;
- if(!calc.ready){pixSim=null;content.innerHTML='<p>Configure o saldo de abertura para simular.</p>';return;}
- const snapshot=pixAvailability?.asOf===asOf&&pixAvailability.state===state?pixAvailability.snapshot:pixScenarioSnapshot(state,asOf,calc);
- if(!snapshot){pixSim=null;content.innerHTML='<p>Nenhuma fatura futura com valor lançado para simular.</p>';return;}
- const {bill,last}=snapshot;
- if(pixSimPreferences.month!==bill.month)pixSimPreferences={month:bill.month,dates:new Map(),selected:new Map()};
- const available=last>=asOf;
- const people=snapshot.people.map(p=>({...p,date:(()=>{
-   const d=pixSimPreferences.dates.get(p.key);
-   return isDate(d)&&d>=asOf&&d<=last?d:last;
- })(),selected:pixSimPreferences.selected.get(p.key)??true}));
- pixSim={snapshot,people};
- const rows=people.map((p,i)=>`<div class="pix-scenario-person">
- <label><input type="checkbox" data-pix-sim-person="${i}" ${p.selected?'checked':''} ${available?'':'disabled'}><span>${esc(p.name)}<small>${pixMoney(p.cents)} em aberto</small></span></label>
- ${available?`<label class="pix-scenario-date"><span>Data prevista</span><input type="date" aria-label="Data prevista para ${esc(p.name)}" data-pix-sim-date="${i}" min="${asOf}" max="${last}" value="${p.date}"></label>`:''}</div>`).join('');
- content.innerHTML=`<p class="pix-scenario-summary">Fatura de ${bill.month.slice(5)}/${bill.month.slice(0,4)} · ${bill.modeled?'Vencimento':'Vencimento estimado'}: <time datetime="${bill.date}">${readableDate(bill.date)}</time></p>
- <div id="pixScenarioComparison" class="pix-scenario-comparison" aria-live="polite"></div>
- ${!available?'<p>O vencimento é hoje. A simulação não conta Pix no mesmo dia da fatura.</p>':''}
- ${people.length?`<details class="pix-scenario-people"><summary>Quem paga e quando (${people.length})</summary>
- <p>Marque os nomes para o cenário personalizado e ajuste as datas em todos os cenários.</p>
- ${rows}</details>`:'<p>Não há reembolsos em aberto classificados nesta fatura.</p>'}
- <p class="pix-scenario-note">Só conte com o valor simulado depois que o Pix cair. O teto até a fatura considera os compromissos até o vencimento. Se domingo vier antes, o teto da fatura já inclui o de domingo: não some os dois.</p>`;
- updatePixScenarioComparison();
-}
-function updatePixScenarioComparison(){
- const target=$('pixScenarioComparison');
- if(!target||!pixSim)return;
- const {snapshot,people}=pixSim;
- const modes=people.length&&snapshot.last>=snapshot.asOf?pixModes:pixModes.slice(0,1);
- target.innerHTML=`<table><caption>Teto de gastos por cenário</caption><thead><tr><th scope="col">Cenário</th><th scope="col">Até domingo</th><th scope="col">Até a fatura</th></tr></thead><tbody>
- ${modes.map(([mode,title])=>{
-  const x=pixScenarioEvaluate(snapshot,people,mode);
-  const warnings=[
-   x.billGap?`Faltam ${pixMoney(x.billGap)} no dia da fatura.`:'',
-   x.marginGap?`Faltam ${pixMoney(x.marginGap)} para manter a reserva.`:'',
-   x.earlierDeficit?`Compromissos anteriores à fatura sem cobertura: ${pixMoney(x.earlierDeficit)}.`:''
-  ].filter(Boolean);
-  return `<tr><th scope="row">${title}${warnings.length?`<small class="pix-scenario-warning">${warnings.join(' ')}</small>`:''}</th>
-  <td>${pixMoney(x.sunday)}</td><td>${pixMoney(x.due)}</td></tr>`;
- }).join('')}</tbody></table>`;
-}
-function onPixScenarioChange(event){
- if(!pixSim)return;
- const input=event.target,i=input.dataset.pixSimPerson??input.dataset.pixSimDate;
- if(i===undefined)return;
- const person=pixSim.people[Number(i)];if(!person)return;
- if(input.dataset.pixSimPerson!==undefined){
-   person.selected=input.checked;pixSimPreferences.selected.set(person.key,person.selected);
- }else{
-   const {asOf,last}=pixSim.snapshot, date=input.value;
-   if(!isDate(date)||date<asOf||date>last){input.value=person.date;return;}
-   person.date=date;pixSimPreferences.dates.set(person.key,date);
- }
- updatePixScenarioComparison();
+ const details=$('budgetDetails');
+ if(details)details.textContent=ready&&bill?`Pix previstos até a fatura: ${money(projection.expectedToBill/100)}. A projeção protege os compromissos e metas até ${readableDate(projection.horizon)}.`:'';
 }
 
 const calendarDate=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -563,7 +502,9 @@ function changeMovement(s,key,cents){
  else entry.amount=cents/100;
 }
 function render(){return keepScrollPosition(renderContents)}
-function renderContents(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);
+function renderContents(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m);
+const opening=reconOpening(state),current=opening&&opening.date<=asOf?cashAt(state,asOf):null;
+const calc={ready:current!==null,current,reason:'Configure um saldo de abertura com data igual ou anterior a hoje.'};$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);
 renderExpenseHistory();
 $('fixedList').innerHTML=rows(state.fixedItems,'fixed');$('baseList').innerHTML=rows(state.baseParcels,'base');$('fixedSubtotal').textContent=money(x.fixed);$('baseSubtotal').textContent=x.known?money(x.base):'—';
 $('forecast').innerHTML=Array.from({length:12},(_,i)=>{
@@ -789,8 +730,6 @@ document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click'
 }));
 $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'home':'settings'));
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
-$('pixScenarios')?.addEventListener('toggle',()=>{if($('pixScenarios').open&&state){const asOf=today();renderPixScenario(asOf,cycleBudget(state,asOf));}});
-$('pixScenarioContent')?.addEventListener('change',onPixScenarioChange);
 $('parcelOpenBill').addEventListener('click',()=>{const b=$('parcelOpenBill'),m=b.dataset.month;if(isMonth(m)){cardMonth=m;if(b.dataset.target==='acertos')window.ReconUI?.selectMoney?.('payable');showScreen(b.dataset.target==='acertos'?'acertos':'recon');}});
 function setCardMonth(m){
  if(!isMonth(m))return;

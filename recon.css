@@ -136,15 +136,17 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-screen .recon-quick-amount button{width:auto;min-height:44px;margin:0;padding:0 9px;font-size:.76rem;white-space:nowrap}
 .recon-screen .recon-quick-amount input{font-size:16px}
 .recon-screen .recon-quick-amount button:disabled{opacity:.5;cursor:default}
-.recon-allocation-month{border-top:1px solid var(--edge);padding:7px 0}
-.recon-allocation-month:first-child{border:0;padding-top:2px}
-.recon-allocation-month>strong{font-size:.75rem;color:var(--accent)}
+[data-recon-allocations]{display:grid;gap:6px}
+.recon-allocations .recon-allocation-month{min-width:0}
+.recon-allocation-lines{padding:1px 8px 7px;min-width:0}
+.recon-allocation-month summary [data-recon-assigned-month]{color:var(--accent)}
+.recon-allocation-month summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:9px}
 .recon-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(132px,.8fr);gap:8px;align-items:center;padding:4px 0}
 .recon-edit .recon-allocation label{margin:0;overflow-wrap:anywhere;font-weight:600;color:var(--text)}
 .recon-allocation-summary:empty{display:none}
 .recon-screen .recon-pix,.recon-receipt-form .recon-actions button{display:block;width:100%;text-align:center}
-.recon-receipt-form .recon-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
-.recon-receipt-form .recon-actions .secondary{width:auto;justify-self:center}
+.recon-receipt-form .recon-actions{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:8px}
+.recon-receipt-form .recon-actions button{min-width:0;min-height:44px;margin:4px 0 0;padding:8px 5px;line-height:1.2}
 .recon-debt-list{display:grid;gap:7px}
 .recon-person-group,.recon-debt-month{min-width:0;border:1px solid var(--edge);border-radius:11px;background:var(--surface-alt)}
 .recon-debt-month{background:var(--surface)}
@@ -166,3 +168,15 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .parcel-history-entry .entry-main{min-width:min(115px,100%)}
 .parcel-history-entry .entry-right{flex-wrap:wrap;max-width:100%}
 .parcel-label-button{display:inline-flex;flex-wrap:wrap;align-items:center;gap:3px;max-width:100%;min-height:36px}
+
+/* Commitments and person-to-person Pix recorded from the bill. */
+.recon-commitments{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.recon-commitments div:last-child{border-color:var(--accent)}
+.recon-commitments small{display:block;color:var(--muted);font-size:.69rem;line-height:1.35;overflow-wrap:anywhere}
+.recon-card-confirm{margin:0 0 8px}
+.recon-card-confirm>button{min-height:40px;margin:0}
+.recon-payable-groups{display:grid;gap:6px;padding:0 7px 7px}
+.recon-payable-lines{padding:0 8px}
+.recon-payable-lines .recon-row-amount button{width:auto;min-height:40px;font-size:.74rem;margin:0;padding:5px 8px}
+.recon-payable-form input[type=date]{width:100%;min-width:0;box-sizing:border-box}
+.recon-screen .recon-card-breakdown{margin-top:8px}

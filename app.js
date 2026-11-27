@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.8: cenários de Pix no painel de início. */
+/* Diário Financeiro 4.0.9: compromissos a pessoas e distribuição de Pix. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -24,6 +24,7 @@ function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
  const base={...s,version:5};if(!validLegacyShape(base)||!reconValidate(s.reconciliation))return false;
  if(s.expenses.some(e=>e.cardMonth!==undefined&&!isMonth(e.cardMonth))||s.parcels.some(p=>(p.cardAdded!==undefined&&p.cardAdded!==true)||(p.purchaseDate!==undefined&&!isDate(p.purchaseDate))))return false;
+ if(!s.parcels.every(reconPayableValid))return false;
  if(!s.profiles.every(p=>p&&isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)&&validSalary(p)))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
  if(s.opening!==null&&(!s.opening||!isDate(s.opening.date)||!Number.isFinite(s.opening.amount)||s.opening.amount<0))return false;
@@ -105,6 +106,7 @@ function cashAt(s,end){
  projected-=s.expenses.filter(e=>!e.cardMonth&&included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected-=s.extraInvestments.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected+=reconCashReceipts(s,opened.closing?addDays(start,1):start,end);
+ projected-=reconPayableRows(s).filter(e=>e.paidDate&&included(e.paidDate)).reduce((n,e)=>n+e.cents,0)/100;
  return round(projected);
 }
 // Previsão separada: futuros pagamentos são assumidos, mas nunca debitados do caixa atual
@@ -118,6 +120,7 @@ function cashForecast(s,end,asOf=today()){
    if(!settled(s,m)&&!skipped(s,m)&&payDay>asOf&&payDay<=end&&payDay>start)projected-=investmentAmount(s,m);
 
  }
+ if(end>=asOf)projected-=reconPayableRows(s).filter(e=>!e.paidDate&&e.due<=end).reduce((n,e)=>n+e.cents,0)/100;
  return round(projected);
 }
 function overdueReserved(s,asOf=today()){
@@ -178,6 +181,7 @@ function cycleBudget(s,asOf=today()){
  for(const group of [s.monthlyPaid||[],s.extraIncome||[],s.extraInvestments||[],s.expenses||[],s.reconciliation?.receipts||[],s.reconciliation?.payments||[]]){
    for(const item of group){if(item.date>asOf&&item.date<=horizon)checkpoints.add(item.date)}
  }
+ for(const e of reconPayableRows(s)){if(e.date>asOf&&e.date<=horizon)checkpoints.add(e.date);}
  const reserve=overdueReserved(s,asOf);
  let minimum=current-profile(s,asOf.slice(0,7)).margin-reserve;
  let lowestDate=asOf;
@@ -237,10 +241,10 @@ function oldParts(s,m){return s.baseParcels.filter(e=>{const d=monthDiff(e.start
 function baseAmount(s,m){return s.mode==='legacy'?(s.legacyInvoices[m]??0):round(oldParts(s,m).reduce((a,e)=>a+e.payment,0))}
 const newBaseAmount=baseAmount;
 function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.count)return 0;const cents=Math.round(e.total*100),unit=Math.round(e.payment*100);return (off===e.count-1?cents-unit*(e.count-1):unit)/100}
-function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+newPartAmount(e,m),0))}
+function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+(e.payTo?0:newPartAmount(e,m)),0))}
 function invoiceAmount(s,m){return reconInvoice(s,m)??round(baseAmount(s,m)+newAmount(s,m))}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
-function monthly(s,m){const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin)}}
+function monthly(s,m){const people=reconPayableRows(s).filter(e=>e.date.slice(0,7)===m).reduce((n,e)=>n+e.cents,0)/100;const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,people,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested-people),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-people)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>!e.cardMonth&&e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){lab.textContent=shortMonthTitle(el.value)}else{lab.textContent=el.value.split('-').reverse().join('/')}}}
@@ -278,7 +282,7 @@ function parcelClassifyButton(id,monthRows){
  const chips=window.ParcelReconUI?.parcelLabels(t.row,reconOwner(state))||'';
  return `<button type="button" class="small-action parcel-label-button" data-classify-parcel="${esc(id)}" aria-label="${chips?'Editar classificação':'Classificar'}: ${esc(t.row.name)}">${chips||'Classificar'}</button>`;
 }
-function rows(items,type,monthRows){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · desde ${e.start}`;return `<div class="entry${type==='new'?' parcel-history-entry':''}"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right">${type==='new'?parcelClassifyButton(e.id,monthRows):''}<button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
+function rows(items,type,monthRows){if(!items.length)return '<p class="empty">Nenhum item cadastrado.</p>';return items.map(e=>{let extra='';if(type==='fixed')extra=`${money(e.amount)} por mês · débito dia ${e.day||5} · ${e.start}${e.end?' até '+e.end:''}`;if(type==='base')extra=`${e.remaining} parcela(s) de ${money(e.payment)} · desde ${e.start}`;if(type==='new')extra=`${e.count}x · ${money(e.total)} · ${e.payTo?'A pagar a '+e.payTo:'Meu cartão'} · desde ${e.start}`;return `<div class="entry${type==='new'?' parcel-history-entry':''}"><div class="entry-main"><div class="entry-title">${esc(e.name)}</div><div class="entry-description">${esc(extra)}</div></div><div class="entry-right">${type==='new'?parcelClassifyButton(e.id,monthRows):''}<button type="button" class="small-action" data-edit-${type}="${esc(e.id)}">Editar</button><button type="button" class="entry-remove" data-delete-${type}="${esc(e.id)}" aria-label="Excluir ${esc(e.name)}">×</button></div></div>`}).join('')}
 function pct(amount,income){return income>0?`${(100*amount/income).toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})}%`:'—'}
 function breakdown(s,m){
  const z=monthly(s,m),income=z.income;
@@ -291,7 +295,9 @@ function breakdown(s,m){
  const fixed=s.mode==='legacy'?[{name:'Total antigo de fixos',amount:z.fixed}]:reconFixed(s,m).map(e=>({name:e.name,amount:e.amount,meta:`Dia ${e.day||5}`}));
  const reconciled=reconInvoice(s,m);
  const base=reconciled!==null?reconRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
- const newer=reconciled!==null?[]:s.parcels.map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
+ const newer=reconciled!==null?[]:s.parcels.filter(e=>!e.payTo).map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
+ const payables=reconPayableRows(s).filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.cents/100,meta:e.person+' · '+(e.paidDate?'Pago em ':'Previsto para ')+readableDate(e.date)}));
+ const confirmedCard=reconConfirmedTotal(s,m);
  const previousCredit=reconPreviousCreditRows(s,m).map(e=>({name:e.name,amount:e.cents/100}));
  const confirmed=settled(s,m),extra=extraInvested(s,m),investmentItems=[];
  if(confirmed)investmentItems.push({name:'Aporte principal realizado',amount:confirmed.amount,meta:confirmed.date.split('-').reverse().join('/')});
@@ -301,7 +307,7 @@ function breakdown(s,m){
  const extras=s.extraIncome.filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.amount}));
  const extraTotal=round(extras.reduce((sum,e)=>sum+e.amount,0));
  return `<div class="detail-line detail-percent"><span>Renda líquida</span><div class="line-amount"><strong>${money(income)}</strong><small>100% da renda</small></div></div>`+
- group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',base)+(reconciled===null?group('Compras parceladas novas',newer):'')+(previousCredit.length?group('Movimentações de crédito anteriores',previousCredit):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
+ group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',confirmedCard===null?base:[{name:'Total confirmado no banco',amount:confirmedCard/100}])+(payables.length?group('A pagar a pessoas',payables):'')+(reconciled===null?group('Compras parceladas novas',newer):'')+(previousCredit.length?group('Movimentações de crédito anteriores',previousCredit):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
  line('Margem protegida',z.margin)+
  `<div class="detail-line detail-total detail-percent"><span>Livre no mês (planejado)</span><div class="line-amount"><strong>${z.known?money(round(z.available+extraTotal)):'—'}</strong><small>${z.known?pct(round(z.available+extraTotal),income):'—'} da renda</small></div></div>`;
 }
@@ -514,13 +520,30 @@ function showScreenNoScroll(){
  refreshHeaderButtons();
  for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
  renderParcelClassify();
- if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),payable:m=>reconPayableRows(state,m),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),cardTotal:m=>Math.round(invoiceAmount(state,m)*100),confirmedTotal:m=>reconConfirmedTotal(state,m),setConfirmedTotal:(m,cents)=>update(s=>reconSetConfirmedTotal(s,m,cents)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  const area=launch?'week':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
    button.classList.toggle('active',active);
    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
  }
+}
+function syncParcelOrigin(){
+ const personal=$('parcelOrigin').value==='person';
+ $('parcelPayeeFields').classList.toggle('hidden',!personal);
+ $('parcelOwnDate').classList.toggle('hidden',personal);
+ $('parcelForm').querySelector('.two-cols').classList.toggle('parcel-single-column',personal);
+ $('parcelStart').required=!personal;
+ $('parcelPayStart').required=personal;
+ $('parcelPayee').required=personal;
+ $('parcelTotalLabel').textContent=personal?'Total da sua parte (R$)':'Valor total (R$)';
+ $('parcelImpactLabel').textContent=personal?'Parcela mensal que você deve':'Parcela mensal adicionada à fatura';
+ if(personal&&!$('parcelPayStart').value)$('parcelPayStart').value=eventDate($('parcelStart').value||defaultCardMonth(),5);
+ calendarLabels();
+}
+function clearParcelOrigin(){
+ $('parcelOrigin').value='own';$('parcelPayee').value='';$('parcelPayStart').value='';
+ syncParcelOrigin();
 }
 function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?Math.floor(Math.round(total*100)/count)/100:0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
 function showMovementForm(mode){
@@ -543,19 +566,27 @@ async function saveExpense(e){
 }
 async function saveNew(e){
  e.preventDefault();
- const name=$('parcelName').value.trim(),total=round(amount('parcelTotal')),count=Number($('parcelCount').value),start=$('parcelStart').value;
+ const personal=$('parcelOrigin').value==='person',payTo=personal?$('parcelPayee').value.trim():null,payStart=personal?$('parcelPayStart').value:null;
+ const name=$('parcelName').value.trim(),total=round(amount('parcelTotal')),count=Number($('parcelCount').value),start=personal?payStart.slice(0,7):$('parcelStart').value;
+ if(personal&&(!payTo||payTo.length>100||!isDate(payStart)))return notice('Informe a pessoa e a data prevista do primeiro Pix.','warning');
  if(!name||!(total>0)||!isMonth(start)||!Number.isInteger(count)||count<1||count>120||Math.round(total*100)<count)return notice('Confira os campos da compra. Cada parcela deve ter ao menos um centavo.','warning');
  const id=editingNew||newId();
  if(await update(s=>{
   const old=editingNew?s.parcels.find(p=>p.id===editingNew):null;
+  const touchesSchedule=old&&(old.total!==total||old.count!==count||old.start!==start||old.payTo!==(payTo??undefined)||old.payStart!==(payStart??undefined));
+  if(personal&&old&&reconParcelLinked(s,id))throw Error('A compra está vinculada a uma cobrança do seu cartão. Não é possível movê-la para outra pessoa por aqui.');
+  if(old?.payments?.length&&touchesSchedule)throw Error('Desfaça os pagamentos registrados antes de mudar os dados das parcelas.');
   const payment=old&&old.total===total&&old.count===count?old.payment:Math.floor(Math.round(total*100)/count)/100;
-  if(old&&reconHasAllocated(s,old.id)&&(old.total!==total||old.count!==count||old.start!==start))throw Error('Há um Pix vinculado a esta compra. Desfaça o recebimento antes de mudar as parcelas.');
+  if(old&&reconHasAllocated(s,old.id)&&touchesSchedule)throw Error('Há um Pix vinculado a esta compra. Desfaça o recebimento antes de mudar as parcelas.');
   const item={...old,id,name,total,payment,count,start,...(!old?{cardAdded:true,purchaseDate:today()}:{})};
+  if(personal){item.payTo=payTo;item.payStart=payStart;}
+  else {delete item.payTo;delete item.payStart;delete item.payments;}
   if(old)s.parcels=s.parcels.map(p=>p.id===old.id?item:p);
   else s.parcels.push(item);
  })){
   editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');
-  $('parcelOpenBill').dataset.month=start;$('parcelOpenBill').textContent='Ver na fatura de '+monthTitle(start);$('parcelOpenBill').classList.remove('hidden');
+  clearParcelOrigin();
+  $('parcelOpenBill').dataset.month=start;$('parcelOpenBill').textContent=personal?'Ver em A pagar':'Ver na fatura de '+monthTitle(start);$('parcelOpenBill').classList.remove('hidden');
   $('parcelClassifyLast').dataset.classifyParcel=id;$('parcelClassifyLast').classList.toggle('hidden',!reconParcelTarget(state,id));
  }
 }
@@ -632,8 +663,8 @@ async function saveOpening(e){
 }
 async function saveExtraIncome(e){e.preventDefault();const date=$('incomeExtraDate').value,name=$('incomeExtraName').value.trim()||'Entrada extra',v=round(amount('incomeExtraAmount'));if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Confira a data e o valor da entrada extra.','warning');if(await update(s=>s.extraIncome.push({id:newId(),date,name,amount:v}))){$('incomeExtraName').value='';$('incomeExtraAmount').value=''}}
 
-function resetForms(){editingFixed=editingBase=editingNew=null;for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
-function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
+function resetForms(){editingFixed=editingBase=editingNew=null;clearParcelOrigin();for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
+function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelOrigin').value=v.payTo?'person':'own';$('parcelPayee').value=v.payTo??'';$('parcelPayStart').value=v.payStart??'';$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;syncParcelOrigin();$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Backup preparado. Confirme se ele foi salvo no aplicativo Arquivos.','warning')}
 async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write('state-before-last-import',state);await write(RECORD,incoming);state=incoming;resetForms();updateInvestmentForm();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
@@ -679,6 +710,7 @@ $('screen-installments').addEventListener('click',event=>{
 });
 $('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));
 $('movementIncomeTab').addEventListener('click',()=>showMovementForm('extra'));
+$('parcelOrigin').addEventListener('change',()=>{syncParcelOrigin();previewParcel()});
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);
 
@@ -706,6 +738,6 @@ rememberAccordion('parcels','parcelMonth',openParcelMonths);
 rememberAccordion('investmentHistory','historyYear',openHistoryYears);
 rememberAccordion('investmentHistory','historyMonth',openHistoryMonths);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
-document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');s[field]=s[field].filter(x=>x.id!==id);});return}}const income=target.closest('[data-delete-income-extra]');if(income){if(confirm('Excluir esta entrada extra?'))update(s=>s.extraIncome=s.extraIncome.filter(x=>x.id!==income.dataset.deleteIncomeExtra));return}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>{const id=exp.dataset.deleteExpense;if(reconHasAllocated(s,'cashcard:'+id))throw Error('Há um Pix vinculado a este gasto. Desfaça o recebimento antes de excluir.');s.expenses=s.expenses.filter(x=>x.id!==id);});return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
+document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');if(kind==='new'&&s.parcels.find(p=>p.id===id)?.payments?.length)throw Error('Desfaça os pagamentos registrados antes de excluir a compra.');s[field]=s[field].filter(x=>x.id!==id);});return}}const income=target.closest('[data-delete-income-extra]');if(income){if(confirm('Excluir esta entrada extra?'))update(s=>s.extraIncome=s.extraIncome.filter(x=>x.id!==income.dataset.deleteIncomeExtra));return}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>{const id=exp.dataset.deleteExpense;if(reconHasAllocated(s,'cashcard:'+id))throw Error('Há um Pix vinculado a este gasto. Desfaça o recebimento antes de excluir.');s.expenses=s.expenses.filter(x=>x.id!==id);});return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
 init();
 if('serviceWorker' in navigator){let reloading=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload()});window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});reg.update().catch(()=>{})}catch{}})}

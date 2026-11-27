@@ -534,3 +534,5 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
 .pix-scenario-date input{background:var(--canvas);color:var(--text);border:1px solid var(--edge);border-radius:8px;padding:4px;width:100%;min-width:0;min-height:36px;font-size:16px}
 .pix-scenario-date input::-webkit-date-and-time-value{min-width:0;text-align:left}
 .pix-scenarios .pix-scenario-note{margin-top:9px}
+
+#parcelForm .parcel-single-column{grid-template-columns:minmax(0,1fr)}

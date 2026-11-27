@@ -13,6 +13,7 @@ function reconValidate(r){
   if(!b||!isDate(b.date)||!arr(b.accounts,25)||!b.accounts.length||!b.accounts.every(a=>a&&str(a.id,80)&&str(a.name,100)&&cent(a.cents))||!unique(b.accounts,x=>x.id))return false;
  }
  const classification=(x,total)=>{const p=x.parts??[];if(!parts(p))return false;const n=p.reduce((a,z)=>a+z.cents,0);return x.label==='other'?n===total:x.label==='split'?n>0&&n<total:(!x.label||x.label==='mine')&&n===0};
+ if(r.confirmedTotals!==undefined&&(!r.confirmedTotals||typeof r.confirmedTotals!=='object'||Array.isArray(r.confirmedTotals)||Object.entries(r.confirmedTotals).length>240||!Object.entries(r.confirmedTotals).every(([m,n])=>isMonth(m)&&cent(n)&&n>=0)))return false;
  if(!r.statements.every(st=>st&&isMonth(st.month)&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
  if(!r.bankRows.every(x=>x&&str(x.id)&&str(x.name,300)&&isDate(x.date)&&typeof x.time==='string'&&/^\d{2}:\d{2}:\d{2}$/.test(x.time)&&cent(x.cents)&&cent(x.balanceCents))||!unique(r.bankRows,x=>x.id))return false;
  if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future','all'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,250))&&(x.ownerName===undefined||str(x.ownerName,100))&&(x.seriesKey===undefined||str(x.seriesKey,500)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
@@ -121,6 +122,7 @@ function reconRawRows(s,m){
   }
  }
  const manualRows=linked=>s.parcels.flatMap(e=>{
+  if(e.payTo)return [];
   const cents=Math.round(newPartAmount(e,m)*100),series=manualSeries.get(e.id);
   if(linked.has(e.id)||cents<=0)return [];
   const linkedSeries=series?.size===1?[...series][0]:null;
@@ -181,7 +183,7 @@ function reconParcelTarget(s,id,monthRows=new Map()){
   if(!monthRows.has(month))monthRows.set(month,reconRows(s,month));
   return monthRows.get(month);
  };
- const item=s.parcels.find(e=>e.id===id);
+ const item=s.parcels.find(e=>e.id===id&&!e.payTo);
  if(!item)return null;
  const statements=[...(s.reconciliation?.statements??[])].sort((a,b)=>a.month.localeCompare(b.month));
  const linked=[];
@@ -201,7 +203,7 @@ function reconParcelTarget(s,id,monthRows=new Map()){
 function reconMonths(s){
  const r=s.reconciliation;
  const cur=monthNow();
- const m=new Set([cur,shiftMonth(cur,1)]);
+ const m=new Set([cur,shiftMonth(cur,1),...Object.keys(r?.confirmedTotals??{})]);
  for(const st of r?.statements??[]){m.add(st.month);for(const row of st.rows)if(row.count>row.number){for(let i=1;i<=row.count-row.number;i++)m.add(shiftMonth(st.month,i))}}
  for(const x of s.expenses)if(x.cardMonth)m.add(x.cardMonth);
  for(const o of r?.overrides??[])m.add(o.month);
@@ -276,6 +278,8 @@ function reconMarkPaid(s,m,date){
  if(date!==null)r.payments.push({month:m,date});
 }
 function reconInvoice(s,m){
+ const confirmed=reconConfirmedTotal(s,m);
+ if(confirmed!==null)return confirmed/100;
  if(!s.reconciliation?.statements?.some(st=>st.month<=m))return null;
  return Math.max(0,reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'?0:x.cents),0))/100;
 }
@@ -298,4 +302,48 @@ function defaultCardMonth(d=today()){
 }
 function reconHasAllocated(s,id){
  return (s.reconciliation?.receipts??[]).some(r=>r.allocations.some(a=>a.rowId===id));
+}
+
+// Compras no cartão de outra pessoa não entram na nossa fatura. A parcela
+// prevista e sua baixa são o mesmo compromisso, não dois lançamentos.
+function reconPayableValid(p){
+ if(p.payTo===undefined)return p.payStart===undefined&&p.payments===undefined;
+ if(typeof p.payTo!=='string'||!p.payTo.trim()||p.payTo.length>100||!isDate(p.payStart)||p.payStart.slice(0,7)!==p.start)return false;
+ const payments=p.payments??[];
+ return Array.isArray(payments)&&payments.length<=p.count&&new Set(payments.map(x=>x?.month)).size===payments.length&&payments.every(x=>x&&isMonth(x.month)&&monthDiff(p.start,x.month)>=0&&monthDiff(p.start,x.month)<p.count&&isDate(x.date));
+}
+function reconParcelLinked(s,id){
+ return (s.reconciliation?.statements??[]).some(st=>st.rows.some(x=>x.kind==='charge'&&(x.id===id||x.legacyIds?.includes(id))));
+}
+function reconPayableRows(s,month=null){
+ const result=[];
+ for(const p of s.parcels){
+  if(!p.payTo)continue;
+  const offset=month===null?0:monthDiff(p.start,month);
+  if(offset<0||offset>=p.count)continue;
+  for(let i=offset;i<(month===null?p.count:offset+1);i++){
+   const m=shiftMonth(p.start,i),cents=Math.round(newPartAmount(p,m)*100);
+   if(cents<=0)continue;
+   const due=eventDate(m,Number(p.payStart.slice(-2))),paidDate=p.payments?.find(x=>x.month===m)?.date??null;
+   result.push({id:p.id,person:p.payTo,name:p.name,month:m,due,date:paidDate??due,cents,paidDate});
+  }
+ }
+ return result.sort((a,b)=>a.due.localeCompare(b.due)||a.person.localeCompare(b.person,'pt-BR'));
+}
+function reconSetPayable(s,id,month,date){
+ const p=s.parcels.find(x=>x.id===id&&x.payTo);
+ if(!p||!isMonth(month)||newPartAmount(p,month)<=0)throw Error('Parcela não encontrada.');
+ if(date!==null&&(!isDate(date)||date>today()))throw Error('Informe a data em que o Pix foi pago, até hoje.');
+ const prev=p.payments?.find(x=>x.month===month);
+ if(date!==null&&prev)throw Error('Esta parcela já está paga.');
+ p.payments=(p.payments??[]).filter(x=>x.month!==month);
+ if(date!==null)p.payments.push({month,date});
+}
+function reconConfirmedTotal(s,m){
+ return s.reconciliation?.confirmedTotals?.[m]??null;
+}
+function reconSetConfirmedTotal(s,m,cents){
+ if(!isMonth(m)||(cents!==null&&(!Number.isSafeInteger(cents)||cents<0||cents>1e12)))throw Error('Confira o total informado pelo banco.');
+ const r=reconInit(s);r.confirmedTotals??={};
+ if(cents===null)delete r.confirmedTotals[m];else r.confirmedTotals[m]=cents;
 }

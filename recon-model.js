@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.39 */
+/* diario-shell:4.0.40 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -330,7 +330,7 @@ function reconMonths(s){
 function reconNamedPix(item){
  return item.direction==='in'&&item.channel!=='card'&&Boolean(item.tag?.trim())&&item.amount>0;
 }
-function reconRecurringReceivables(s,asOf=today()){
+function reconRecurringReceivables(s,asOf=today(),onlyMonth=null){
  const current=asOf.slice(0,7),last=shiftMonth(current,2),opening=reconOpening(s)?.date??null;
  const fixedPayments=s.fixedPaid??[],allocations=(s.reconciliation?.receipts??[]).flatMap(r=>r.allocations);
  const startFloor=[opening?.slice(0,7)??current,shiftMonth(current,-23)].sort().at(-1);
@@ -338,8 +338,11 @@ function reconRecurringReceivables(s,asOf=today()){
  for(const item of s.fixedItems.filter(reconNamedPix)){
   const rowId='fixedpix:'+item.id, recorded=new Set(allocations.filter(a=>a.rowId===rowId).map(a=>a.month));
   const first=[startFloor,item.start].sort().at(-1),months=new Set(recorded);
-  for(let month=first;month<=last&&(!item.end||month<=item.end);month=shiftMonth(month,1))months.add(month);
+  if(onlyMonth){
+   if(onlyMonth>=item.start&&(!item.end||onlyMonth<=item.end))months.add(onlyMonth);
+  }else for(let month=first;month<=last&&(!item.end||month<=item.end);month=shiftMonth(month,1))months.add(month);
   for(const month of months){
+   if(onlyMonth&&month!==onlyMonth)continue;
    const date=fixedDate(s,item,month);
    if(!recorded.has(month)&&(opening&&date<=opening||!opening&&date<asOf))continue;
    if(fixedPayments.some(p=>p.id===item.id&&p.month===month))continue;
@@ -349,16 +352,26 @@ function reconRecurringReceivables(s,asOf=today()){
  }
  return rows;
 }
-// Outside-card recurring expenses already flow through cashAt. These rows are
-// only for display and the monthly summary, never for manual Pix allocation.
+// A registered payment replaces the scheduled portion, it is never an extra
+// expense. The unpaid portion keeps the original automatic debit date.
+function reconFixedParts(s,id,month){
+ return (s.fixedPaid??[]).filter(e=>e.id===id&&e.month===month&&e.batch)
+  .map(e=>({batch:e.batch,date:e.date,cents:Math.round(e.amount*100)}));
+}
+function reconScheduledFixed(s,item,month){
+ const legacy=confirmedFixed(s,item.id,month),date=legacy?.date??fixedDate(s,item,month);
+ const used=reconFixedParts(s,item.id,month).reduce((sum,e)=>sum+e.cents,0);
+ return {date,amount:Math.max(0,Math.round((legacy?.amount??item.amount)*100)-used)/100};
+}
 function reconRecurringPayables(s,month){
  return reconFixed(s,month).filter(item=>item.direction!=='in'&&item.amount>0).map(item=>{
-  const confirmed=confirmedFixed(s,item.id,month);
-  const cents=Math.round((confirmed?.amount??item.amount)*100),due=fixedDate(s,item,month);
-  const paidDate=confirmed?.date??null;
+  const confirmed=confirmedFixed(s,item.id,month),due=fixedDate(s,item,month);
+  const cents=Math.round((confirmed?.amount??item.amount)*100);
+  const postings=reconFixedParts(s,item.id,month);
+  const paid=confirmed?cents:postings.reduce((n,p)=>n+p.cents,0),remaining=Math.max(0,cents-paid);
+  const paidDate=remaining===0?(confirmed?.date??postings.map(p=>p.date).sort().at(-1)):null;
   return {id:'fixedout:'+item.id,fixedId:item.id,person:item.tag?.trim()||'Sem etiqueta',
-   name:item.name,month,cents,due,date:paidDate??due,paidDate,paid:paidDate?cents:0,
-   remaining:paidDate?0:cents,postings:[],recurring:true};
+   name:item.name,month,cents,due,date:paidDate??due,paidDate,paid,remaining,postings,recurring:true};
  }).filter(row=>row.cents>0);
 }
 function reconCommitmentTotals(s,month){
@@ -367,16 +380,16 @@ function reconCommitmentTotals(s,month){
   +reconRecurringPayables(s,month).reduce((sum,row)=>sum+row.cents,0);
  return {card,outside,total:card+outside};
 }
-function reconDebt(s){
+function reconDebt(s,onlyMonth=null){
  const received=new Map();
  for(const p of s.reconciliation?.receipts??[])for(const a of p.allocations){
   const k=a.month+'|'+a.rowId+'|'+reconPersonKey(p.person);
   received.set(k,(received.get(k)??0)+a.cents);
  }
- const billed=reconMonths(s).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>({
+ const billed=(onlyMonth?[onlyMonth]:reconMonths(s)).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>({
   rowId:row.id,month,person:part.person,cents:part.cents,expected:part.expected,name:row.name,number:row.number,count:row.count
  }))));
- return [...billed,...reconRecurringReceivables(s)].map(d=>{
+ return [...billed,...reconRecurringReceivables(s,today(),onlyMonth)].map(d=>{
   const n=received.get(d.month+'|'+d.rowId+'|'+reconPersonKey(d.person))??0;
   return {...d,received:n,remaining:Math.max(0,d.cents-n)};
  });
@@ -411,7 +424,7 @@ function reconAddReceipt(s,p){
  if((p.accountId!==undefined&&!reconAccounts(s).some(a=>a.id===p.accountId))||!person||!isDate(p.date)||p.date>today()||!Number.isSafeInteger(p.cents)||p.cents<=0||!Array.isArray(p.allocations)||!p.allocations.length)throw Error('Confira a pessoa, a data e o valor do Pix.');
  if(!p.inBaseline&&r.baseline&&p.date<=r.baseline.date)throw Error('Este Pix é anterior ao saldo de partida ou do mesmo dia. Marque que ele já estava no saldo.');
  if(r.receipts.some(x=>x.id===p.id))throw Error('Este recebimento já está registrado.');
- const debts=reconDebt(s).filter(d=>reconPersonKey(d.person)===reconPersonKey(person));
+ const debts=[...new Set(p.allocations.map(a=>a?.month).filter(isMonth))].flatMap(m=>reconDebt(s,m)).filter(d=>reconPersonKey(d.person)===reconPersonKey(person));
  const keys=new Set();
  let total=0;
  for(const a of p.allocations){
@@ -518,16 +531,21 @@ function reconAddPayablePayment(s,p,existingBatch){
  const person=String(p.person??'').trim();
  if(!person||!isDate(p.date)||p.date>today()||!Number.isSafeInteger(p.cents)||p.cents<=0||!Array.isArray(p.allocations)||!p.allocations.length)throw Error('Confira a pessoa, a data e o valor do pagamento.');
  const key=(id,month)=>JSON.stringify([id,month]);
- const eligible=new Map(reconPayableRows(s).filter(x=>x.remaining>0&&reconPersonKey(x.person)===reconPersonKey(person)).map(x=>[key(x.id,x.month),x]));
+ const fixed=[...new Set(p.allocations.map(a=>a?.month).filter(isMonth))].flatMap(m=>reconRecurringPayables(s,m));
+ const eligible=new Map([...reconPayableRows(s),...fixed].filter(x=>x.remaining>0&&reconPersonKey(x.person)===reconPersonKey(person)).map(x=>[key(x.id,x.month),x]));
  const entries=[];
  for(const a of p.allocations){
   const k=key(a.rowId,a.month), row=eligible.get(k);
   if(!row||!Number.isSafeInteger(a.cents)||a.cents<=0||a.cents>row.remaining)throw Error('Confira os valores distribuídos. Eles não podem exceder as dívidas.');
-  eligible.delete(k);entries.push(a);
+  eligible.delete(k);entries.push({...a,fixedId:row.fixedId});
  }
  if(entries.reduce((n,a)=>n+a.cents,0)!==p.cents)throw Error('Distribua todo o valor do pagamento antes de salvar.');
  const batch=existingBatch??newId();
  for(const a of entries){
+  if(a.fixedId){
+   (s.fixedPaid??=[]).push({id:a.fixedId,month:a.month,date:p.date,amount:a.cents/100,batch});
+   continue;
+  }
   const parcel=s.parcels.find(x=>x.id===a.rowId);
   parcel.payments??=[];
   let entry=parcel.payments.find(x=>x.month===a.month);
@@ -536,7 +554,9 @@ function reconAddPayablePayment(s,p,existingBatch){
  }
 }
 function reconUndoPayablePayment(s,batch){
- let found=false;
+ if(typeof batch!=='string'||!batch)throw Error('Pagamento não encontrado.');
+ let found=(s.fixedPaid??[]).some(x=>x.batch===batch);
+ if(found)s.fixedPaid=s.fixedPaid.filter(x=>x.batch!==batch);
  for(const parcel of s.parcels){
   if(!parcel.payments?.some(e=>e.parts?.some(x=>x.batch===batch)))continue;
   found=true;
@@ -548,7 +568,8 @@ function reconUndoPayablePayment(s,batch){
 
 function reconSettlementKey(kind,...parts){return JSON.stringify([kind,...parts]);}
 function reconSettlementEntries(s){
- const rows=reconPayableRows(s),groups=new Map(),names=new Map();
+ const monthsPaid=new Set((s.fixedPaid??[]).filter(x=>x.batch).map(x=>x.month));
+ const rows=[...reconPayableRows(s),...[...monthsPaid].flatMap(m=>reconRecurringPayables(s,m))],groups=new Map(),names=new Map();
  const receiptRows=s.reconciliation?.receipts??[];
  const months=new Set(receiptRows.flatMap(r=>r.allocations.map(a=>a.month)));
  for(const month of months){
@@ -599,7 +620,7 @@ function reconEditSettlement(s,key,fields){
   if(entry.kind==='in')reconAddReceipt(next,{...payment,id:entry.id,inBaseline:entry.inBaseline,...(entry.accountId!==undefined?{accountId:entry.accountId}:{})});
   else reconAddPayablePayment(next,payment,entry.batch);
  }
- s.parcels=next.parcels;s.reconciliation=next.reconciliation;
+ s.parcels=next.parcels;s.reconciliation=next.reconciliation;s.fixedPaid=next.fixedPaid;
 }
 
 function reconOpenDebtEntries(s,month=null){
@@ -613,7 +634,7 @@ function reconOpenDebtEntries(s,month=null){
   date:p.payStart,person:p.payTo,name:p.name,cents:Math.round(p.total*100),count:p.count,hasPayments:!!p.payments?.length
  }));
  const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
- const incoming=reconDebt(s).filter(d=>d.remaining>0&&(!month||d.month===month)).map(d=>({
+ const incoming=reconDebt(s,month).filter(d=>d.remaining>0).map(d=>({
   ...d,kind:'receivable',key:reconSettlementKey('receivable',d.month,d.rowId,reconPersonKey(d.person)),
   date:d.expected??addDays(pixScenarioDue(statements.get(d.month),d.month),-1)
  }));
@@ -621,7 +642,9 @@ function reconOpenDebtEntries(s,month=null){
  return [...outgoing,...fixed,...incoming].sort((a,b)=>(a.nextDue??a.date).localeCompare(b.nextDue??b.date)||a.person.localeCompare(b.person,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'));
 }
 function reconEditOpenDebt(s,key,fields){
- const entry=reconOpenDebtEntries(s).find(e=>e.key===key);
+ let scope=null;
+ try{const parsed=JSON.parse(key);if(parsed[0]==='receivable'&&isMonth(parsed[1]))scope=parsed[1];}catch{}
+ const entry=reconOpenDebtEntries(s,scope).find(e=>e.key===key);
  if(!entry)throw Error('Dívida não encontrada.');
  if(entry.kind==='purchase')return reconEditSettlement(s,key,fields);
  if(entry.fixedId)throw Error('Edite este Pix em Valores Fixos.');

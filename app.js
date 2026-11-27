@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.39 */
-/* Diário Financeiro 4.0.39: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.40 */
+/* Diário Financeiro 4.0.40: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -32,8 +32,17 @@ function valid(s){
  if(!Array.isArray(s.extraIncome)||!s.extraIncome.every(e=>typeof e.id==='string'&&typeof e.name==='string'&&e.name.length<=120&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>0))return false;
  if(!Array.isArray(s.cashEntries)||!s.cashEntries.every(e=>typeof e.id==='string'&&['salary','invoice','fixed','investment','adjustment-in','adjustment-out'].includes(e.type)&&isDate(e.date)&&isMonth(e.month)&&Number.isFinite(e.amount)&&e.amount>0))return false;
  if(s.investmentSkipped!==undefined&&(!Array.isArray(s.investmentSkipped)||!s.investmentSkipped.every(m=>isMonth(m))||new Set(s.investmentSkipped).size!==s.investmentSkipped.length))return false;
- if(s.fixedPaid!==undefined&&(!Array.isArray(s.fixedPaid)||!s.fixedPaid.every(e=>typeof e.id==='string'&&isMonth(e.month)&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>=0)))return false;
+ if(s.fixedPaid!==undefined&&(!Array.isArray(s.fixedPaid)||!s.fixedPaid.every(e=>typeof e.id==='string'&&isMonth(e.month)&&isDate(e.date)&&Number.isFinite(e.amount)&&e.amount>=0&&(e.batch===undefined||typeof e.batch==='string'&&e.batch.length>0&&e.batch.length<=100&&Number.isSafeInteger(Math.round(e.amount*100))&&Math.round(e.amount*100)>0))))return false;
  if(!s.fixedItems.every(e=>(e.day===undefined||(Number.isInteger(e.day)&&e.day>=1&&e.day<=31))&&(e.direction===undefined||['in','out'].includes(e.direction))&&(e.channel===undefined||['pix','card'].includes(e.channel))&&(e.tag===undefined||(typeof e.tag==='string'&&e.tag.length<=100))&&(!e.end||e.end>=e.start)))return false;
+ const fixedTotals=new Map(),fixedIds=new Set();
+ for(const e of s.fixedPaid??[])if(e.batch){
+  const item=s.fixedItems.find(x=>x.id===e.id&&x.channel!=='card'&&x.direction!=='in'&&x.start<=e.month&&(!x.end||x.end>=e.month));
+  const key=JSON.stringify([e.id,e.month]),identity=JSON.stringify([e.id,e.month,e.batch]);
+  if(!item||fixedIds.has(identity)||confirmedFixed(s,e.id,e.month))return false;
+  const amount=(fixedTotals.get(key)??0)+Math.round(e.amount*100);
+  if(amount>Math.round(item.amount*100))return false;
+  fixedIds.add(identity);fixedTotals.set(key,amount);
+ }
  return s.extraInvestments.every(x=>typeof x.id==='string'&&typeof x.name==='string'&&x.name.length<=120&&isDate(x.date)&&Number.isFinite(x.amount)&&x.amount>0)&&s.monthlyPaid.every(x=>isMonth(x.month)&&isDate(x.date)&&x.date.slice(0,7)===x.month&&Number.isFinite(x.amount)&&x.amount>=0)&&new Set(s.monthlyPaid.map(x=>x.month)).size===s.monthlyPaid.length;
 }
 function toV6(v){
@@ -81,7 +90,7 @@ function nextMonthEndPayday(date){
  return pay>date?pay:eventDate(shiftMonth(m,1),30);
 }
 function fixedDate(s,item,m){return eventDate(m,item.day||5)}
-function confirmedFixed(s,id,m){return (s.fixedPaid||[]).find(x=>x.id===id&&x.month===m)||null}
+function confirmedFixed(s,id,m){return (s.fixedPaid||[]).find(x=>x.id===id&&x.month===m&&!x.batch)||null}
 function cashAt(s,end){
  const opened=reconOpening(s);
  if(!opened)return null;
@@ -98,11 +107,11 @@ function cashAt(s,end){
  // Fixos são debitados automaticamente no dia configurado. Pagamentos históricos já confirmados prevalecem.
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
    for(const item of reconFixed(s,m)){
-     const confirmed=confirmedFixed(s,item.id,m);
-     const date=confirmed?.date??fixedDate(s,item,m);
-     if(date>start&&date<=end)projected+=(item.direction==='in'?1:-1)*(confirmed?.amount??item.amount);
+     const {date,amount}=reconScheduledFixed(s,item,m);
+     if(date>start&&date<=end)projected+=(item.direction==='in'?1:-1)*amount;
    }
  }
+ projected-=(s.fixedPaid??[]).filter(e=>e.batch&&included(e.date)).reduce((v,e)=>v+Math.round(e.amount*100),0)/100;
  projected+=s.extraIncome.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected-=s.expenses.filter(e=>!e.cardMonth&&included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected-=s.extraInvestments.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
@@ -157,9 +166,8 @@ function nextInvoiceCoverage(s,asOf){
  const salaryDate=credits.at(-1)?.date??null;
  const invoice=invoiceDate>asOf?invoiceAmount(s,invoiceMonth):0;
  const fixed=round(reconFixed(s,invoiceMonth).filter(x=>x.direction!=='in').reduce((sum,item)=>{
-   const confirmed=confirmedFixed(s,item.id,invoiceMonth);
-   const paidDate=confirmed?.date||fixedDate(s,item,invoiceMonth);
-   return sum+(paidDate>asOf?confirmed?confirmed.amount:item.amount:0);
+   const {date,amount}=reconScheduledFixed(s,item,invoiceMonth);
+   return sum+(date>asOf?amount:0);
  },0));
  const paid=settled(s,invoiceMonth);
  const investment=(skipped(s,invoiceMonth)||(paid&&paid.date<=asOf))?0:paid?paid.amount:investmentAmount(s,invoiceMonth);
@@ -657,7 +665,7 @@ function paintScreen(){
    $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
  }
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),recurringPayables:m=>reconRecurringPayables(state,m),openFixedSetting,settlements:m=>reconOpenDebtEntries(state,m),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),recurringPayables:m=>reconRecurringPayables(state,m),openFixedSetting,settlements:m=>reconOpenDebtEntries(state,m),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:m=>reconDebt(state,m),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){

@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.33">
-<link rel="stylesheet" href="./recon.css?v=4.0.33">
+<link rel="stylesheet" href="./style.css?v=4.0.34">
+<link rel="stylesheet" href="./recon.css?v=4.0.34">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -113,7 +113,9 @@
 <button type="button" data-theme-choice="ocean" aria-pressed="true"><span class="theme-swatch navy-swatch" aria-hidden="true"></span>Azul marinho</button>
 <button type="button" data-theme-choice="pink" aria-pressed="false"><span class="theme-swatch rose-swatch" aria-hidden="true"></span>Rosa noturno</button>
 </div></section>
-<details class="surface settings-details"><summary>Saldo de abertura</summary><p id="reconOpeningNote" class="assistive hidden"></p><form id="openingForm"><div id="reconOpeningAccounts" class="hidden"></div><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><div id="originalOpeningAmount"><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required></div><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos e o aporte mensal são baixados do caixa quando você confirma o pagamento. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
+<details class="surface settings-details" id="fixedValuesSection"><summary>Valores Fixos</summary>
+<div id="fixedValues" class="recon-screen movement-statement"></div></details>
+<details class="surface settings-details"><summary>Saldo de abertura</summary><p id="reconOpeningNote" class="assistive hidden"></p><form id="openingForm"><div id="reconOpeningAccounts" class="hidden"></div><label for="openingDate">Data de referência</label><div class="calendar-field"><span class="calendar-label" data-for="openingDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="openingDate" type="date" required></div><div id="originalOpeningAmount"><label for="openingAmount">Saldo inicial (R$)</label><input id="openingAmount" type="number" min="0" step="0.01" inputmode="decimal" required></div><button class="primary" type="submit">Salvar saldo</button></form><p class="assistive">Salário e fatura são estimados automaticamente. Os fixos por Pix entram no dia configurado, e o aporte mensal confirmado na data registrada. O saldo de abertura é anterior às movimentações lançadas nessa mesma data.</p></details>
 <details class="surface settings-details"><summary>Renda e investimentos</summary><form id="baselineForm">
 <label for="effectiveMonth">Renda e aporte válidos a partir de</label><div class="calendar-field"><span class="calendar-label" data-for="effectiveMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="effectiveMonth" type="month" required></div>
 <div class="two-cols"><div><label for="salaryDay15">Salário no dia 15 (R$)</label><input id="salaryDay15" type="number" inputmode="decimal" min="0" step="0.01" required></div><div><label for="salaryDay30">Salário no dia 30 (R$)</label><input id="salaryDay30" type="number" inputmode="decimal" min="0" step="0.01" required></div></div>
@@ -122,7 +124,6 @@
 <label for="margin">Margem de segurança mensal (R$)</label><input id="margin" type="number" min="0" step="0.01" required>
 <input id="started" type="hidden">
 <button class="primary" type="submit">Salvar configuração</button></form></details>
-<details class="surface settings-details"><summary>Despesas fixas<strong id="fixedSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="fixedList"></div><div id="itemPanels"><form id="fixedForm"><h3>Cadastrar ou editar despesa fixa</h3><label for="fixedName">Descrição</label><input id="fixedName" maxlength="120" placeholder="Ex.: Spotify" required><label for="fixedAmount">Valor mensal (R$)</label><input id="fixedAmount" type="number" min="0" step="0.01" required><label for="fixedDay">Dia de débito mensal</label><input id="fixedDay" type="number" min="1" max="31" step="1" value="5" required><div class="two-cols"><div><label for="fixedStart">Início</label><div class="calendar-field"><span class="calendar-label" data-for="fixedStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="fixedStart" type="month" required></div></div><div><label for="fixedEnd">Fim (opcional)</label><div class="calendar-field"><span class="calendar-label" data-for="fixedEnd">Sem término</span><span class="calendar-icon">▦</span><input id="fixedEnd" type="month"></div></div></div><button id="fixedSubmit" class="primary" type="submit">Adicionar despesa fixa</button><button id="fixedCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores<strong id="baseSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="baseList"></div><div id="baseEntry"><form id="baseForm"><h3>Cadastrar ou editar parcela anterior</h3><label for="baseName">Descrição</label><input id="baseName" maxlength="120" placeholder="Ex.: Hospedagem" required><label for="basePayment">Valor de cada parcela (R$)</label><input id="basePayment" type="number" min="0.01" step="0.01" required><div class="two-cols"><div><label for="baseRemaining">Parcelas restantes</label><input id="baseRemaining" type="number" min="1" max="240" step="1" required></div><div><label for="baseStart">Primeira fatura pendente</label><div class="calendar-field"><span class="calendar-label" data-for="baseStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="baseStart" type="month" required></div></div></div><button id="baseSubmit" class="primary" type="submit">Adicionar parcela antiga</button><button id="baseCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details hidden" id="importedBank"><summary>Extrato bancário importado</summary><p class="assistive">Histórico para conferência. Movimentações já refletidas no saldo de partida não são somadas de novo.</p><div id="bankRows"></div></details>
 <details class="surface settings-details"><summary>Atualizar fatura por CSV</summary><form id="cardImportForm"><label for="cardImportMonth">Mês da fatura</label><div class="calendar-field"><span class="calendar-label" data-for="cardImportMonth" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="cardImportMonth" type="month" required></div><label for="cardImportStatus">Situação</label><select id="cardImportStatus"><option value="closed">Fatura fechada</option><option value="open">Fatura aberta (prévia)</option></select><label for="cardImportFile">Arquivo CSV do cartão (Rico)</label><input id="cardImportFile" type="file" accept=".csv,text/csv,text/plain" required><p class="assistive">Usa as linhas do banco como base deste mês. Não altera o saldo da conta nem apaga lançamentos manuais. O arquivo é lido apenas neste dispositivo.</p><button type="submit" class="secondary">Importar CSV</button></form></details>
@@ -159,18 +160,18 @@
 <div class="help-item"><strong>Data do aporte</strong><p>Dia em que fez o aporte adicional.</p></div>
 <div class="help-item"><strong>Descrição</strong><p>Nome opcional para identificar o aporte no histórico.</p></div>
 <div class="help-item"><strong>Confirmação do primeiro aporte</strong><p>Na aba Investimentos, registre o primeiro aporte do mês em um bloco próprio e os aportes extras em outro. O histórico mensal mostra o total somado de cada mês.</p></div><div class="help-item"><strong>Valor aportado a mais</strong><p>Aporte adicional ao primeiro aporte do mês. Você pode registrar quantos quiser, inclusive no mesmo dia.</p></div></details>
-<details class="surface settings-details"><summary>Despesas fixas</summary>
-<div class="help-item"><strong>Descrição e valor mensal</strong><p>Nome e custo de uma obrigação recorrente, como plano de celular ou assinatura.</p></div>
+<details class="surface settings-details"><summary>Valores Fixos</summary>
+<div class="help-item"><strong>Descrição e valor mensal</strong><p>Descrição, etiqueta e valor de uma entrada ou saída mensal.</p></div>
 <div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
 <div class="help-item"><strong>Fim (opcional)</strong><p>Último mês em que ela será cobrada. Deixe vazio se continuar por prazo indeterminado.</p></div>
-<div class="help-item"><strong>Dia de débito</strong><p>As despesas fixas são consideradas pagas automaticamente no dia configurado. O orçamento já as considera antes disso.</p></div></details>
+<div class="help-item"><strong>Dia de débito</strong><p>O Pix recorrente entra no saldo na data configurada. No cartão, a recorrência entra na fatura do mês e só impacta a conta no pagamento da fatura. O app não envia Pix nem cobra no cartão.</p></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores</summary>
 <div class="help-item"><strong>Descrição</strong><p>Nome da compra que já estava parcelada antes de começar o controle.</p></div>
 <div class="help-item"><strong>Valor de cada parcela</strong><p>Quanto você paga por mês; não é o valor total da compra.</p></div>
 <div class="help-item"><strong>Parcelas restantes</strong><p>Quantidade de prestações ainda pendentes, incluindo a primeira fatura informada.</p></div>
 <div class="help-item"><strong>Primeira fatura pendente</strong><p>Mês em que a próxima parcela será cobrada. As seguintes são projetadas automaticamente.</p></div></details>
 <details class="surface settings-details"><summary>Planejamento e backups</summary>
-<div class="help-item"><strong>Composição do mês</strong><p>Toque em um dos 12 meses. O período escolhido aparece em título fixo, com categorias expansíveis e itens ordenados pelo maior valor.</p></div><div class="help-item"><strong>Dia de débito</strong><p>Configure o dia habitual de cada despesa fixa. Se o mês não tiver esse dia, o último dia será utilizado.</p></div><div class="help-item"><strong>Pagamentos realizados</strong><p>Marque despesas fixas e aporte mensal depois da efetiva saída do dinheiro. Itens não pagos permanecem comprometidos no orçamento, mas ainda não reduzem o caixa.</p></div>
+<div class="help-item"><strong>Composição do mês</strong><p>Toque em um dos 12 meses. O período escolhido aparece em título fixo, com categorias expansíveis e itens ordenados pelo maior valor.</p></div><div class="help-item"><strong>Dia de débito</strong><p>Configure o dia habitual de cada despesa fixa. Se o mês não tiver esse dia, o último dia será utilizado.</p></div><div class="help-item"><strong>Pagamentos realizados</strong><p>Registre a data efetiva do aporte mensal. Os valores fixos seguem os dias configurados e o fechamento da fatura importada.</p></div>
 <div class="help-item"><strong>Próximos 12 meses</strong><p>Projeção mensal baseada nos dados atuais, sem presumir novas compras futuras.</p></div>
 <div class="help-item"><strong>Exportar meus dados</strong><p>Cria um arquivo JSON com itens e registros detalhados. Guarde-o em local privado, fora do repositório público.</p></div>
 <div class="help-item"><strong>Importar backup</strong><p>Restaura os registros do arquivo escolhido, substituindo os dados locais existentes. Faça uma exportação antes de restaurar.</p></div>
@@ -187,9 +188,9 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.33" defer></script>
-<script src="./recon-ui.js?v=4.0.33" defer></script>
-<script src="./card-import.js?v=4.0.33" defer></script>
-<script src="./scenarios.js?v=4.0.33" defer></script>
-<script src="./app.js?v=4.0.33" defer></script>
+<script src="./recon-model.js?v=4.0.34" defer></script>
+<script src="./recon-ui.js?v=4.0.34" defer></script>
+<script src="./card-import.js?v=4.0.34" defer></script>
+<script src="./scenarios.js?v=4.0.34" defer></script>
+<script src="./app.js?v=4.0.34" defer></script>
 </body></html>

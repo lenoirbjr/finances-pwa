@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.42 */
+/* diario-shell:4.0.43 */
 // Importa o CSV localmente; mantém a identidade das linhas que já existiam.
 function cardCsvFields(input){
  const out=[];let row=[],field='',quoted=false,afterQuote=false;

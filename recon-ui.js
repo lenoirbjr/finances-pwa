@@ -148,10 +148,10 @@ function createReconUI(){
  function billRows(){
    return `${displayed.length?displayed.map((r,i)=>{
     const credit=canEditCredit(r),canEdit=charge(r)||credit,name=escape(r.name),part=r.count>1&&r.number?` · Parcela ${r.number}/${r.count}`:'';
-    const tags=charge(r)||r.creditTag?classificationChips(r):credit?`<button type="button" class="recon-edit-chip" data-recon-edit-refund="${i}" aria-label="Editar: ${name}">Editar</button>`:'';
+    const tags=charge(r)||r.creditTag?classificationChips(r):credit?`<button type="button" class="recon-edit-chip" data-recon-edit-refund="${i}" aria-expanded="${editing===r.id}" aria-label="Editar: ${name}">Editar</button>`:'';
     const notes=(r.adjusted&&r.kind==='charge'?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:'')+(r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':'');
     return `<article class="recon-row recon-card-line recon-invoice-line">
-      ${canEdit?`<button type="button" class="recon-entry-name recon-invoice-name" data-recon-edit="${i}" aria-label="Editar lançamento: ${name}">${name}</button>`:`<strong class="recon-invoice-name">${name}</strong>`}
+      ${canEdit?`<button type="button" class="recon-entry-name recon-invoice-name" data-recon-edit="${i}" aria-expanded="${editing===r.id}" aria-label="Editar lançamento: ${name}">${name}</button>`:`<strong class="recon-invoice-name">${name}</strong>`}
       <strong class="recon-invoice-amount">${brl(r.cents)}</strong><div class="recon-invoice-meta"><small class="recon-invoice-date">${when(r.date)}${part}</small>${notes}</div>
       ${tags?`<div class="recon-invoice-tags">${tags}</div>`:''}
     </article>${editing===r.id&&['label','credit-label','adjust-installment','refund'].includes(formKind)?billEditor(r):''}`;
@@ -346,6 +346,7 @@ function createReconUI(){
    if(b.hasAttribute('data-recon-edit-refund')){
      const row=displayed[Number(b.dataset.reconEditRefund)];
      if(!canEditCredit(row))return;
+     if(editing===row.id){close();return;}
      editing=row.id;formKind='refund';paint();return;
    }
    if(b.hasAttribute('data-recon-reset-bank-credit')){
@@ -370,7 +371,7 @@ function createReconUI(){
      return;
    }
    if(b.hasAttribute('data-recon-edit')){
-     const item=displayed[Number(b.dataset.reconEdit)];if(!item||(!charge(item)&&!canEditCredit(item)))return;editing=item.id;formKind=charge(item)?'label':'credit-label';paint();return;
+     const item=displayed[Number(b.dataset.reconEdit)];if(!item||(!charge(item)&&!canEditCredit(item)))return;if(editing===item.id){close();return;}editing=item.id;formKind=charge(item)?'label':'credit-label';paint();return;
    }
    if(b.hasAttribute('data-recon-payable-start')){
      if(moneyTab!=='payable'||!currentPayables.some(x=>x.remaining>0))return;

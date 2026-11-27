@@ -443,7 +443,7 @@ function reconPayableEvents(s){
   ...(row.remaining?[{...row,cents:row.remaining,date:row.due,paidDate:null}]:[])
  ]);
 }
-function reconAddPayablePayment(s,p){
+function reconAddPayablePayment(s,p,existingBatch){
  const person=String(p.person??'').trim();
  if(!person||!isDate(p.date)||p.date>today()||!Number.isSafeInteger(p.cents)||p.cents<=0||!Array.isArray(p.allocations)||!p.allocations.length)throw Error('Confira a pessoa, a data e o valor do pagamento.');
  const key=(id,month)=>JSON.stringify([id,month]);
@@ -455,7 +455,7 @@ function reconAddPayablePayment(s,p){
   eligible.delete(k);entries.push(a);
  }
  if(entries.reduce((n,a)=>n+a.cents,0)!==p.cents)throw Error('Distribua todo o valor do pagamento antes de salvar.');
- const batch=newId();
+ const batch=existingBatch??newId();
  for(const a of entries){
   const parcel=s.parcels.find(x=>x.id===a.rowId);
   parcel.payments??=[];
@@ -473,4 +473,60 @@ function reconUndoPayablePayment(s,batch){
   parcel.payments=parcel.payments.filter(e=>!e.parts||e.parts.length);
  }
  if(!found)throw Error('Pagamento não encontrado.');
+}
+
+function reconSettlementKey(kind,...parts){return JSON.stringify([kind,...parts]);}
+function reconSettlementEntries(s){
+ const rows=reconPayableRows(s),groups=new Map(),names=new Map();
+ const receiptRows=s.reconciliation?.receipts??[];
+ const months=new Set(receiptRows.flatMap(r=>r.allocations.map(a=>a.month)));
+ for(const month of months){
+  for(const row of reconRows(s,month,true))names.set(JSON.stringify([month,row.id]),row.name);
+ }
+ const receipts=receiptRows.map(r=>({...r,kind:'in',key:reconSettlementKey('in',r.id),
+  allocations:r.allocations.map(a=>({...a,name:names.get(JSON.stringify([a.month,a.rowId]))??'Lançamento da fatura'}))}));
+ for(const row of rows)for(const p of row.postings){
+  const key=p.batch?reconSettlementKey('out',p.batch):reconSettlementKey('legacy',row.id,row.month);
+  const r=groups.get(key)??{kind:'out',key,person:row.person,date:p.date,batch:p.batch,cents:0,allocations:[]};
+  r.cents+=p.cents;r.allocations.push({rowId:row.id,month:row.month,name:row.name,cents:p.cents});groups.set(key,r);
+ }
+ const purchases=s.parcels.filter(p=>p.payTo).map(p=>({kind:'purchase',key:reconSettlementKey('purchase',p.id),id:p.id,date:p.payStart,
+  person:p.payTo,name:p.name,cents:Math.round(p.total*100),count:p.count,hasPayments:!!p.payments?.length}));
+ return [...receipts,...groups.values(),...purchases].sort((a,b)=>b.date.localeCompare(a.date)||a.person.localeCompare(b.person,'pt-BR'));
+}
+function reconEditSettlement(s,key,fields){
+ const entry=reconSettlementEntries(s).find(r=>r.key===key);
+ if(!entry)throw Error('Lançamento não encontrado.');
+ if(entry.kind==='purchase'){
+  const p=s.parcels.find(e=>e.id===entry.id&&e.payTo);
+  if(fields===null){
+   if(entry.hasPayments)throw Error('Exclua os pagamentos vinculados antes de excluir esta compra.');
+   if(reconParcelLinked(s,p.id)||reconHasAllocated(s,p.id))throw Error('Esta compra tem vínculos com a fatura. Remova os vínculos antes de excluir.');
+   s.parcels=s.parcels.filter(x=>x!==p);return;
+  }
+  const {name,person,date,cents,count}=fields;
+  if(!name||name.length>120||!person||person.length>100||!isDate(date)||!Number.isSafeInteger(cents)||cents>1e12||!Number.isInteger(count)||count<1||count>120||cents<count)throw Error('Confira a descrição, a pessoa, a data e o valor. Cada parcela deve ter ao menos um centavo.');
+  const schedule=person!==p.payTo||date!==p.payStart||cents!==entry.cents||count!==p.count;
+  if(schedule&&entry.hasPayments)throw Error('Desfaça os pagamentos vinculados antes de alterar as parcelas.');
+  if(schedule&&(reconParcelLinked(s,p.id)||reconHasAllocated(s,p.id)))throw Error('Esta compra tem vínculos com a fatura.');
+  Object.assign(p,{name,payTo:person,payStart:date,start:date.slice(0,7),total:cents/100,count,
+   payment:cents===entry.cents&&count===p.count?p.payment:Math.floor(cents/count)/100});
+  return;
+ }
+ // Recalculate on a copy so an invalid value cannot lose any existing allocations.
+ const next=structuredClone(s);
+ if(entry.kind==='in')reconDeleteReceipt(next,entry.id);
+ else if(entry.batch)reconUndoPayablePayment(next,entry.batch);
+ else reconSetPayable(next,entry.allocations[0].rowId,entry.allocations[0].month,null);
+ if(fields!==null){
+  if(!Array.isArray(fields.values)||fields.values.length!==entry.allocations.length||
+   fields.values.some(v=>!Number.isSafeInteger(v)||v<0||v>1e12))throw Error('Confira o valor informado.');
+  const allocations=entry.allocations.map(({rowId,month},i)=>({rowId,month,cents:fields.values[i]})).filter(a=>a.cents>0);
+  const total=allocations.reduce((n,a)=>n+a.cents,0);
+  if(!Number.isSafeInteger(total)||total<=0||total>1e12)throw Error('Informe um valor positivo ou exclua o lançamento.');
+  const payment={person:entry.person,date:fields.date,cents:total,allocations};
+  if(entry.kind==='in')reconAddReceipt(next,{...payment,id:entry.id,inBaseline:entry.inBaseline,...(entry.accountId!==undefined?{accountId:entry.accountId}:{})});
+  else reconAddPayablePayment(next,payment,entry.batch);
+ }
+ s.parcels=next.parcels;s.reconciliation=next.reconciliation;
 }

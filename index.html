@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.20">
-<link rel="stylesheet" href="./recon.css?v=4.0.20">
+<link rel="stylesheet" href="./style.css?v=4.0.21">
+<link rel="stylesheet" href="./recon.css?v=4.0.21">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -76,17 +76,17 @@
 <p class="assistive">Gastos e entradas extras por mês de lançamento.</p>
 <div id="expenses"></div></div>
 </section>
-<section id="screen-installments" class="screen hidden"><div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Compras parceladas</h1><p>Separe o que vai para sua fatura do que você vai pagar a outra pessoa.</p></div></div>
-<div class="subtabs card-entry-switch" role="group" aria-label="Tipo de lançamento"><button id="cardPurchaseTab" type="button" class="active" aria-controls="cardPurchasePanel" aria-pressed="true">Nova compra</button><button id="cardRefundTab" type="button" aria-controls="cardRefundPanel" aria-pressed="false">Reembolso</button></div>
+<section id="screen-installments" class="screen hidden" aria-label="Lançamentos da fatura">
+<div class="subtabs card-entry-switch" role="group" aria-label="Tipo de lançamento"><button id="cardPurchaseTab" type="button" class="active" aria-controls="cardPurchasePanel" aria-pressed="true">Nova Compra</button><button id="cardRefundTab" type="button" aria-controls="cardRefundPanel" aria-pressed="false">Estorno</button></div>
 <div id="cardPurchasePanel">
-<div class="surface"><h2>Nova compra</h2><form id="parcelForm"><label for="parcelOrigin">Onde foi feita a compra?</label><select id="parcelOrigin"><option value="own">Meu cartão</option><option value="person">Cartão de outra pessoa</option></select><div id="parcelPayeeFields" class="hidden"><label for="parcelPayee">A quem você vai pagar?</label><input id="parcelPayee" maxlength="100" placeholder="Nome da pessoa"><label for="parcelPayStart">Data do primeiro Pix previsto</label><div class="calendar-field"><span class="calendar-label" data-for="parcelPayStart" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelPayStart" type="date"></div><p class="assistive">Uma parcela por mês, no dia escolhido ou no último dia de meses mais curtos.</p></div><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
+<div class="surface"><h2>Nova Compra</h2><form id="parcelForm"><label for="parcelOrigin">Onde foi feita a compra?</label><select id="parcelOrigin"><option value="own">Meu cartão</option><option value="person">Cartão de outra pessoa</option></select><div id="parcelPayeeFields" class="hidden"><label for="parcelPayee">A quem você vai pagar?</label><input id="parcelPayee" maxlength="100" placeholder="Nome da pessoa"><label for="parcelPayStart">Data do primeiro Pix previsto</label><div class="calendar-field"><span class="calendar-label" data-for="parcelPayStart" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelPayStart" type="date"></div><p class="assistive">Uma parcela por mês, no dia escolhido ou no último dia de meses mais curtos.</p></div><label for="parcelName">Descrição</label><input id="parcelName" type="text" maxlength="120" placeholder="Ex.: Fone de ouvido" required>
 <label for="parcelTotal" id="parcelTotalLabel">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div id="parcelOwnDate"><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
 <div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div><span id="parcelImpactLabel">Parcela mensal adicionada à fatura</span> <strong id="weeklyImpact">R$ 0,00</strong></div></div>
 <button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button><button type="button" id="parcelOpenBill" class="text-button hidden">Ver na fatura</button></form></div>
 </div>
 <div id="cardRefundPanel" class="hidden">
-<div class="surface"><h2>Estorno no cartão</h2><p class="assistive">Abate na fatura em aberto, não no saldo da conta. Recebeu um Pix de alguém? <button class="text-button" type="button" id="cardRefundPix">Registre em A Pagar e Receber</button>.</p>
+<div class="surface"><h2>Estorno</h2>
 <form id="cardRefundForm"><label for="cardRefundName">Descrição</label><input id="cardRefundName" maxlength="120" required><label for="cardRefundAmount">Valor do estorno (R$)</label><input id="cardRefundAmount" type="number" min="0.01" max="10000000000" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="cardRefundMonth">Fatura</label><div class="calendar-field"><span class="calendar-label" data-for="cardRefundMonth" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="cardRefundMonth" type="month" required></div></div><div><label for="cardRefundDate">Data do estorno</label><div class="calendar-field"><span class="calendar-label" data-for="cardRefundDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="cardRefundDate" type="date" required></div></div></div>
 <button type="submit" class="primary">Registrar estorno</button></form></div>
@@ -187,9 +187,9 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.20" defer></script>
-<script src="./recon-ui.js?v=4.0.20" defer></script>
-<script src="./card-import.js?v=4.0.20" defer></script>
-<script src="./scenarios.js?v=4.0.20" defer></script>
-<script src="./app.js?v=4.0.20" defer></script>
+<script src="./recon-model.js?v=4.0.21" defer></script>
+<script src="./recon-ui.js?v=4.0.21" defer></script>
+<script src="./card-import.js?v=4.0.21" defer></script>
+<script src="./scenarios.js?v=4.0.21" defer></script>
+<script src="./app.js?v=4.0.21" defer></script>
 </body></html>

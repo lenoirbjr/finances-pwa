@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.20: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.21: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -728,7 +728,6 @@ $('cardMonthNext').addEventListener('click',()=>setCardMonth(shiftMonth(cardMont
 $('cardImportForm').addEventListener('submit',importClosedCard);
 $('cardPurchaseTab').addEventListener('click',()=>showCardEntry('purchase'));
 $('cardRefundTab').addEventListener('click',()=>showCardEntry('refund'));
-$('cardRefundPix').addEventListener('click',()=>{window.ReconUI?.selectMoney?.('receivable');showScreen('acertos')});
 $('cardRefundForm').addEventListener('submit',saveCardRefund);
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));

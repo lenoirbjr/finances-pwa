@@ -549,9 +549,7 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
 #cardImportFile{font:inherit;display:block;width:100%;min-width:0;color:var(--muted);font-size:.8rem}
 
 /* Keep both card-entry choices in one row on compact phones. */
-.card-entry-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
-.card-entry-switch button{min-width:0;width:100%;min-height:44px;padding-inline:6px}
-#cardRefundPix{display:inline;padding:0;font-size:inherit;text-align:left}
+.card-entry-switch{margin:0 0 10px}
 #cardRefundForm .two-cols>div{min-width:0}
 
 /* Keep explicit user scrolling stable when dynamic views replace content. */

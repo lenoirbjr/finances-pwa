@@ -14,7 +14,7 @@ function reconValidate(r){
  }
  const classification=(x,total)=>{const p=x.parts??[];if(!parts(p))return false;const n=p.reduce((a,z)=>a+z.cents,0);return x.label==='other'?n===total:x.label==='split'?n>0&&n<total:(!x.label||x.label==='mine')&&n===0};
  if(r.confirmedTotals!==undefined&&(!r.confirmedTotals||typeof r.confirmedTotals!=='object'||Array.isArray(r.confirmedTotals)||Object.entries(r.confirmedTotals).length>240||!Object.entries(r.confirmedTotals).every(([m,n])=>isMonth(m)&&cent(n)&&n>=0)))return false;
- if(!r.statements.every(st=>st&&isMonth(st.month)&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
+ if(!r.statements.every(st=>st&&isMonth(st.month)&&(st.closed===undefined||typeof st.closed==='boolean')&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
  if(!r.bankRows.every(x=>x&&str(x.id)&&str(x.name,300)&&isDate(x.date)&&typeof x.time==='string'&&/^\d{2}:\d{2}:\d{2}$/.test(x.time)&&cent(x.cents)&&cent(x.balanceCents))||!unique(r.bankRows,x=>x.id))return false;
  if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future','all'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,250))&&(x.ownerName===undefined||str(x.ownerName,100))&&(x.seriesKey===undefined||str(x.seriesKey,500)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
  if(!(r.payments??[]).every(x=>x&&isMonth(x.month)&&isDate(x.date))||!unique(r.payments??[],x=>x.month))return false;
@@ -130,6 +130,7 @@ function reconRawRows(s,m){
  });
  if(exact){
   const imported=normalized.get(m).map(rowWithSeries);
+  if(exact.closed===true)return imported;
   const linked=new Set(imported.flatMap(x=>[x.id,...(x.legacyIds??[])]));
   // A known CSV series can carry a local association from a different statement.
   // Do not guess from name or amount: different purchases may look identical.
@@ -203,7 +204,7 @@ function reconParcelTarget(s,id,monthRows=new Map()){
 function reconMonths(s){
  const r=s.reconciliation;
  const cur=monthNow();
- const m=new Set([cur,shiftMonth(cur,1),...Object.keys(r?.confirmedTotals??{})]);
+ const m=new Set([cur,shiftMonth(cur,1)]);
  for(const st of r?.statements??[]){m.add(st.month);for(const row of st.rows)if(row.count>row.number){for(let i=1;i<=row.count-row.number;i++)m.add(shiftMonth(st.month,i))}}
  for(const x of s.expenses)if(x.cardMonth)m.add(x.cardMonth);
  for(const o of r?.overrides??[])m.add(o.month);
@@ -278,8 +279,6 @@ function reconMarkPaid(s,m,date){
  if(date!==null)r.payments.push({month:m,date});
 }
 function reconInvoice(s,m){
- const confirmed=reconConfirmedTotal(s,m);
- if(confirmed!==null)return confirmed/100;
  if(!s.reconciliation?.statements?.some(st=>st.month<=m))return null;
  return Math.max(0,reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'?0:x.cents),0))/100;
 }
@@ -338,12 +337,4 @@ function reconSetPayable(s,id,month,date){
  if(date!==null&&prev)throw Error('Esta parcela já está paga.');
  p.payments=(p.payments??[]).filter(x=>x.month!==month);
  if(date!==null)p.payments.push({month,date});
-}
-function reconConfirmedTotal(s,m){
- return s.reconciliation?.confirmedTotals?.[m]??null;
-}
-function reconSetConfirmedTotal(s,m,cents){
- if(!isMonth(m)||(cents!==null&&(!Number.isSafeInteger(cents)||cents<0||cents>1e12)))throw Error('Confira o total informado pelo banco.');
- const r=reconInit(s);r.confirmedTotals??={};
- if(cents===null)delete r.confirmedTotals[m];else r.confirmedTotals[m]=cents;
 }

@@ -209,3 +209,9 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-sort-control:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .recon-sort-control svg{width:22px;height:22px}
 .recon-label-filter .recon-sort-control select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+
+.recon-screen .recon-row .recon-entry-name{display:block;text-align:left;min-height:28px;max-width:100%;margin:0;padding:0;border:0;background:none;color:var(--text);font-size:.9rem;font-weight:750;line-height:1.25;overflow-wrap:anywhere}
+.recon-entry-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.recon-passive-chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:100%;font-size:.72rem;line-height:1.2}
+.recon-screen .recon-row .recon-edit-chip,.recon-empty-chip{display:inline-flex;align-items:center;width:auto;min-height:25px;margin:3px 0 0;padding:3px 6px;border:1px solid var(--edge);border-radius:6px;background:var(--surface-alt);color:var(--muted);font-size:.72rem;line-height:1.2;font-weight:550}
+.recon-screen .recon-row .recon-edit-chip{color:var(--accent)}

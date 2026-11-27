@@ -1,8 +1,8 @@
 const SCOPE=new URL(self.registration.scope);
 const LEGACY_PREFIX='finances-pwa-shell-';
 const PREFIX='diario-financeiro-shell:'+SCOPE.pathname+':';
-const CACHE=PREFIX+'4.0.21';
-const ASSETS=['./','./index.html','./app.js?v=4.0.21','./scenarios.js?v=4.0.21','./style.css?v=4.0.21','./recon-model.js?v=4.0.21','./recon-ui.js?v=4.0.21','./card-import.js?v=4.0.21','./recon.css?v=4.0.21','./manifest.webmanifest','./finance-icon.svg','./finance-icon-192.png','./finance-icon-512.png','./finance-touch-180.png'];
+const CACHE=PREFIX+'4.0.22';
+const ASSETS=['./','./index.html','./app.js?v=4.0.22','./scenarios.js?v=4.0.22','./style.css?v=4.0.22','./recon-model.js?v=4.0.22','./recon-ui.js?v=4.0.22','./card-import.js?v=4.0.22','./recon.css?v=4.0.22','./manifest.webmanifest','./finance-icon.svg','./finance-icon-192.png','./finance-icon-512.png','./finance-touch-180.png'];
 const scopedAssets=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(async key=>{

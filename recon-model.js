@@ -9,6 +9,7 @@ function reconValidate(r){
  const unique=(a,fn)=>new Set(a.map(fn)).size===a.length;
  if(!r||!arr(r.statements,120)||!arr(r.bankRows,30000)||!arr(r.receipts,10000)||!arr(r.overrides,20000)||!arr(r.payments??[],120))return false;
  if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
+ if(r.bankCreditEdits!==undefined&&(!arr(r.bankCreditEdits,5000)||!r.bankCreditEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&str(x.name,250)&&isDate(x.date)&&pos(x.cents))||!unique(r.bankCreditEdits,x=>x.month+'|'+x.rowId)))return false;
  if(r.installmentAdjustments!==undefined&&(!arr(r.installmentAdjustments,5000)||!r.installmentAdjustments.every(x=>x&&str(x.id)&&str(x.rowId)&&str(x.key,900)&&str(x.name,250)&&isMonth(x.month)&&cent(x.cents)&&x.cents>=0&&Number.isInteger(x.count)&&x.count>0&&x.count<=240)||!unique(r.installmentAdjustments,x=>x.id)))return false;
  if(r.baseline!==undefined){
   const b=r.baseline;
@@ -175,7 +176,12 @@ function reconAdjustmentMatches(r,x){
  return r.id===x.rowId||(!r.forecastKey&&(reconSeriesId(r)===x.key||r.seriesAliases?.includes(x.key)));
 }
 function reconRawRows(s,m){
- const rows=reconUnadjustedRows(s,m),adjustments=s.reconciliation?.installmentAdjustments??[];
+ const adjustments=s.reconciliation?.installmentAdjustments??[];
+ const credits=new Map((s.reconciliation?.bankCreditEdits??[]).filter(x=>x.month===m).map(x=>[x.rowId,x]));
+ const rows=reconUnadjustedRows(s,m).map(r=>{
+  const x=credits.get(r.id);
+  return x&&r.source==='statement'&&(r.kind==='credit'||r.kind==='prior-payment')?{...r,name:x.name,date:x.date,cents:-x.cents,bankEdited:true,originalCents:r.cents}:r;
+ });
  if(!adjustments.length||!reconCanAdjustMonth(s,m))return rows;
  const applicable=adjustments.filter(x=>x.month<=m);
  if(!applicable.length)return rows;

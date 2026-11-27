@@ -143,3 +143,13 @@ function editCardRefund(s,m,id,fields){
  try{addCardRefund(s,{...record,name,date,cents});}
  catch(err){r.cardRefunds=old;throw err;}
 }
+
+function editBankCredit(s,m,id,fields){
+ const r=s.reconciliation,statement=r?.statements?.find(x=>x.month===m),record=statement?.rows.find(x=>x.id===id);
+ if(!record||!['credit','prior-payment'].includes(record.kind))throw Error('Crédito ou pagamento anterior não encontrado na fatura.');
+ const rest=(r.bankCreditEdits??[]).filter(x=>x.month!==m||x.rowId!==id);
+ if(fields===null){r.bankCreditEdits=rest;return;}
+ const name=String(fields.name??'').trim(),date=fields.date,cents=fields.cents;
+ if(!name||name.length>250||!isDate(date)||date>today()||!Number.isSafeInteger(cents)||cents<=0||cents>1e12)throw Error('Confira a descrição, a data e o valor.');
+ r.bankCreditEdits=name===record.name&&date===record.date&&cents===-record.cents?rest:[...rest,{month:m,rowId:id,name,date,cents}];
+}

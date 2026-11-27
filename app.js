@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.42 */
-/* Diário Financeiro 4.0.42: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.43 */
+/* Diário Financeiro 4.0.43: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -669,8 +669,22 @@ function renderCardHub(){
   select.dataset.months=signature;
  }
  if(select.value!==m)select.value=m;
- const {card,outside,total,paid}=reconCommitmentTotals(state,m);
- $('cardOwnTotal').textContent=money(card/100);$('cardPeopleTotal').textContent=money(outside/100);$('cardCommitments').textContent=money(total/100);$('cardPaidTotal').textContent=money(paid/100);
+ renderCommitmentTotals(state,m);
+}
+function renderCommitmentTotals(s,m){
+ const {card,outside,total,paid,open,cardPaid,cardOpen,outsidePaid,outsideOpen}=reconCommitmentTotals(s,m);
+ const amounts={cardCommitments:total,cardOwnTotal:card,cardPeopleTotal:outside,cardPaidTotal:paid,
+  cardOwnPaid:cardPaid,cardOwnOpen:cardOpen,cardPeoplePaid:outsidePaid,cardPeopleOpen:outsideOpen,cardOpenTotal:open};
+ for(const [id,cents] of Object.entries(amounts)){
+  const el=$(id),text=money(cents/100);if(el.textContent!==text)el.textContent=text;
+ }
+ for(const [id,base,remaining] of [['cardOwnOpen',card,cardOpen],['cardPeopleOpen',outside,outsideOpen]]){
+  const el=$(id),settled=base>0&&remaining===0;
+  const label=el.previousElementSibling;
+  const text=settled?'Quitado':'Em Aberto';if(label&&label.textContent!==text)label.textContent=text;
+ }
+ const status=$('cardOpenStatus'),text=total>0&&open===0?'Quitado':`Em aberto: ${money(open/100)}`;
+ if(status.textContent!==text)status.textContent=text;
 }
 function showScreenNoScroll(){return keepScrollPosition(paintScreen)}
 function paintScreen(){

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.42">
+<meta name="diario-shell" content="4.0.43">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.42">
-<link rel="stylesheet" href="./recon.css?v=4.0.42">
+<link rel="stylesheet" href="./style.css?v=4.0.43">
+<link rel="stylesheet" href="./recon.css?v=4.0.43">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -58,11 +58,19 @@
 </section>
 <section id="card-hub" class="card-hub hidden" aria-label="Área da fatura">
 <div class="section-heading"><span class="screen-kicker">CARTÃO E ACERTOS</span><h1>Fatura</h1></div>
-<section class="balance-card commitment-hero" aria-labelledby="card-commitment-title">
-<h2 id="card-commitment-title">Total de Compromissos</h2>
-<div class="balance-amount" id="cardCommitments">—</div>
-<dl><div><dt>Meu Cartão</dt><dd id="cardOwnTotal">—</dd></div><div><dt>A Pagar</dt><dd id="cardPeopleTotal">—</dd></div><div><dt>Já Pago</dt><dd id="cardPaidTotal">—</dd></div></dl>
-</section>
+<details class="balance-card commitment-hero" aria-labelledby="card-commitment-title">
+<summary>
+ <h2 id="card-commitment-title">Total de Compromissos</h2>
+ <div class="balance-amount" id="cardCommitments">—</div>
+ <div class="commitment-kicker" id="cardOpenStatus" aria-live="polite">—</div>
+ <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>
+</summary>
+<div class="commitment-breakdown" aria-label="Detalhamento dos compromissos" aria-live="polite" aria-atomic="true">
+ <div class="commitment-group"><h3>Meu Cartão</h3><dl><div><dt>Total</dt><dd id="cardOwnTotal">—</dd></div><div><dt>Já Pago</dt><dd id="cardOwnPaid">—</dd></div><div><dt>Em Aberto</dt><dd id="cardOwnOpen">—</dd></div></dl></div>
+ <div class="commitment-group"><h3>A Pagar</h3><dl><div><dt>Total</dt><dd id="cardPeopleTotal">—</dd></div><div><dt>Já Pago</dt><dd id="cardPeoplePaid">—</dd></div><div><dt>Em Aberto</dt><dd id="cardPeopleOpen">—</dd></div></dl></div>
+ <dl class="commitment-net"><div><dt>Já Pago no Total</dt><dd id="cardPaidTotal">—</dd></div><div><dt>Falta Pagar</dt><dd id="cardOpenTotal">—</dd></div></dl>
+</div>
+</details>
 <nav id="card-tabs" class="subtabs" aria-label="Seções da fatura"><button data-screen="installments" type="button">Lançamentos</button><button data-screen="recon" type="button">Fatura</button><button data-screen="acertos" type="button">A Pagar e Receber</button></nav>
 <div class="recon-period card-period"><label for="cardMonth">Mês dos Compromissos</label><div class="recon-month-controls"><button id="cardMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="cardMonth" aria-label="Mês dos Compromissos"></select><button id="cardMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
 </section>
@@ -212,9 +220,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.42" defer></script>
-<script src="./recon-ui.js?v=4.0.42" defer></script>
-<script src="./card-import.js?v=4.0.42" defer></script>
-<script src="./scenarios.js?v=4.0.42" defer></script>
-<script src="./app.js?v=4.0.42" defer></script>
+<script src="./recon-model.js?v=4.0.43" defer></script>
+<script src="./recon-ui.js?v=4.0.43" defer></script>
+<script src="./card-import.js?v=4.0.43" defer></script>
+<script src="./scenarios.js?v=4.0.43" defer></script>
+<script src="./app.js?v=4.0.43" defer></script>
 </body></html>

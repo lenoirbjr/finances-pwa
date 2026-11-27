@@ -22,7 +22,7 @@ function createReconUI(){
    if(r.creditTag)return [r.creditTag];
    const parts=(r.parts||[]).filter(x=>partName(x));
    const mine=r.ownerName||owner?.name||'Minha parte';
-   return r.label==='mine'?[mine]:r.label==='split'?[mine,...parts.map(partName)]:r.label==='other'?parts.map(partName):[];
+   return r.label==='mine'?[mine]:r.label==='split'?[mine,...parts.map(partName)]:r.label==='other'?parts.map(partName):r.recurringTag?[r.recurringTag]:[];
  }
  function classificationChips(r){
    const names=classificationNames(r);

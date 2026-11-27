@@ -262,3 +262,10 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-settlement-ledger .history-month-content{padding-inline:10px}
 .recon-settlement-ledger h3{margin:14px 0 6px;font-size:.88rem}
 .recon-settlement-form label small{display:block;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}
+
+#fixedValues .fixed-values-tabs{margin-bottom:10px}
+#fixedValues .fixed-values-add{width:100%;margin:0 0 8px}
+#fixedValues .fixed-editor{padding:10px}
+#fixedValues .fixed-editor .two-cols{min-width:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+#fixedValues .fixed-editor .calendar-field{min-width:0}
+#fixedValues .fixed-editor .calendar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

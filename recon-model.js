@@ -109,6 +109,28 @@ function reconStatementLinks(statements,receipts){
  return {normalized,groups,ambiguous};
 }
 function reconLinkedSeries(row,key){return reconSeriesId(row)===key||row.seriesAliases?.includes(key)}
+function reconRecurringCardRows(s,m,imported=[]){
+ if(reconPayment(s,m))return [];
+ const exactName=v=>String(v??'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');
+ const items=activeFixed(s,m).filter(x=>x.channel==='card'&&x.amount>0);
+ const links=e=>imported.filter(r=>r.id==='recurring:'+e.id||r.legacyIds?.includes('recurring:'+e.id)||r.legacyIds?.includes(e.id));
+ const linked=new Map(items.map(e=>[e.id,links(e)])),used=new Set([...linked.values()].flat());
+ const claims=new Map();
+ const key=(kind,cents,name)=>JSON.stringify([kind,cents,exactName(name)]);
+ for(const row of imported){
+  if(row.count>1||used.has(row))continue;
+  const k=key(row.kind,row.cents,row.name);
+  claims.set(k,(claims.get(k)??0)+1);
+ }
+ return items.flatMap(e=>{
+  const id='recurring:'+e.id,kind=e.direction==='in'?'credit':'charge';
+  const cents=Math.round(e.amount*100)*(kind==='credit'?-1:1);
+  if(linked.get(e.id).length)return [];
+  const k=key(kind,cents,e.name),available=claims.get(k)??0;
+  if(available&&exactName(e.name)){claims.set(k,available-1);return [];}
+  return [{id,name:e.name,date:fixedDate(s,e,m),cents,kind,source:'recurring-card',recurringTag:e.tag}];
+ });
+}
 function reconUnadjustedRows(s,m){
  const statements=s.reconciliation?.statements??[];
  const {normalized,groups,ambiguous}=reconStatementLinks(statements,s.reconciliation?.receipts??[]);
@@ -146,7 +168,7 @@ function reconUnadjustedRows(s,m){
    const x=rowWithSeries(raw);
    if(x.seriesKey&&keys.has(reconSeriesId(x)))for(const id of x.legacyIds??[])linked.add(id);
   }
-  return [...imported,...manualRows(linked),...refunds];
+  return [...imported,...manualRows(linked),...refunds,...reconRecurringCardRows(s,m,imported)];
  }
  const prior=statements.filter(x=>x.month<m).sort((a,b)=>b.month.localeCompare(a.month));
  const covered=new Set(), projected=[], seen=new Set();
@@ -168,7 +190,7 @@ function reconUnadjustedRows(s,m){
   }
  }
  for(const e of oldParts(s,m))if(!covered.has(e.id))projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents:Math.round(e.payment*100),kind:'charge',count:e.remaining,number:monthDiff(e.start,m)+1,source:'legacy'});
- return [...projected,...manualRows(covered),...refunds];
+ return [...projected,...manualRows(covered),...refunds,...reconRecurringCardRows(s,m)];
 }
 // Ajustes locais só atuam em projeções e faturas ainda em aberto.
 function reconCanAdjustMonth(s,m){
@@ -291,6 +313,11 @@ function reconMonths(s){
  const r=s.reconciliation;
  const cur=monthNow();
  const m=new Set([cur,shiftMonth(cur,1)]);
+ for(const item of s.fixedItems){
+  if(item.channel!=='card')continue;
+  for(let i=0;i<12;i++){const month=shiftMonth(cur,i);if(item.start<=month&&(!item.end||item.end>=month))m.add(month);}
+  m.add(item.start);if(item.end)m.add(item.end);
+ }
  for(const x of r?.cardRefunds??[])m.add(x.month);
  for(const st of r?.statements??[]){m.add(st.month);for(const row of st.rows)if(row.count>row.number){for(let i=1;i<=row.count-row.number;i++)m.add(shiftMonth(st.month,i))}}
  for(const x of s.expenses)if(x.cardMonth)m.add(x.cardMonth);
@@ -367,7 +394,7 @@ function reconMarkPaid(s,m,date){
 }
 function reconInvoice(s,m){
  const recon=s.reconciliation,hasStatements=recon?.statements?.some(st=>st.month<=m);
- if(!hasStatements&&!recon?.installmentAdjustments?.some(x=>x.month<=m)&&!recon?.cardRefunds?.some(x=>x.month===m)&&!recon?.singleChargeEdits?.some(x=>x.month===m)&&!recon?.excludedLines?.some(x=>x.month===m))return null;
+ if(!hasStatements&&!activeFixed(s,m).some(x=>x.channel==='card'&&x.amount>0)&&!recon?.installmentAdjustments?.some(x=>x.month<=m)&&!recon?.cardRefunds?.some(x=>x.month===m)&&!recon?.singleChargeEdits?.some(x=>x.month===m)&&!recon?.excludedLines?.some(x=>x.month===m))return null;
  const useLegacy=!hasStatements&&s.mode==='legacy',legacy=useLegacy?Math.round((s.legacyInvoices[m]??0)*100):0;
  const rows=reconRawRows(s,m);
  const legacyDetail=useLegacy?reconUnadjustedRows(s,m).filter(x=>x.source==='legacy').reduce((n,x)=>n+x.cents,0):0;
@@ -383,7 +410,7 @@ function reconCashReceipts(s,start,end){
 function reconFixed(s,m){
  const st=s.reconciliation?.statements?.find(x=>x.month===m);
  const links=new Set(st?.rows.flatMap(x=>x.legacyIds??[])??[]);
- return activeFixed(s,m).filter(x=>!links.has(x.id));
+ return activeFixed(s,m).filter(x=>x.channel!=='card'&&!links.has(x.id));
 }
 
 function defaultCardMonth(d=today()){

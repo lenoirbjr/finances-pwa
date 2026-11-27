@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.52 */
+/* diario-shell:4.0.53 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -347,8 +347,8 @@ function reconMonths(s){
 function reconNamedPix(item){
  return item.direction==='in'&&item.channel!=='card'&&Boolean(item.tag?.trim())&&item.amount>0;
 }
-function reconRecurringReceivables(s,asOf=today(),onlyMonth=null){
- const current=asOf.slice(0,7),last=shiftMonth(current,2),opening=reconOpening(s)?.date??null;
+function reconRecurringReceivables(s,asOf=today(),onlyMonth=null,through=null){
+ const current=asOf.slice(0,7),last=[shiftMonth(current,2),through?.slice(0,7)??current].sort().at(-1),opening=reconOpening(s)?.date??null;
  const fixedPayments=s.fixedPaid??[],allocations=(s.reconciliation?.receipts??[]).flatMap(r=>r.allocations);
  const startFloor=[opening?.slice(0,7)??current,shiftMonth(current,-23)].sort().at(-1);
  const rows=[];
@@ -407,7 +407,7 @@ function reconCommitmentTotals(s,month){
  const outsidePaid=rows.reduce((sum,row)=>sum+row.paid,0),outsideOpen=rows.reduce((sum,row)=>sum+row.remaining,0);
  return {card,outside,total:card+outside,paid:cardPaid+outsidePaid,open:cardOpen+outsideOpen,cardPaid,cardOpen,outsidePaid,outsideOpen};
 }
-function reconDebt(s,onlyMonth=null){
+function reconDebt(s,onlyMonth=null,{asOf=today(),through=null}={}){
  const received=new Map();
  for(const p of s.reconciliation?.receipts??[])for(const a of p.allocations){
   const k=a.month+'|'+a.rowId+'|'+reconPersonKey(p.person);
@@ -416,7 +416,7 @@ function reconDebt(s,onlyMonth=null){
  const billed=(onlyMonth?[onlyMonth]:reconMonths(s)).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>({
   rowId:row.id,month,person:part.person,cents:part.cents,expected:part.expected,name:row.name,number:row.number,count:row.count
  }))));
- return [...billed,...reconRecurringReceivables(s,today(),onlyMonth)].map(d=>{
+ return [...billed,...reconRecurringReceivables(s,asOf,onlyMonth,through)].map(d=>{
   const n=received.get(d.month+'|'+d.rowId+'|'+reconPersonKey(d.person))??0;
   return {...d,received:n,remaining:Math.max(0,d.cents-n)};
  });

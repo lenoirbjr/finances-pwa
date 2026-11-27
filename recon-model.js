@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.38 */
+/* diario-shell:4.0.39 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -602,9 +602,9 @@ function reconEditSettlement(s,key,fields){
  s.parcels=next.parcels;s.reconciliation=next.reconciliation;
 }
 
-function reconOpenDebtEntries(s){
+function reconOpenDebtEntries(s,month=null){
  const pending=new Map();
- for(const item of reconPayableRows(s))if(item.remaining>0){
+ for(const item of reconPayableRows(s,month))if(item.remaining>0){
   const group=pending.get(item.id)??{remaining:0,nextDue:item.due};
   group.remaining+=item.remaining;pending.set(item.id,group);
  }
@@ -613,11 +613,12 @@ function reconOpenDebtEntries(s){
   date:p.payStart,person:p.payTo,name:p.name,cents:Math.round(p.total*100),count:p.count,hasPayments:!!p.payments?.length
  }));
  const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
- const incoming=reconDebt(s).filter(d=>d.remaining>0).map(d=>({
+ const incoming=reconDebt(s).filter(d=>d.remaining>0&&(!month||d.month===month)).map(d=>({
   ...d,kind:'receivable',key:reconSettlementKey('receivable',d.month,d.rowId,reconPersonKey(d.person)),
   date:d.expected??addDays(pixScenarioDue(statements.get(d.month),d.month),-1)
  }));
- return [...outgoing,...incoming].sort((a,b)=>(a.nextDue??a.date).localeCompare(b.nextDue??b.date)||a.person.localeCompare(b.person,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'));
+ const fixed=month?reconRecurringPayables(s,month).filter(x=>x.remaining>0).map(x=>({...x,kind:'purchase'})):[];
+ return [...outgoing,...fixed,...incoming].sort((a,b)=>(a.nextDue??a.date).localeCompare(b.nextDue??b.date)||a.person.localeCompare(b.person,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'));
 }
 function reconEditOpenDebt(s,key,fields){
  const entry=reconOpenDebtEntries(s).find(e=>e.key===key);

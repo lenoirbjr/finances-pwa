@@ -51,7 +51,7 @@ function createReconUI(){
  }
  function reset(){editing=null;formKind='';personFilter='';billFilter='all';}
  function close(){editing=null;formKind='';personFilter='';if(api.parcel){api.closeParcel?.();return;}paint();}
- function error(t){const el=$('[data-recon-form-message]',root)||$('[data-recon-message]',root);if(el)el.textContent=t;}
+ function error(t){const el=$(`[data-recon-form="${formKind}"] [data-recon-form-message]`,root)||$('[data-recon-message]',root);if(el)el.textContent=t;}
  function billList(all){
    const options=new Map([['all','Todos'],['unlabeled','Sem etiqueta']]);
    const names=new Map();
@@ -102,8 +102,20 @@ function createReconUI(){
  function billRows(){
    return `${displayed.length?displayed.map((r,i)=>{
     const name=escape(r.name),part=r.number&&r.count?` · Parcela ${r.number}/${r.count}`:'';
-    return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.adjusted?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:''}${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):''}${charge(r)&&r.number&&r.count&&api.canAdjust?.(period)?`<button type="button" class="text-button recon-adjust-button" data-recon-adjust="${i}" aria-label="Ajustar parcela de ${name}">Ajustar</button>`:''}</div></article>${editing===r.id?(formKind==='label'?editor(r):formKind==='adjust-installment'?installmentEditor(r):''):''}`;
+    return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.adjusted?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:''}${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):''}</div></article>${editing===r.id&&['label','adjust-installment'].includes(formKind)?billEditor(r):''}`;
    }).join(''):`<p class="empty">${billFilter==='all'?'Nenhuma linha nesta fatura.':'Nenhum lançamento com esse filtro.'}</p>`}`;
+ }
+ function billEditor(r){
+   if(!r.number||!r.count)return editor(r);
+   const value=formKind==='adjust-installment',canAdjust=api.canAdjust?.(period);
+   return `<section class="recon-line-editor" aria-label="Editar lançamento">
+     <div class="subtabs recon-editor-tabs" role="group" aria-label="Opções do lançamento">
+      <button type="button" data-recon-edit-tab="label" aria-controls="reconLineLabelPanel" aria-pressed="${!value}" class="${!value?'active':''}">Etiqueta</button>
+      <button type="button" data-recon-edit-tab="adjust-installment" aria-controls="reconLineValuePanel" aria-pressed="${value}" class="${value?'active':''}">Valor</button>
+     </div>
+     <div id="reconLineLabelPanel"${value?' hidden':''}>${editor(r)}</div>
+     <div id="reconLineValuePanel"${value?'':' hidden'}>${canAdjust?installmentEditor(r):'<div class="recon-edit"><p class="recon-note">O valor de uma fatura fechada ou paga não pode ser alterado.</p></div>'}</div>
+   </section>`;
  }
  function installmentAdjustments(){
    const items=api.installmentAdjustments?.(period)||[];
@@ -240,12 +252,19 @@ function createReconUI(){
  function bind(dom){
   dom.addEventListener('click',e=>{
    const b=e.target.closest('button');if(!b||busy)return;
-   if(b.hasAttribute('data-recon-adjust')){
-     const item=displayed[Number(b.dataset.reconAdjust)];if(!item||!api.canAdjust?.(period))return;
-     editing=item.id;formKind='adjust-installment';paint();$('#reconInstallmentAmount',root)?.focus();return;
+   if(b.hasAttribute('data-recon-edit-tab')){
+     const panel=b.dataset.reconEditTab,label=$('#reconLineLabelPanel',root),value=$('#reconLineValuePanel',root);
+     if(!label||!value||!['label','adjust-installment'].includes(panel))return;
+     formKind=panel;
+     label.hidden=panel!=='label';value.hidden=panel!=='adjust-installment';
+     for(const button of root.querySelectorAll('[data-recon-edit-tab]')){
+       const active=button.dataset.reconEditTab===panel;
+       button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
+     }
+     error('');return;
    }
    if(b.hasAttribute('data-recon-exclude')){
-     const item=displayed.find(x=>x.id===editing);if(!item||!api.canAdjust?.(period))return;
+     const item=displayed.find(x=>x.id===editing);if(formKind!=='adjust-installment'||!item||!api.canAdjust?.(period))return;
      if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Você pode desfazer em Ajustes manuais.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
      return;
    }
@@ -314,7 +333,7 @@ function createReconUI(){
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
     if(f.dataset.reconForm==='adjust-installment'){
       const r=displayed.find(x=>x.id===editing),value=cents(f.elements.value.value);
-      if(!r||!api.canAdjust?.(period)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para a parcela.');return;}
+      if(formKind!=='adjust-installment'||!r||!api.canAdjust?.(period)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para a parcela.');return;}
       apply(()=>api.adjustInstallment(period,r.id,value),'Parcela ajustada a partir de '+monthTitle(period)+'.');return;
     }
     if(f.dataset.reconForm==='payable'){

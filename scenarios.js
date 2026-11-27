@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.51 */
+/* diario-shell:4.0.52 */
 // Read-only cash scenarios. Inputs use integer cents and ISO local dates.
 function pixScenarioReceipts(people,mode,at,inclusive=true,cutoff=at){
  const eligible=people.filter(p=>p.date<=cutoff&&(inclusive?p.date<=at:p.date<at)&&(mode!=='custom'||p.selected));
@@ -106,9 +106,9 @@ function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
  for(const debt of debts){
   if(debt.remaining<=0||(selected&&!selected.has(reconPersonKey(debt.person))))continue;
   if(!dates.has(debt.month)){
-   const eve=addDays(pixScenarioDue(statements.get(debt.month),debt.month),-1);
+   const due=pixScenarioDue(statements.get(debt.month),debt.month);
    // Overdue amounts may still be expected, but never counted as cash today.
-   dates.set(debt.month,eve<tomorrow?tomorrow:eve);
+   dates.set(debt.month,due<tomorrow?tomorrow:due);
   }
   const date=debt.expected?(debt.expected<tomorrow?tomorrow:debt.expected):dates.get(debt.month);
   if(date<=through)totals.set(date,(totals.get(date)??0)+debt.remaining);
@@ -117,7 +117,7 @@ function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
 }
 // Allocate the same projected cash in priority order. Add back only the
 // selected month's deductions already in the projection before reserving them.
-function commitmentWaterfall(s,asOf,month,projection){
+function commitmentWaterfall(s,asOf,month,projection,cutoff=null,beforeSalary=false){
  if(!projection.ready)return null;
  const totals=reconCommitmentTotals(s,month),opening=reconOpening(s).date;
  const st=s.reconciliation?.statements?.find(x=>x.month===month);
@@ -128,20 +128,21 @@ function commitmentWaterfall(s,asOf,month,projection){
   const item=byFixed.get(x.fixedId),scheduled=item?reconScheduledFixed(s,item,month):null;
   return {cents:x.remaining,date:onward(x.due),deduction:scheduled?(scheduled.date>opening?scheduled.date:null):x.due};
  }).sort((a,b)=>a.date.localeCompare(b.date));
- const last=[asOf,...card.map(x=>x.date),...outside.map(x=>x.date)].sort().at(-1);
+ const last=cutoff??[asOf,...card.map(x=>x.date),...outside.map(x=>x.date)].sort().at(-1);
+ const salaryAtCutoff=beforeSalary&&last>asOf?Math.round(salaryEvents(s,last.slice(0,7)).filter(e=>e.date===last).reduce((n,e)=>n+e.amount,0)*100):0;
  const investment=skipped(s,month)?0:Math.max(0,Math.round((investmentAmount(s,month)-(settled(s,month)?.amount??0))*100));
  const investDay=eventDate(month,30), investDate=onward(investDay<last?investDay:last);
  const invest=investment?[{cents:investment,date:investDate,deduction:investDay>opening?(investDay<=asOf&&!settled(s,month)?asOf:investDay):null}]:[];
  const margin=Math.round(profile(s,month).margin*100);
  const byDue=new Map();
- for(const row of outside)byDue.set(row.date,(byDue.get(row.date)??0)+row.cents);
+ for(const row of outside)if(row.date<=last)byDue.set(row.date,(byDue.get(row.date)??0)+row.cents);
  const byDay=[...byDue].map(([date,cents])=>({date,cents}));
- const groups=[['Fatura',card],['A Pagar e Receber',byDay],['Investimento',invest],['Margem',margin?[{cents:margin,date:last}]:[]]];
+ const groups=[['Fatura',card.filter(x=>x.date<=last)],['A Pagar e Receber',byDay],['Investimento',invest],['Margem',margin?[{cents:margin,date:last}]:[]]];
  const toRestore=[...card,...outside,...invest];
  const cashFor=date=>{
   const p=projection.days.find(x=>x.date===date)??projection.days.filter(x=>x.date<=date).at(-1);
   if(!p)return 0;
-  return p.room+p.margin+toRestore.reduce((n,x)=>n+(x.deduction&&x.deduction<=p.date?x.cents:0),0);
+  return p.room+p.margin-(p.date===last?salaryAtCutoff:0)+toRestore.reduce((n,x)=>n+(x.deduction&&x.deduction<=p.date?x.cents:0),0);
  };
  const reserved=[];
  const reserveThrough=date=>reserved.reduce((n,x)=>n+(x.date<=date?x.cents:0),0);
@@ -157,7 +158,19 @@ function commitmentWaterfall(s,asOf,month,projection){
   return {label,target,covered};
  });
  const free=rows.some(x=>x.covered<x.target)?0:Math.max(0,cashFor(last)-reserveThrough(last));
- return {month,last,rows,free,reimbursements:projection.days.filter(x=>x.date<=last).at(-1)?.credit??0};
+ let salaries=0;
+ for(let m=asOf.slice(0,7);m<=last.slice(0,7);m=shiftMonth(m,1)){
+  for(const e of salaryEvents(s,m))if(e.date>asOf&&(e.date<last||(!beforeSalary&&e.date===last)))salaries+=Math.round(e.amount*100);
+ }
+ return {month,last,rows,free,salaries,reimbursements:projection.days.filter(x=>x.date<=last).at(-1)?.credit??0};
+}
+function commitmentPeriods(s,asOf,projection){
+ const month=projection.bill?.month??defaultCardMonth(asOf);
+ const date=projection.bill?.date??eventDate(month,5);
+ const first=eventDate(month,15),second=eventDate(month,30);
+ return [['Até a fatura',date,false],['Até o 1º salário',first,true],['Até o 2º salário',second,true]].map(([label,d,beforeSalary])=>({
+  label,date:d,beforeSalary,details:d>=asOf?commitmentWaterfall(s,asOf,month,projection,d,beforeSalary):null
+ }));
 }
 function spendingTimeline(s,asOf,current,selected,debts){
  const sunday=nextSunday(asOf),payday=nextPayday(s,asOf),beforePayday=addDays(payday,-1);

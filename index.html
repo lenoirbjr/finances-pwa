@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.56">
+<meta name="diario-shell" content="4.0.57">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.56">
-<link rel="stylesheet" href="./recon.css?v=4.0.56">
+<link rel="stylesheet" href="./style.css?v=4.0.57">
+<link rel="stylesheet" href="./recon.css?v=4.0.57">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -148,7 +148,7 @@
 </form>
 <div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição</label><input id="extraName" type="text" maxlength="120" placeholder="E.x. Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required><button class="secondary" type="submit">Registrar aporte extra</button></form></div>
 </div>
-<div class="surface hidden" id="investmentHistoryPanel"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history" aria-live="polite"></div></div></section>
+<section class="surface recon-screen movement-statement hidden" id="investmentHistoryPanel" aria-label="Histórico de investimentos"><div id="investmentHistory" aria-live="polite"></div></section></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><span class="screen-kicker">PREFERÊNCIAS</span><h1>Ajustes</h1></div></div>
 <section class="surface theme-panel" aria-labelledby="theme-panel-title"><h2 id="theme-panel-title">Aparência</h2>
 <p>Escolha o tema deste dispositivo.</p><div class="theme-choices" role="group" aria-label="Tema do diário">
@@ -249,9 +249,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.56" defer></script>
-<script src="./recon-ui.js?v=4.0.56" defer></script>
-<script src="./card-import.js?v=4.0.56" defer></script>
-<script src="./scenarios.js?v=4.0.56" defer></script>
-<script src="./app.js?v=4.0.56" defer></script>
+<script src="./recon-model.js?v=4.0.57" defer></script>
+<script src="./recon-ui.js?v=4.0.57" defer></script>
+<script src="./card-import.js?v=4.0.57" defer></script>
+<script src="./scenarios.js?v=4.0.57" defer></script>
+<script src="./app.js?v=4.0.57" defer></script>
 </body></html>

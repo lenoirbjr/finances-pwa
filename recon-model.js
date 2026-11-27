@@ -9,6 +9,7 @@ function reconValidate(r){
  const unique=(a,fn)=>new Set(a.map(fn)).size===a.length;
  if(!r||!arr(r.statements,120)||!arr(r.bankRows,30000)||!arr(r.receipts,10000)||!arr(r.overrides,20000)||!arr(r.payments??[],120))return false;
  if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
+ if(r.installmentAdjustments!==undefined&&(!arr(r.installmentAdjustments,5000)||!r.installmentAdjustments.every(x=>x&&str(x.id)&&str(x.rowId)&&str(x.key,900)&&str(x.name,250)&&isMonth(x.month)&&cent(x.cents)&&x.cents>=0&&Number.isInteger(x.count)&&x.count>0&&x.count<=240)||!unique(r.installmentAdjustments,x=>x.id)))return false;
  if(r.baseline!==undefined){
   const b=r.baseline;
   if(!b||!isDate(b.date)||!arr(b.accounts,25)||!b.accounts.length||!b.accounts.every(a=>a&&str(a.id,80)&&str(a.name,100)&&cent(a.cents))||!unique(b.accounts,x=>x.id))return false;
@@ -104,7 +105,7 @@ function reconStatementLinks(statements,receipts){
  return {normalized,groups,ambiguous};
 }
 function reconLinkedSeries(row,key){return reconSeriesId(row)===key||row.seriesAliases?.includes(key)}
-function reconRawRows(s,m){
+function reconUnadjustedRows(s,m){
  const statements=s.reconciliation?.statements??[];
  const {normalized,groups,ambiguous}=reconStatementLinks(statements,s.reconciliation?.receipts??[]);
  const rowWithSeries=x=>{const g=groups.get(x);return g?{...x,seriesKey:g.key,seriesAliases:g.aliases}:ambiguous.has(x)?{...x,forecastKey:x.seriesKey,seriesKey:undefined}:x};
@@ -164,6 +165,50 @@ function reconRawRows(s,m){
  }
  for(const e of oldParts(s,m))if(!covered.has(e.id))projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents:Math.round(e.payment*100),kind:'charge',count:e.remaining,number:monthDiff(e.start,m)+1,source:'legacy'});
  return [...projected,...manualRows(covered),...refunds];
+}
+// Ajustes locais só atuam em projeções e faturas ainda em aberto.
+function reconCanAdjustMonth(s,m){
+ return !s.reconciliation?.statements?.some(x=>x.month===m&&x.closed===true)&&!reconPayment(s,m);
+}
+function reconAdjustmentKey(r){return r.forecastKey?'id:'+r.id:reconSeriesId(r)}
+function reconAdjustmentMatches(r,x){
+ return r.id===x.rowId||(!r.forecastKey&&(reconSeriesId(r)===x.key||r.seriesAliases?.includes(x.key)));
+}
+function reconRawRows(s,m){
+ const rows=reconUnadjustedRows(s,m),adjustments=s.reconciliation?.installmentAdjustments??[];
+ if(!adjustments.length||!reconCanAdjustMonth(s,m))return rows;
+ const applicable=adjustments.filter(x=>x.month<=m);
+ if(!applicable.length)return rows;
+ return rows.flatMap(r=>{
+  if(r.kind!=='charge'||!r.count||!r.number)return [r];
+  const x=applicable.reduce((best,rule)=>reconAdjustmentMatches(r,rule)&&(!best||rule.month>=best.month)?rule:best,null);
+  if(!x)return [r];
+  if(!x.cents)return [];
+  const parts=reconScale(r.parts,r.label,r.cents,x.cents);
+  const label=parts.length?(parts.reduce((n,p)=>n+p.cents,0)===x.cents?'other':'split'):r.label==='mine'?'mine':undefined;
+  return [{...r,cents:x.cents,label,parts,adjusted:true,originalCents:r.cents}];
+ });
+}
+function reconGuardAdjustment(s,change){
+ const before=reconDebt(s).filter(x=>x.received>0),key=x=>JSON.stringify([x.month,x.rowId,reconPersonKey(x.person)]);
+ const recon=reconInit(s),old=recon.installmentAdjustments;
+ recon.installmentAdjustments=change(old??[]);
+ try{
+  const after=new Map(reconDebt(s).filter(x=>x.received>0).map(x=>[key(x),x]));
+  if(before.some(x=>{const z=after.get(key(x));return !z||z.received!==x.received||(z.cents<x.cents&&z.cents<x.received)}))throw Error('Há Pix vinculado a esta parcela. O ajuste não pode remover o vínculo nem deixar o valor devido abaixo do que já foi recebido.');
+ }catch(err){if(old===undefined)delete recon.installmentAdjustments;else recon.installmentAdjustments=old;throw err;}
+}
+function reconSetInstallmentAdjustment(s,m,id,amount){
+ if(!isMonth(m)||!Number.isSafeInteger(amount)||amount<0||amount>1e12)throw Error('Informe um valor válido para a parcela.');
+ if(!reconCanAdjustMonth(s,m))throw Error('Não é possível alterar uma fatura fechada ou paga.');
+ const hits=reconUnadjustedRows(s,m).filter(x=>x.id===id&&x.kind==='charge'&&x.count&&x.number);
+ if(hits.length!==1)throw Error('Não foi possível identificar uma única parcela para ajustar.');
+ const row=hits[0],label=reconRows(s,m).find(x=>x.id===id)?.name??row.name;
+ reconGuardAdjustment(s,a=>[...a.filter(x=>x.month!==m||!reconAdjustmentMatches(row,x)),{id:newId(),rowId:id,key:reconAdjustmentKey(row),name:label,month:m,cents:amount,count:row.count}]);
+}
+function reconUndoInstallmentAdjustment(s,id){
+ if(!s.reconciliation?.installmentAdjustments?.some(x=>x.id===id))throw Error('Ajuste não encontrado.');
+ reconGuardAdjustment(s,a=>a.filter(x=>x.id!==id));
 }
 function reconRows(s,m,includePreviousCredit=false){
  const overrides=s.reconciliation?.overrides??[];
@@ -282,8 +327,10 @@ function reconMarkPaid(s,m,date){
  if(date!==null)r.payments.push({month:m,date});
 }
 function reconInvoice(s,m){
- if(!s.reconciliation?.statements?.some(st=>st.month<=m))return null;
- return Math.max(0,reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'?0:x.cents),0))/100;
+ const recon=s.reconciliation,hasStatements=recon?.statements?.some(st=>st.month<=m);
+ if(!hasStatements&&!recon?.installmentAdjustments?.some(x=>x.month<=m)&&!recon?.cardRefunds?.some(x=>x.month===m))return null;
+ const useLegacy=!hasStatements&&s.mode==='legacy',legacy=useLegacy?Math.round((s.legacyInvoices[m]??0)*100):0;
+ return Math.max(0,legacy+reconRawRows(s,m).reduce((sum,x)=>sum+(x.kind==='prior-payment'||(useLegacy&&x.source==='legacy')?0:x.cents),0))/100;
 }
 function reconOpening(s){
  const b=s.reconciliation?.baseline;

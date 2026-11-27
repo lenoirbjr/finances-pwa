@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.15: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.16: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -233,8 +233,25 @@ let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMont
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
-function notice(msg,kind='ok'){$('notice').textContent=msg;$('notice').className='notice'+(kind==='ok'?'':' '+kind);window.scrollTo({top:0,behavior:'instant'})}
-async function update(fn){if(writing)return false;writing=true;try{const next=structuredClone(state);fn(next);if(!valid(next))throw Error('Dados inválidos. Confira os campos.');await write(RECORD,next);state=next;render();$('notice').className='notice hidden';return true}catch(e){notice('Não foi possível salvar: '+e.message,'error');return false}finally{writing=false}}
+let noticeTimer;
+function clearNotice(){clearTimeout(noticeTimer);$('notice').className='notice hidden'}
+function notice(msg,kind='ok'){
+ clearTimeout(noticeTimer);
+ const box=$('notice');box.textContent=msg;box.className='notice'+(kind==='ok'?'':' '+kind);
+ noticeTimer=setTimeout(clearNotice,kind==='ok'?4500:8500);
+}
+function keepScrollPosition(work){
+ // If the new view is shorter, use its nearest possible scroll position.
+ if(typeof window==='undefined'||typeof window.scrollY!=='number')return work();
+ const x=window.scrollX||0,y=Math.max(0,window.scrollY);
+ try{return work()}finally{
+  const scroller=document.scrollingElement;
+  const limit=scroller?Math.max(0,scroller.scrollHeight-scroller.clientHeight):y;
+  const top=Math.min(y,limit);
+  if(Math.abs(window.scrollY-top)>1||Math.abs((window.scrollX||0)-x)>1)window.scrollTo({left:x,top,behavior:'instant'});
+ }
+}
+async function update(fn){if(writing)return false;writing=true;try{const next=structuredClone(state);fn(next);if(!valid(next))throw Error('Dados inválidos. Confira os campos.');await write(RECORD,next);state=next;render();clearNotice();return true}catch(e){notice('Não foi possível salvar: '+e.message,'error');return false}finally{writing=false}}
 function activeFixed(s,m){return s.fixedItems.filter(e=>e.start<=m&&(!e.end||e.end>=m))}
 function fixedAmount(s,m){return s.mode==='legacy'?s.legacyFixed:round(reconFixed(s,m).reduce((a,e)=>a+e.amount,0))}
 function oldParts(s,m){return s.baseParcels.filter(e=>{const d=monthDiff(e.start,m);return d>=0&&d<e.remaining})}
@@ -275,7 +292,7 @@ function setTheme(theme){
  for(const button of document.querySelectorAll('[data-theme-choice]'))button.setAttribute('aria-pressed',String(button.dataset.themeChoice===next));
  try{localStorage.setItem(THEME_KEY,next)}catch{}
 }
-function showScreen(name){screen=name;showScreenNoScroll();window.scrollTo({top:0,behavior:'instant'})}
+function showScreen(name){screen=name;showScreenNoScroll()}
 function parcelClassifyButton(id,monthRows){
  const t=reconParcelTarget(state,id,monthRows);
  if(!t)return '';
@@ -484,7 +501,7 @@ function renderParcelClassify(){
  const target=screen==='installments'&&parcelLabelId&&reconParcelTarget(state,parcelLabelId);
  panel.classList.toggle('hidden',!target);
  if(!target){panel.innerHTML='';return;}
- window.ParcelReconUI?.render({parcel:target,today:today(),owner:reconOwner(state),
+ window.ParcelReconUI?.render({parcel:target,today:today(),owner:reconOwner(state),keepPosition:keepScrollPosition,
    label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),
    closeParcel:message=>{parcelLabelId=null;renderParcelClassify();if(message)notice(message);}
  });
@@ -492,10 +509,10 @@ function renderParcelClassify(){
 function openParcelClassify(id){
  if(!reconParcelTarget(state,id)){notice('Não encontrei uma parcela identificada na fatura para classificar esta compra.','warning');return;}
  parcelLabelId=id;renderParcelClassify();
- $('parcelReconUI')?.scrollIntoView({behavior:'smooth',block:'nearest'});
- $('parcelReconUI')?.querySelector('input:not([type=hidden]), select')?.focus({preventScroll:true});
+
 }
-function render(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);renderCardRefunds();
+function render(){return keepScrollPosition(renderContents)}
+function renderContents(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);renderCardRefunds();
 renderExpenseHistory();
 renderParcelHistory();
 $('fixedList').innerHTML=rows(state.fixedItems,'fixed');$('baseList').innerHTML=rows(state.baseParcels,'base');$('fixedSubtotal').textContent=money(x.fixed);$('baseSubtotal').textContent=x.known?money(x.base):'—';
@@ -524,7 +541,8 @@ function renderCardHub(){
  const people=reconPayableRows(state,m).reduce((sum,x)=>sum+(x.paidDate?0:x.cents),0);
  $('cardOwnTotal').textContent=money(own/100);$('cardPeopleTotal').textContent=money(people/100);$('cardCommitments').textContent=money((own+people)/100);
 }
-function showScreenNoScroll(){
+function showScreenNoScroll(){return keepScrollPosition(paintScreen)}
+function paintScreen(){
  const auxiliary=screen==='settings'||screen==='info',card=['recon','installments','acertos'].includes(screen),plan=screen==='planning'||screen==='investments';
  document.body.classList.toggle('settings-view',auxiliary);
  $('quickSettings').classList.toggle('hidden',screen==='info');
@@ -537,7 +555,7 @@ function showScreenNoScroll(){
  }
  renderParcelClassify();
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetInstallmentAdjustment(s,m,id,cents)),payable:m=>reconPayableRows(state,m),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetInstallmentAdjustment(s,m,id,cents)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
@@ -564,7 +582,8 @@ function clearParcelOrigin(){
  syncParcelOrigin();
 }
 function previewParcel(){const total=amount('parcelTotal'),count=Number($('parcelCount').value)||1,unit=Number.isFinite(total)&&total>0?Math.floor(Math.round(total*100)/count)/100:0;$('parcelPreview').textContent=money(unit);$('weeklyImpact').textContent=money(unit)}
-function showMovementForm(mode){
+function showMovementForm(mode){return keepScrollPosition(()=>paintMovementForm(mode))}
+function paintMovementForm(mode){
  const extra=mode==='extra';
  $('movementExpensePanel').classList.toggle('hidden',extra);
  $('movementIncomePanel').classList.toggle('hidden',!extra);
@@ -683,7 +702,7 @@ async function saveOpening(e){
 async function saveExtraIncome(e){e.preventDefault();const date=$('incomeExtraDate').value,name=$('incomeExtraName').value.trim()||'Entrada extra',v=round(amount('incomeExtraAmount'));if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Confira a data e o valor da entrada extra.','warning');if(await update(s=>s.extraIncome.push({id:newId(),date,name,amount:v}))){$('incomeExtraName').value='';$('incomeExtraAmount').value=''}}
 
 function resetForms(){editingFixed=editingBase=editingNew=null;clearParcelOrigin();for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
-function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelOrigin').value=v.payTo?'person':'own';$('parcelPayee').value=v.payTo??'';$('parcelPayStart').value=v.payStart??'';$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;syncParcelOrigin();$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showCardEntry('purchase');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
+function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','')}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','')}if(kind==='new'){editingNew=id;$('parcelOrigin').value=v.payTo?'person':'own';$('parcelPayee').value=v.payTo??'';$('parcelPayStart').value=v.payStart??'';$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;syncParcelOrigin();$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showCardEntry('purchase');showScreen('installments')}calendarLabels()}
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Backup preparado. Confirme se ele foi salvo no aplicativo Arquivos.','warning')}
 async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write('state-before-last-import',state);await write(RECORD,incoming);state=incoming;resetForms();updateInvestmentForm();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
@@ -721,7 +740,7 @@ $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 $('pixScenarios')?.addEventListener('toggle',()=>{if($('pixScenarios').open&&state){const asOf=today();renderPixScenario(asOf,cycleBudget(state,asOf));}});
 $('pixScenarioContent')?.addEventListener('change',onPixScenarioChange);
-$('parcelOpenBill').addEventListener('click',()=>{const b=$('parcelOpenBill'),m=b.dataset.month;if(isMonth(m)){cardMonth=m;showScreen(b.dataset.target==='acertos'?'acertos':'recon');}});
+$('parcelOpenBill').addEventListener('click',()=>{const b=$('parcelOpenBill'),m=b.dataset.month;if(isMonth(m)){cardMonth=m;if(b.dataset.target==='acertos')window.ReconUI?.selectMoney?.('payable');showScreen(b.dataset.target==='acertos'?'acertos':'recon');}});
 function setCardMonth(m){
  if(!isMonth(m))return;
  cardMonth=m;
@@ -734,7 +753,7 @@ $('cardMonthNext').addEventListener('click',()=>setCardMonth(shiftMonth(cardMont
 $('cardImportForm').addEventListener('submit',importClosedCard);
 $('cardPurchaseTab').addEventListener('click',()=>showCardEntry('purchase'));
 $('cardRefundTab').addEventListener('click',()=>showCardEntry('refund'));
-$('cardRefundPix').addEventListener('click',()=>showScreen('acertos'));
+$('cardRefundPix').addEventListener('click',()=>{window.ReconUI?.selectMoney?.('receivable');showScreen('acertos')});
 $('cardRefundForm').addEventListener('submit',saveCardRefund);
 $('cardRefundHistory').addEventListener('click',e=>{
  const id=e.target.closest('[data-remove-refund]')?.dataset.removeRefund;
@@ -779,6 +798,6 @@ rememberAccordion('parcels','parcelMonth',openParcelMonths);
 rememberAccordion('investmentHistory','historyYear',openHistoryYears);
 rememberAccordion('investmentHistory','historyMonth',openHistoryMonths);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
-document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');if(kind==='new'&&s.parcels.find(p=>p.id===id)?.payments?.length)throw Error('Desfaça os pagamentos registrados antes de excluir a compra.');s[field]=s[field].filter(x=>x.id!==id);});return}}const income=target.closest('[data-delete-income-extra]');if(income){if(confirm('Excluir esta entrada extra?'))update(s=>s.extraIncome=s.extraIncome.filter(x=>x.id!==income.dataset.deleteIncomeExtra));return}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>{const id=exp.dataset.deleteExpense;if(reconHasAllocated(s,'cashcard:'+id))throw Error('Há um Pix vinculado a este gasto. Desfaça o recebimento antes de excluir.');s.expenses=s.expenses.filter(x=>x.id!==id);});return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();$('investmentConfirmForm').scrollIntoView({behavior:'smooth'});return}});
+document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['fixed','base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='fixed'?'fixedItems':kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');if(kind==='new'&&s.parcels.find(p=>p.id===id)?.payments?.length)throw Error('Desfaça os pagamentos registrados antes de excluir a compra.');s[field]=s[field].filter(x=>x.id!==id);});return}}const income=target.closest('[data-delete-income-extra]');if(income){if(confirm('Excluir esta entrada extra?'))update(s=>s.extraIncome=s.extraIncome.filter(x=>x.id!==income.dataset.deleteIncomeExtra));return}const exp=target.closest('[data-delete-expense]');if(exp){if(confirm('Excluir este gasto?'))update(s=>{const id=exp.dataset.deleteExpense;if(reconHasAllocated(s,'cashcard:'+id))throw Error('Há um Pix vinculado a este gasto. Desfaça o recebimento antes de excluir.');s.expenses=s.expenses.filter(x=>x.id!==id);});return}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');$('investmentFocusMonth').value=editInv.dataset.editInvestment;updateInvestmentForm();renderInvestmentPanels();return}});
 init();
 if('serviceWorker' in navigator){let reloading=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload()});window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});reg.update().catch(()=>{})}catch{}})}

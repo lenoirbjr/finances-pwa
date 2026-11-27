@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.37 */
+/* diario-shell:4.0.38 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -349,12 +349,23 @@ function reconRecurringReceivables(s,asOf=today()){
  }
  return rows;
 }
-function reconFixedCommitments(s,month){
- const pixIds=new Set(reconFixed(s,month).map(item=>item.id));
- return activeFixed(s,month).filter(item=>item.direction!=='in'&&item.amount>0&&(item.channel==='card'||pixIds.has(item.id)))
-  .map(item=>({id:item.id,person:item.tag?.trim()??'',name:item.name,cents:Math.round(item.amount*100),
-    channel:item.channel==='card'?'card':'pix',date:confirmedFixed(s,item.id,month)?.date??fixedDate(s,item,month)}))
-  .sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name,'pt-BR'));
+// Outside-card recurring expenses already flow through cashAt. These rows are
+// only for display and the monthly summary, never for manual Pix allocation.
+function reconRecurringPayables(s,month){
+ return reconFixed(s,month).filter(item=>item.direction!=='in'&&item.amount>0).map(item=>{
+  const confirmed=confirmedFixed(s,item.id,month);
+  const cents=Math.round((confirmed?.amount??item.amount)*100),due=fixedDate(s,item,month);
+  const paidDate=confirmed?.date??null;
+  return {id:'fixedout:'+item.id,fixedId:item.id,person:item.tag?.trim()||'Sem etiqueta',
+   name:item.name,month,cents,due,date:paidDate??due,paidDate,paid:paidDate?cents:0,
+   remaining:paidDate?0:cents,postings:[],recurring:true};
+ }).filter(row=>row.cents>0);
+}
+function reconCommitmentTotals(s,month){
+ const card=Math.round(invoiceAmount(s,month)*100);
+ const outside=reconPayableRows(s,month).reduce((sum,row)=>sum+row.remaining,0)
+  +reconRecurringPayables(s,month).reduce((sum,row)=>sum+row.cents,0);
+ return {card,outside,total:card+outside};
 }
 function reconDebt(s){
  const received=new Map();

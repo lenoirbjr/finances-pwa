@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.18">
-<link rel="stylesheet" href="./recon.css?v=4.0.18">
+<link rel="stylesheet" href="./style.css?v=4.0.19">
+<link rel="stylesheet" href="./recon.css?v=4.0.19">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -83,15 +83,13 @@
 <label for="parcelTotal" id="parcelTotalLabel">Valor total (R$)</label><input id="parcelTotal" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="parcelCount">Quantidade</label><select id="parcelCount"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6" selected>6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></div><div id="parcelOwnDate"><label for="parcelStart">Primeira fatura</label><div class="calendar-field"><span class="calendar-label" data-for="parcelStart" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="parcelStart" type="month" required></div></div></div>
 <div class="preview"><div>Parcela estimada <strong id="parcelPreview">R$ 0,00</strong></div><div><span id="parcelImpactLabel">Parcela mensal adicionada à fatura</span> <strong id="weeklyImpact">R$ 0,00</strong></div></div>
-<button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button><button type="button" id="parcelClassifyLast" class="text-button hidden">Classificar compra</button><button type="button" id="parcelOpenBill" class="text-button hidden">Ver na fatura</button></form></div>
-<section id="parcelReconUI" class="surface recon-screen hidden" aria-label="Classificar compras parceladas"></section>
-<div class="surface"><div class="surface-heading"><h2>Compras registradas</h2><span class="count" id="parcelCountBadge"></span></div><p class="assistive">Agrupadas pelo primeiro mês de pagamento.</p><div id="parcels"></div></div></div>
+<button class="primary" id="parcelSubmit" type="submit">Adicionar parcelamento</button><button type="button" id="parcelCancel" class="text-button hidden">Cancelar edição</button><button type="button" id="parcelOpenBill" class="text-button hidden">Ver na fatura</button></form></div>
+</div>
 <div id="cardRefundPanel" class="hidden">
 <div class="surface"><h2>Estorno no cartão</h2><p class="assistive">Abate na fatura em aberto, não no saldo da conta. Recebeu um Pix de alguém? <button class="text-button" type="button" id="cardRefundPix">Registre em A Pagar e Receber</button>.</p>
 <form id="cardRefundForm"><label for="cardRefundName">Descrição</label><input id="cardRefundName" maxlength="120" required><label for="cardRefundAmount">Valor do estorno (R$)</label><input id="cardRefundAmount" type="number" min="0.01" max="10000000000" step="0.01" inputmode="decimal" placeholder="0,00" required>
 <div class="two-cols"><div><label for="cardRefundMonth">Fatura</label><div class="calendar-field"><span class="calendar-label" data-for="cardRefundMonth" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="cardRefundMonth" type="month" required></div></div><div><label for="cardRefundDate">Data do estorno</label><div class="calendar-field"><span class="calendar-label" data-for="cardRefundDate" aria-hidden="true">Selecionar data</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="cardRefundDate" type="date" required></div></div></div>
 <button type="submit" class="primary">Registrar estorno</button></form></div>
-<div class="surface"><h2>Estornos registrados</h2><div id="cardRefundHistory"></div></div>
 </div></section>
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><span class="screen-kicker">PROJEÇÕES</span><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
@@ -189,9 +187,9 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.18" defer></script>
-<script src="./recon-ui.js?v=4.0.18" defer></script>
-<script src="./card-import.js?v=4.0.18" defer></script>
-<script src="./scenarios.js?v=4.0.18" defer></script>
-<script src="./app.js?v=4.0.18" defer></script>
+<script src="./recon-model.js?v=4.0.19" defer></script>
+<script src="./recon-ui.js?v=4.0.19" defer></script>
+<script src="./card-import.js?v=4.0.19" defer></script>
+<script src="./scenarios.js?v=4.0.19" defer></script>
+<script src="./app.js?v=4.0.19" defer></script>
 </body></html>

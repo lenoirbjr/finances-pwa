@@ -130,9 +130,16 @@ function createReconUI(){
  }
  function billRows(){
    return `${displayed.length?displayed.map((r,i)=>{
-    const name=escape(r.name),part=r.number&&r.count?` · Parcela ${r.number}/${r.count}`:'';
-    return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.adjusted?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:''}${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):''}</div></article>${editing===r.id&&['label','adjust-installment'].includes(formKind)?billEditor(r):''}`;
+    const editableRefund=r.source==='manual-refund'&&api.canAdjust?.(period),name=escape(r.name),part=r.number&&r.count?` · Parcela ${r.number}/${r.count}`:'';
+    return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.adjusted?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:''}${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):editableRefund?`<button type="button" class="secondary" data-recon-edit-refund="${i}" aria-label="Editar estorno: ${name}">Editar</button>`:''}</div></article>${editing===r.id?(formKind==='refund'?refundEditor(r):['label','adjust-installment'].includes(formKind)?billEditor(r):''):''}`;
    }).join(''):`<p class="empty">${billFilter==='all'?'Nenhuma linha nesta fatura.':'Nenhum lançamento com esse filtro.'}</p>`}`;
+ }
+ function refundEditor(r){
+   return `<form class="recon-edit" data-recon-form="refund" aria-label="Editar estorno">
+   <label for="reconRefundName">Descrição</label><input id="reconRefundName" name="description" value="${escape(r.name)}" maxlength="120" required>
+   <label for="reconRefundDate">Data do estorno</label><input id="reconRefundDate" name="date" type="date" value="${escape(r.date)}" max="${escape(api.today)}" required>
+   <label for="reconRefundValue">Valor do estorno (R$)</label><input id="reconRefundValue" name="amount" inputmode="decimal" value="${coin(-r.cents)}" required>
+   <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions recon-label-actions recon-refund-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary" data-recon-delete-refund>Excluir</button></div></form>`;
  }
  function billEditor(r){
    if(!r.number||!r.count)return editor(r);
@@ -297,6 +304,15 @@ function createReconUI(){
      }
      error('');
    });
+   if(b.hasAttribute('data-recon-edit-refund')){
+     const row=displayed[Number(b.dataset.reconEditRefund)];
+     if(row?.source!=='manual-refund'||!api.canAdjust?.(period)||!api.editRefund)return;
+     editing=row.id;formKind='refund';paint();return;
+   }
+   if(b.hasAttribute('data-recon-delete-refund')){
+     if(formKind==='refund'&&api.editRefund&&window.confirm('Excluir este estorno da fatura?'))apply(()=>api.editRefund(period,editing,null),'Estorno excluído.');
+     return;
+   }
    if(b.hasAttribute('data-recon-exclude')){
      const item=displayed.find(x=>x.id===editing);if(formKind!=='adjust-installment'||!item||!api.canAdjust?.(period))return;
      if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Esta exclusão não tem opção de desfazer na fatura.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
@@ -364,6 +380,12 @@ function createReconUI(){
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
+    if(f.dataset.reconForm==='refund'){
+      if(formKind!=='refund'||!api.editRefund)return;
+      const name=f.elements.description.value.trim(),date=f.elements.date.value,value=cents(f.elements.amount.value);
+      if(!name||name.length>120||!safeDate(date)||date>api.today||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Confira a descrição, a data e o valor do estorno.');return;}
+      apply(()=>api.editRefund(period,editing,{name,date,cents:value}),'Estorno atualizado.');return;
+    }
     if(f.dataset.reconForm==='adjust-installment'){
       const r=displayed.find(x=>x.id===editing),value=cents(f.elements.value.value);
       if(formKind!=='adjust-installment'||!r||!api.canAdjust?.(period)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para a parcela.');return;}

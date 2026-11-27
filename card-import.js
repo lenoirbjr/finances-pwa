@@ -44,8 +44,23 @@ function parseClosedCardCsv(input){
   return {key,row:{name,date,cents,kind:cents>0?'charge':normalized==='pagamentos validos normais'?'prior-payment':'credit',source,...(part&&cents>0?{number:+part[1],count:+part[2]}:{})}};
  });
 }
-function mergeClosedCard(s,m,parsed){
+function cardForecastIdentity(x){
+ return x.kind==='charge'&&x.count>1&&x.source?.Estabelecimento&&x.source?.Portador?JSON.stringify([x.date,reconPersonKey(x.source.Estabelecimento),reconPersonKey(x.source.Portador),x.number,x.count]):null;
+}
+function mergeClosedCard(s,m,parsed,closed=true,now=Date.now()){
+
  const recon=reconInit(s),old=recon.statements.find(x=>x.month===m);
+ if(!closed&&old?.closed===true)throw Error('Esta fatura já foi fechada e não pode voltar a ser uma prévia.');
+ const tiedBefore=reconDebt(s).filter(x=>x.received>0);
+ const prior=reconRawRows(s,m), future=new Map(), seen=new Map();
+ for(const {row} of parsed){const key=cardForecastIdentity(row);if(key)seen.set(key,(seen.get(key)??0)+1);}
+ const originalRows=new Map();
+ for(const st of recon.statements.filter(st=>st.month<m).sort((a,b)=>a.month.localeCompare(b.month)))for(const row of st.rows)originalRows.set(row.id,row);
+ for(const row of prior){
+  if(row.source!=='forecast')continue;
+  const key=cardForecastIdentity({...row,source:originalRows.get(row.id)?.source});
+  if(key){if(!future.has(key))future.set(key,[]);future.get(key).push(row);}
+ }
  const previous=new Map();
  for(const row of old?.rows??[]){
   const key=cardCsvKey(row.source??{});
@@ -53,13 +68,26 @@ function mergeClosedCard(s,m,parsed){
   if(!previous.has(key))previous.set(key,[]);
   previous.get(key).push(row);
  }
- const updated=parsed.map(({key,row})=>previous.get(key)?.shift()??{...row,id:newId()});
+ const occupied=new Set((old?.rows??[]).map(x=>x.id));
+ const updated=parsed.map(({key,row})=>{
+  const exact=previous.get(key)?.shift();if(exact)return exact;
+  const identity=cardForecastIdentity(row), options=future.get(identity)??[];
+  const before=seen.get(identity)===1&&options.length===1&&Math.abs(options[0].cents-row.cents)<=5&&!occupied.has(options[0].id)?options[0]:null;
+  if(!before)return {...row,id:newId()};
+  occupied.add(before.id);
+  const parts=reconScale(before.parts,before.label,before.cents,row.cents);
+  const label=parts.length?(parts.reduce((sum,x)=>sum+x.cents,0)===row.cents?'other':'split'):before.label?'mine':undefined;
+  return {...row,id:before.id,legacyIds:before.legacyIds,label,parts};
+ });
  if([...previous.values()].some(list=>list.length))throw Error('O CSV não contém todas as linhas anteriores deste mês. O app não substituiu nada.');
  const ids=new Set(updated.map(x=>x.id));
  const localReceipts=recon.receipts.filter(p=>p.allocations.some(a=>a.month===m&&!ids.has(a.rowId)&&!a.rowId.startsWith('cashcard:')));
- if(localReceipts.length)throw Error('Há Pix ligado a uma compra manual que não aparece no CSV. Revise esse vínculo antes de fechar o mês.');
- const statement={...old,month:m,closed:true,rows:updated};
+ if(localReceipts.length)throw Error('Há Pix ligado a uma compra manual que não aparece no CSV. Revise esse vínculo antes de atualizar o mês.');
+ const statement={...old,month:m,closed,snapshotAt:now,rows:updated};
  recon.statements=[...recon.statements.filter(x=>x.month!==m),statement].sort((a,b)=>a.month.localeCompare(b.month));
+ const debtKey=x=>JSON.stringify([x.month,x.rowId,reconPersonKey(x.person)]);
+ const tiedAfter=new Map(reconDebt(s).filter(x=>x.received>0).map(x=>[debtKey(x),x.received]));
+ if(tiedBefore.some(x=>tiedAfter.get(debtKey(x))!==x.received))throw Error('A importação mudaria um vínculo de Pix existente. O app não substituiu nada.');
  if(recon.confirmedTotals)delete recon.confirmedTotals[m];
 }
 async function importClosedCard(event){
@@ -71,9 +99,40 @@ async function importClosedCard(event){
  try{
   const parsed=parseClosedCardCsv(await file.text());
   const total=parsed.reduce((n,x)=>n+(x.row.kind==='prior-payment'?0:x.row.cents),0);
+  const closed=$('cardImportStatus').value==='closed';
   if(!confirm(`Usar o CSV na fatura de ${monthTitle(month)}? Total das linhas, sem o pagamento anterior: ${money(total/100)}.`))return;
-  if(await update(s=>mergeClosedCard(s,month,parsed))){
-   field.value='';cardMonth=month;showScreen('recon');notice('Fatura fechada atualizada.');
+  if(await update(s=>mergeClosedCard(s,month,parsed,closed))){
+   field.value='';cardMonth=month;showScreen('recon');notice(closed?'Fatura fechada atualizada.':'Prévia da fatura atualizada.');
   }
  }catch(e){notice(e.message,'error');}
+}
+function showCardEntry(mode){
+ const refund=mode==='refund';
+ $('cardPurchasePanel').classList.toggle('hidden',refund);
+ $('cardRefundPanel').classList.toggle('hidden',!refund);
+ for(const [id,on] of [['cardPurchaseTab',!refund],['cardRefundTab',refund]]){
+  const b=$(id);b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));
+ }
+}
+function addCardRefund(s,item){
+ const r=reconInit(s),statement=r.statements.find(x=>x.month===item.month);
+ if(statement?.closed===true)throw Error('Esta fatura já está fechada. Escolha um mês em aberto.');
+ if(statement?.rows.some(x=>x.kind==='credit'&&x.date===item.date&&x.cents===-item.cents))throw Error('Já existe um estorno desse valor e data no CSV.');
+ r.cardRefunds??=[];
+ if(r.cardRefunds.some(x=>x.month===item.month&&x.date===item.date&&x.cents===item.cents&&reconPersonKey(x.name)===reconPersonKey(item.name)))throw Error('Este estorno já foi registrado.');
+ r.cardRefunds.push(item);
+}
+async function saveCardRefund(event){
+ event.preventDefault();
+ const name=$('cardRefundName').value.trim(),month=$('cardRefundMonth').value,date=$('cardRefundDate').value,cents=Math.round(amount('cardRefundAmount')*100);
+ if(!name||!isMonth(month)||!isDate(date)||date>today()||!Number.isSafeInteger(cents)||cents<=0||cents>1e12)return notice('Confira mês, data e valor do estorno.','warning');
+ if(await update(s=>addCardRefund(s,{id:newId(),name,month,date,cents,enteredAt:Date.now()}))){
+  $('cardRefundName').value='';$('cardRefundAmount').value='';notice('Estorno registrado.');
+ }
+}
+function renderCardRefunds(){
+ $('cardRefundHistory').innerHTML=[...(state.reconciliation?.cardRefunds??[])].reverse().map(x=>{
+  const st=state.reconciliation.statements.find(s=>s.month===x.month), counted=st?.closed!==true&&(!st?.snapshotAt||x.enteredAt>st.snapshotAt);
+  return `<article class="recon-row"><div><strong>${esc(x.name)}</strong><small>Fatura ${shortMonthTitle(x.month)}${counted?'':' · Fora do total atualizado pelo CSV'}</small></div><div class="recon-row-amount"><strong>${money(-x.cents/100)}</strong>${st?.closed===true?'':`<button class="secondary" type="button" data-remove-refund="${esc(x.id)}">Excluir</button>`}</div></article>`;
+ }).join('')||'<p class="empty">Nenhum estorno registrado.</p>';
 }

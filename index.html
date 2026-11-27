@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.46">
+<meta name="diario-shell" content="4.0.47">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.46">
-<link rel="stylesheet" href="./recon.css?v=4.0.46">
+<link rel="stylesheet" href="./style.css?v=4.0.47">
+<link rel="stylesheet" href="./recon.css?v=4.0.47">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -75,7 +75,14 @@
 </section>
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
+<div class="movement-hub">
 <div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Débitos</h1></div></div>
+<section class="balance-card movement-hero" aria-labelledby="movement-hero-title">
+ <h2 id="movement-hero-title">Movimentações do Mês</h2>
+ <dl aria-live="polite" aria-atomic="true"><div><dt>Entradas</dt><dd class="balance-amount" id="movementInTotal">—</dd></div><div><dt>Saídas</dt><dd class="balance-amount" id="movementOutTotal">—</dd></div></dl>
+</section>
+<div class="recon-period movement-period"><label for="movementMonth">Mês de Referência</label><div class="recon-month-controls"><button id="movementMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="movementMonth" aria-label="Mês de Referência"></select><button id="movementMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
+</div>
 <div class="subtabs movements-switch" role="group" aria-label="Tipo de movimentação">
  <button id="movementExpenseTab" type="button" class="active" aria-pressed="true" aria-controls="movementExpensePanel">Nova Compra</button>
  <button id="movementIncomeTab" type="button" aria-pressed="false" aria-controls="movementIncomePanel">Entrada Extra</button>
@@ -219,9 +226,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.46" defer></script>
-<script src="./recon-ui.js?v=4.0.46" defer></script>
-<script src="./card-import.js?v=4.0.46" defer></script>
-<script src="./scenarios.js?v=4.0.46" defer></script>
-<script src="./app.js?v=4.0.46" defer></script>
+<script src="./recon-model.js?v=4.0.47" defer></script>
+<script src="./recon-ui.js?v=4.0.47" defer></script>
+<script src="./card-import.js?v=4.0.47" defer></script>
+<script src="./scenarios.js?v=4.0.47" defer></script>
+<script src="./app.js?v=4.0.47" defer></script>
 </body></html>

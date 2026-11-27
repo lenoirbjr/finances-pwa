@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.46 */
-/* Diário Financeiro 4.0.46: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.47 */
+/* Diário Financeiro 4.0.47: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -243,7 +243,7 @@ function toV5(v){
  }
  x.mode='items';x.version=5;return x;
 }
-let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),openExpenseMonths=new Set(),screen='home',writing=false,archived=false,editingBase=null,editingNew=null,viewMonth=monthNow();
+let db,state,openPlanMonths=new Set(),openHistoryYears=new Set(),openHistoryMonths=new Set(),openExpenseDays=new Set(),screen='home',writing=false,archived=false,editingBase=null,editingNew=null,viewMonth=monthNow();
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
@@ -492,16 +492,31 @@ function toggleBudgetPerson(event){
 
 const calendarDate=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
 const readableDate=date=>calendarDate.format(new Date(date+'T12:00:00'));
-function byMonth(items,dateOf){
- const groups=new Map();
- for(const item of items){
-   const month=dateOf(item).slice(0,7);
-   if(!groups.has(month))groups.set(month,[]);
-   groups.get(month).push(item);
- }
- return [...groups].sort(([a],[b])=>b.localeCompare(a));
+let movementMode='expense',editingMovement=null,movementMonth=monthNow();
+function movementEntries(s,month=null){
+ return [...s.expenses.filter(e=>!e.cardMonth).map(e=>({...e,direction:'out'})),
+  ...s.extraIncome.map(e=>({...e,direction:'in'}))].filter(e=>!month||e.date.slice(0,7)===month);
 }
-let movementMode='expense',editingMovement=null;
+function renderMovementOverview(){
+ const select=$('movementMonth'),m=movementMonth;
+ const records=movementEntries(state);
+ const months=[...new Set([m,monthNow(),shiftMonth(m,-1),shiftMonth(m,1),...records.map(e=>e.date.slice(0,7))])].sort().reverse();
+ const signature=months.join(',');
+ if(select.dataset.months!==signature){
+  select.innerHTML=months.map(month=>`<option value="${month}">${monthTitle(month)}</option>`).join('');
+  select.dataset.months=signature;
+ }
+ if(select.value!==m)select.value=m;
+ let incoming=0,outgoing=0;
+ const entries=records.filter(e=>e.date.slice(0,7)===m);
+ for(const e of entries){const cents=Math.round(e.amount*100);if(e.direction==='in')incoming+=cents;else outgoing+=cents;}
+ $('movementInTotal').textContent=money(incoming/100);$('movementOutTotal').textContent=money(outgoing/100);
+ return entries;
+}
+function setMovementMonth(month){
+ if(!isMonth(month)||month===movementMonth)return;
+ return keepScrollPosition(()=>{movementMonth=month;editingMovement=null;renderExpenseHistory();});
+}
 function movementKey(direction,id){return JSON.stringify([direction,id]);}
 function movementEditor(entry,key){
  return `<form class="recon-edit recon-value-form movement-value-form" data-movement-editor="${key}" aria-label="Editar valor do lançamento">
@@ -509,22 +524,26 @@ function movementEditor(entry,key){
  <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-movement-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-movement-delete>Excluir</button></div></form>`;
 }
 function renderExpenseHistory(){
+ const entries=renderMovementOverview();
  if(movementMode!=='statement')return;
- const entries=[...state.expenses.map(item=>({...item,direction:'out'})),...state.extraIncome.map(item=>({...item,direction:'in'}))].sort((a,b)=>b.date.localeCompare(a.date));
+ const groups=new Map();
+ for(const entry of entries){
+  if(!groups.has(entry.date))groups.set(entry.date,[]);
+  groups.get(entry.date).push(entry);
+ }
  const row=entry=>{
    const incoming=entry.direction==='in',key=movementKey(entry.direction,entry.id),open=editingMovement===key;
-   const renamed=entry.cardMonth?reconRows(state,entry.cardMonth,true).find(x=>x.id==='cashcard:'+entry.id)?.name:undefined;
    return `<article class="recon-row recon-card-line recon-invoice-line movement-statement-line">
-     <button type="button" class="recon-entry-name recon-invoice-name" data-movement-edit="${esc(key)}" aria-expanded="${open}">${esc(renamed??entry.name)}</button>
+     <button type="button" class="recon-entry-name recon-invoice-name" data-movement-edit="${esc(key)}" aria-expanded="${open}">${esc(entry.name)}</button>
      <strong class="recon-invoice-amount${incoming?' entry-credit':''}">${incoming?'+':'−'} ${money(entry.amount)}</strong>
      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${entry.date}">${readableDate(entry.date)}</time></small></div>
    </article>${open?movementEditor(entry,esc(key)):''}`;
  };
- $('expenses').innerHTML=byMonth(entries,item=>item.date).map(([month,items])=>{
+ $('expenses').innerHTML=[...groups].sort(([a],[b])=>b.localeCompare(a)).map(([day,items])=>{
   const cents=items.reduce((sum,e)=>sum+(e.direction==='in'?1:-1)*Math.round(e.amount*100),0);
   const signed=cents<0?'− ':cents>0?'+ ':'';
-  return `<details class="history-month-fold" data-expense-month="${month}" ${openExpenseMonths.has(month)?'open':''}><summary><span>${monthTitle(month)}</span><strong class="statement-month-total${cents>0?' entry-credit':''}" aria-label="Total líquido: ${signed}${money(Math.abs(cents)/100)}">${signed}${money(Math.abs(cents)/100)}</strong></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`;
- }).join('')||'<p class="empty">Nenhum lançamento registrado.</p>';
+  return `<details class="history-month-fold statement-day-fold" data-expense-day="${day}" ${openExpenseDays.has(day)?'open':''}><summary><span>${readableDate(day)}</span><strong class="statement-month-total${cents>0?' entry-credit':''}" aria-label="Total líquido: ${signed}${money(Math.abs(cents)/100)}">${signed}${money(Math.abs(cents)/100)}</strong></summary><div class="history-month-content">${items.map(row).join('')}</div></details>`;
+ }).join('')||'<p class="empty">Nenhum lançamento neste mês.</p>';
 }
 function closeMovementEditor(){
  return keepScrollPosition(()=>{editingMovement=null;renderExpenseHistory();});
@@ -726,7 +745,7 @@ function paintMovementForm(mode){
   button.classList.toggle('active',on);
   button.setAttribute('aria-pressed',String(on));
  }
- if(mode==='statement')renderExpenseHistory();
+ renderExpenseHistory();
 }
 async function saveExpense(e){
  e.preventDefault();
@@ -897,6 +916,9 @@ for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['basel
 $('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));
 $('movementIncomeTab').addEventListener('click',()=>showMovementForm('extra'));
 $('movementStatementTab').addEventListener('click',()=>showMovementForm('statement'));
+$('movementMonth').addEventListener('change',e=>setMovementMonth(e.target.value));
+$('movementMonthPrev').addEventListener('click',()=>setMovementMonth(shiftMonth(movementMonth,-1)));
+$('movementMonthNext').addEventListener('click',()=>setMovementMonth(shiftMonth(movementMonth,1)));
 $('expenses').addEventListener('click',async e=>{
  const hit=e.target.closest('[data-movement-edit]');
  if(hit)return keepScrollPosition(()=>{editingMovement=editingMovement===hit.dataset.movementEdit?null:hit.dataset.movementEdit;renderExpenseHistory();});
@@ -910,12 +932,12 @@ $('expenses').addEventListener('click',async e=>{
   return;
  }
  const summary=e.target.closest('summary'),detail=summary?.parentElement;
- if(detail?.dataset.expenseMonth){
+ if(detail?.dataset.expenseDay){
   e.preventDefault();
   keepScrollPosition(()=>{
    detail.open=!detail.open;
-   if(detail.open)openExpenseMonths.add(detail.dataset.expenseMonth);
-   else openExpenseMonths.delete(detail.dataset.expenseMonth);
+   if(detail.open)openExpenseDays.add(detail.dataset.expenseDay);
+   else openExpenseDays.delete(detail.dataset.expenseDay);
   });
  }
 });
@@ -954,7 +976,7 @@ function rememberAccordion(container,key,opened){
    if(el.open)opened.add(el.dataset[key]);else opened.delete(el.dataset[key]);
  },true);
 }
-rememberAccordion('expenses','expenseMonth',openExpenseMonths);
+rememberAccordion('expenses','expenseDay',openExpenseDays);
 rememberAccordion('investmentHistory','historyYear',openHistoryYears);
 rememberAccordion('investmentHistory','historyMonth',openHistoryMonths);
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);

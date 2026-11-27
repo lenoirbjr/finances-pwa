@@ -8,13 +8,14 @@ function reconValidate(r){
  const parts=p=>arr(p,50)&&p.every(x=>x&&str(x.person,100)&&pos(x.cents))&&new Set(p.map(x=>reconPersonKey(x.person))).size===p.length;
  const unique=(a,fn)=>new Set(a.map(fn)).size===a.length;
  if(!r||!arr(r.statements,120)||!arr(r.bankRows,30000)||!arr(r.receipts,10000)||!arr(r.overrides,20000)||!arr(r.payments??[],120))return false;
+ if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
  if(r.baseline!==undefined){
   const b=r.baseline;
   if(!b||!isDate(b.date)||!arr(b.accounts,25)||!b.accounts.length||!b.accounts.every(a=>a&&str(a.id,80)&&str(a.name,100)&&cent(a.cents))||!unique(b.accounts,x=>x.id))return false;
  }
  const classification=(x,total)=>{const p=x.parts??[];if(!parts(p))return false;const n=p.reduce((a,z)=>a+z.cents,0);return x.label==='other'?n===total:x.label==='split'?n>0&&n<total:(!x.label||x.label==='mine')&&n===0};
  if(r.confirmedTotals!==undefined&&(!r.confirmedTotals||typeof r.confirmedTotals!=='object'||Array.isArray(r.confirmedTotals)||Object.entries(r.confirmedTotals).length>240||!Object.entries(r.confirmedTotals).every(([m,n])=>isMonth(m)&&cent(n)&&n>=0)))return false;
- if(!r.statements.every(st=>st&&isMonth(st.month)&&(st.closed===undefined||typeof st.closed==='boolean')&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
+ if(!r.statements.every(st=>st&&isMonth(st.month)&&(st.closed===undefined||typeof st.closed==='boolean')&&(st.snapshotAt===undefined||(Number.isSafeInteger(st.snapshotAt)&&st.snapshotAt>0))&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
  if(!r.bankRows.every(x=>x&&str(x.id)&&str(x.name,300)&&isDate(x.date)&&typeof x.time==='string'&&/^\d{2}:\d{2}:\d{2}$/.test(x.time)&&cent(x.cents)&&cent(x.balanceCents))||!unique(r.bankRows,x=>x.id))return false;
  if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future','all'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,250))&&(x.ownerName===undefined||str(x.ownerName,100))&&(x.seriesKey===undefined||str(x.seriesKey,500)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
  if(!(r.payments??[]).every(x=>x&&isMonth(x.month)&&isDate(x.date))||!unique(r.payments??[],x=>x.month))return false;
@@ -121,8 +122,9 @@ function reconRawRows(s,m){
    manualSeries.get(id).add(key);
   }
  }
+ const refunds=(s.reconciliation?.cardRefunds??[]).filter(x=>x.month===m&&(!exact?.snapshotAt||x.enteredAt>exact.snapshotAt)).map(x=>({...x,cents:-x.cents,kind:'credit',source:'manual-refund'}));
  const manualRows=linked=>s.parcels.flatMap(e=>{
-  if(e.payTo)return [];
+  if(e.payTo||(exact?.snapshotAt&&!(e.cardEnteredAt>exact.snapshotAt)))return [];
   const cents=Math.round(newPartAmount(e,m)*100),series=manualSeries.get(e.id);
   if(linked.has(e.id)||cents<=0)return [];
   const linkedSeries=series?.size===1?[...series][0]:null;
@@ -139,7 +141,7 @@ function reconRawRows(s,m){
    const x=rowWithSeries(raw);
    if(x.seriesKey&&keys.has(reconSeriesId(x)))for(const id of x.legacyIds??[])linked.add(id);
   }
-  return [...imported,...manualRows(linked)];
+  return [...imported,...manualRows(linked),...refunds];
  }
  const prior=statements.filter(x=>x.month<m).sort((a,b)=>b.month.localeCompare(a.month));
  const covered=new Set(), projected=[], seen=new Set();
@@ -161,7 +163,7 @@ function reconRawRows(s,m){
   }
  }
  for(const e of oldParts(s,m))if(!covered.has(e.id))projected.push({id:e.id,name:e.name,date:eventDate(e.start,5),cents:Math.round(e.payment*100),kind:'charge',count:e.remaining,number:monthDiff(e.start,m)+1,source:'legacy'});
- return [...projected,...manualRows(covered)];
+ return [...projected,...manualRows(covered),...refunds];
 }
 function reconRows(s,m,includePreviousCredit=false){
  const overrides=s.reconciliation?.overrides??[];
@@ -205,6 +207,7 @@ function reconMonths(s){
  const r=s.reconciliation;
  const cur=monthNow();
  const m=new Set([cur,shiftMonth(cur,1)]);
+ for(const x of r?.cardRefunds??[])m.add(x.month);
  for(const st of r?.statements??[]){m.add(st.month);for(const row of st.rows)if(row.count>row.number){for(let i=1;i<=row.count-row.number;i++)m.add(shiftMonth(st.month,i))}}
  for(const x of s.expenses)if(x.cardMonth)m.add(x.cardMonth);
  for(const o of r?.overrides??[])m.add(o.month);

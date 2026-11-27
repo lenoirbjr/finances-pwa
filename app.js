@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.10: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.11: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -23,7 +23,7 @@ function validLegacyShape(s){return !!(s&&s.version===5&&s.mode==='items'&&Numbe
 function valid(s){
  if(!s||s.version!==8||!Array.isArray(s.profiles)||!s.profiles.length||!Array.isArray(s.extraInvestments)||!Array.isArray(s.monthlyPaid))return false;
  const base={...s,version:5};if(!validLegacyShape(base)||!reconValidate(s.reconciliation))return false;
- if(s.expenses.some(e=>e.cardMonth!==undefined&&!isMonth(e.cardMonth))||s.parcels.some(p=>(p.cardAdded!==undefined&&p.cardAdded!==true)||(p.purchaseDate!==undefined&&!isDate(p.purchaseDate))))return false;
+ if(s.expenses.some(e=>e.cardMonth!==undefined&&!isMonth(e.cardMonth))||s.parcels.some(p=>(p.cardEnteredAt!==undefined&&(!Number.isSafeInteger(p.cardEnteredAt)||p.cardEnteredAt<=0))||(p.cardAdded!==undefined&&p.cardAdded!==true)||(p.purchaseDate!==undefined&&!isDate(p.purchaseDate))))return false;
  if(!s.parcels.every(reconPayableValid))return false;
  if(!s.profiles.every(p=>p&&isMonth(p.from)&&[p.income,p.investments,p.margin].every(v=>Number.isFinite(v)&&v>=0)&&validSalary(p)))return false;
  if(new Set(s.profiles.map(p=>p.from)).size!==s.profiles.length)return false;
@@ -242,7 +242,7 @@ function baseAmount(s,m){return s.mode==='legacy'?(s.legacyInvoices[m]??0):round
 const newBaseAmount=baseAmount;
 function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.count)return 0;const cents=Math.round(e.total*100),unit=Math.round(e.payment*100);return (off===e.count-1?cents-unit*(e.count-1):unit)/100}
 function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+(e.payTo?0:newPartAmount(e,m)),0))}
-function invoiceAmount(s,m){return reconInvoice(s,m)??round(baseAmount(s,m)+newAmount(s,m))}
+function invoiceAmount(s,m){return reconInvoice(s,m)??Math.max(0,round(baseAmount(s,m)+newAmount(s,m)-(s.reconciliation?.cardRefunds??[]).filter(x=>x.month===m).reduce((n,x)=>n+x.cents,0)/100))}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
 function monthly(s,m){const people=reconPayableRows(s).filter(e=>e.date.slice(0,7)===m).reduce((n,e)=>n+e.cents,0)/100;const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,people,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested-people),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-people)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
@@ -495,7 +495,7 @@ function openParcelClassify(id){
  $('parcelReconUI')?.scrollIntoView({behavior:'smooth',block:'nearest'});
  $('parcelReconUI')?.querySelector('input:not([type=hidden]), select')?.focus({preventScroll:true});
 }
-function render(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);
+function render(){const asOf=today(),m=asOf.slice(0,7),x=monthly(state,m),calc=cycleBudget(state,asOf);$('monthCaption').textContent=monthTitle(m);renderDashboard(asOf,calc,m);renderCardRefunds();
 renderExpenseHistory();
 renderParcelHistory();
 $('fixedList').innerHTML=rows(state.fixedItems,'fixed');$('baseList').innerHTML=rows(state.baseParcels,'base');$('fixedSubtotal').textContent=money(x.fixed);$('baseSubtotal').textContent=x.known?money(x.base):'—';
@@ -597,7 +597,7 @@ async function saveNew(e){
   if(old?.payments?.length&&touchesSchedule)throw Error('Desfaça os pagamentos registrados antes de mudar os dados das parcelas.');
   const payment=old&&old.total===total&&old.count===count?old.payment:Math.floor(Math.round(total*100)/count)/100;
   if(old&&reconHasAllocated(s,old.id)&&touchesSchedule)throw Error('Há um Pix vinculado a esta compra. Desfaça o recebimento antes de mudar as parcelas.');
-  const item={...old,id,name,total,payment,count,start,...(!old?{cardAdded:true,purchaseDate:today()}:{})};
+  const item={...old,id,name,total,payment,count,start,...(!old?{cardAdded:true,purchaseDate:today(),cardEnteredAt:Date.now()}:{})};
   if(personal){item.payTo=payTo;item.payStart=payStart;}
   else {delete item.payTo;delete item.payStart;delete item.payments;}
   if(old)s.parcels=s.parcels.map(p=>p.id===old.id?item:p);
@@ -683,7 +683,7 @@ async function saveOpening(e){
 async function saveExtraIncome(e){e.preventDefault();const date=$('incomeExtraDate').value,name=$('incomeExtraName').value.trim()||'Entrada extra',v=round(amount('incomeExtraAmount'));if(!isDate(date)||!Number.isFinite(v)||v<=0)return notice('Confira a data e o valor da entrada extra.','warning');if(await update(s=>s.extraIncome.push({id:newId(),date,name,amount:v}))){$('incomeExtraName').value='';$('incomeExtraAmount').value=''}}
 
 function resetForms(){editingFixed=editingBase=editingNew=null;clearParcelOrigin();for(const [a,b] of [['fixedSubmit','Adicionar despesa fixa'],['baseSubmit','Adicionar parcela antiga'],['parcelSubmit','Adicionar parcelamento']])$(a).textContent=b;for(const id of ['fixedCancel','baseCancel','parcelCancel'])$(id).classList.add('hidden')}
-function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelOrigin').value=v.payTo?'person':'own';$('parcelPayee').value=v.payTo??'';$('parcelPayStart').value=v.payStart??'';$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;syncParcelOrigin();$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
+function editItem(kind,id){const items=kind==='fixed'?state.fixedItems:kind==='base'?state.baseParcels:state.parcels;const v=items.find(e=>e.id===id);if(!v)return;if(kind==='fixed'){editingFixed=id;$('fixedName').value=v.name;$('fixedAmount').value=v.amount;$('fixedDay').value=v.day||5;$('fixedStart').value=v.start;$('fixedEnd').value=v.end||'';$('fixedSubmit').textContent='Salvar despesa fixa';$('fixedCancel').classList.remove('hidden');showScreen('settings');$('fixedForm').closest('details')?.setAttribute('open','');$('fixedForm').scrollIntoView({behavior:'smooth'})}if(kind==='base'){editingBase=id;$('baseName').value=v.name;$('basePayment').value=v.payment;$('baseRemaining').value=v.remaining;$('baseStart').value=v.start;$('baseSubmit').textContent='Salvar parcela antiga';$('baseCancel').classList.remove('hidden');showScreen('settings');$('baseForm').closest('details')?.setAttribute('open','');$('baseForm').scrollIntoView({behavior:'smooth'})}if(kind==='new'){editingNew=id;$('parcelOrigin').value=v.payTo?'person':'own';$('parcelPayee').value=v.payTo??'';$('parcelPayStart').value=v.payStart??'';$('parcelName').value=v.name;$('parcelTotal').value=v.total;$('parcelCount').value=String(v.count);if(!$('parcelCount').value){$('parcelCount').insertAdjacentHTML('beforeend',`<option value="${v.count}">${v.count}x</option>`);$('parcelCount').value=String(v.count)}$('parcelStart').value=v.start;syncParcelOrigin();$('parcelSubmit').textContent='Salvar compra';$('parcelCancel').classList.remove('hidden');showCardEntry('purchase');showScreen('installments');$('parcelForm').scrollIntoView({behavior:'smooth'})}calendarLabels()}
 function downloadFile(contents,name){const blob=new Blob([contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function exportBackup(){downloadFile(JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),`financas-${today()}.json`);notice('Backup preparado. Confirme se ele foi salvo no aplicativo Arquivos.','warning')}
 async function restoreBackup(e){const file=e.target.files?.[0];if(!file)return;try{const raw=JSON.parse(await file.text());const normalized=raw.version===8?raw:raw.version===7?raw:raw.version===6?raw:raw.version===5?raw:raw.version===4?raw:raw.version===3?migrateV3(raw):isOldV2(raw)?migrateOld(raw):migratePilot(raw);const incoming=toV8(normalized);if(!valid(incoming))throw Error('Formato incompatível');if(!confirm('Substituir todos os registros deste aparelho pelo backup?'))return;await write('state-before-last-import',state);await write(RECORD,incoming);state=incoming;resetForms();updateInvestmentForm();render();notice('Backup restaurado.')}catch(err){notice('Falha na importação: '+err.message,'error')}finally{e.target.value=''}}
@@ -706,7 +706,7 @@ async function init(){try{
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
  openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
- $('parcelStart').value=defaultCardMonth();$('cardImportMonth').value=defaultCardMonth();showMovementForm('expense');updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
+ $('parcelStart').value=defaultCardMonth();$('cardImportMonth').value=defaultCardMonth();$('cardRefundMonth').value=defaultCardMonth();$('cardRefundDate').value=today();$('cardRefundDate').max=today();showMovementForm('expense');updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
@@ -732,6 +732,18 @@ $('cardMonth').addEventListener('change',e=>setCardMonth(e.target.value));
 $('cardMonthPrev').addEventListener('click',()=>setCardMonth(shiftMonth(cardMonth??defaultCardMonth(),-1)));
 $('cardMonthNext').addEventListener('click',()=>setCardMonth(shiftMonth(cardMonth??defaultCardMonth(),1)));
 $('cardImportForm').addEventListener('submit',importClosedCard);
+$('cardPurchaseTab').addEventListener('click',()=>showCardEntry('purchase'));
+$('cardRefundTab').addEventListener('click',()=>showCardEntry('refund'));
+$('cardRefundPix').addEventListener('click',()=>showScreen('acertos'));
+$('cardRefundForm').addEventListener('submit',saveCardRefund);
+$('cardRefundHistory').addEventListener('click',e=>{
+ const id=e.target.closest('[data-remove-refund]')?.dataset.removeRefund;
+ if(id&&confirm('Excluir este estorno manual?'))update(s=>{
+  const r=reconInit(s),item=r.cardRefunds?.find(x=>x.id===id);
+  if(item&&r.statements.some(x=>x.month===item.month&&x.closed===true))throw Error('A fatura deste estorno já está fechada.');
+  r.cardRefunds=(r.cardRefunds??[]).filter(x=>x.id!==id);
+ });
+});
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('screen-installments').addEventListener('click',event=>{
  const button=event.target.closest?.('[data-classify-parcel]');

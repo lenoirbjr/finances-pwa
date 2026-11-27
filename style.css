@@ -547,3 +547,9 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
 .commitment-hero dd{color:var(--hero-text);font-size:.86rem;font-weight:700;margin:4px 0 0;overflow-wrap:anywhere}
 .card-hub .card-period{margin:0;min-width:0}
 #cardImportFile{font:inherit;display:block;width:100%;min-width:0;color:var(--muted);font-size:.8rem}
+
+/* Keep both card-entry choices in one row on compact phones. */
+.card-entry-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.card-entry-switch button{min-width:0;width:100%;min-height:44px;padding-inline:6px}
+#cardRefundPix{display:inline;padding:0;font-size:inherit;text-align:left}
+#cardRefundForm .two-cols>div{min-width:0}

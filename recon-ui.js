@@ -45,6 +45,12 @@ function createReconUI(){
  }
  let api,root,tab='bill',period='',editing=null,formKind='',personFilter='',billFilter='all',busy=false,displayed=[],debts=[];
  const openGroups=new Set();
+ const billSortOptions=[['original','Ordem original'],['amount-up','Valor: menor para maior'],['amount-down','Valor: maior para menor'],['label-up','Etiqueta: A a Z'],['label-down','Etiqueta: Z a A'],['date-down','Data: mais recentes'],['date-up','Data: mais antigas'],['name-up','Descrição: A a Z']];
+ const isBillSort=value=>billSortOptions.some(([key])=>key===value);
+ const billCollator=new Intl.Collator('pt-BR',{sensitivity:'base',numeric:true});
+ const billSortKey='diario-financeiro-bill-order';
+ let billSort='original';
+ try{const saved=localStorage.getItem(billSortKey);if(isBillSort(saved))billSort=saved;}catch{}
  let moneyTab='payable';
  const payablePersonKey=person=>JSON.stringify(['payable-person',norm(person)]);
  const payableMonthKey=(person,month)=>JSON.stringify(['payable-month',norm(person),month]);
@@ -64,11 +70,19 @@ function createReconUI(){
        if(!names.has(value))names.set(value,name);
        return value;
      }):[];
-     return {row,keys};
+     return {row,keys,labelSort:keys.slice().sort((a,b)=>billCollator.compare(names.get(a),names.get(b)))[0]};
    });
    for(const [value,label] of [...names].sort((a,b)=>a[1].localeCompare(b[1],'pt-BR')))options.set(value,label);
    if(!options.has(billFilter))billFilter='all';
-   displayed=withNames.filter(({row,keys})=>billFilter==='all'||(billFilter==='unlabeled'?charge(row)&&keys.length===0:keys.includes(billFilter))).map(x=>x.row);
+   const list=withNames.filter(({row,keys})=>billFilter==='all'||(billFilter==='unlabeled'?charge(row)&&keys.length===0:keys.includes(billFilter)));
+   if(billSort!=='original')list.sort((a,b)=>{
+     if(billSort.startsWith('amount'))return (a.row.cents-b.row.cents)*(billSort==='amount-up'?1:-1);
+     if(billSort.startsWith('date'))return String(a.row.date??'').localeCompare(String(b.row.date??''))*(billSort==='date-up'?1:-1);
+     if(billSort==='name-up')return billCollator.compare(a.row.name,b.row.name);
+     if(!a.labelSort||!b.labelSort)return Number(!a.labelSort)-Number(!b.labelSort);
+     return billCollator.compare(names.get(a.labelSort),names.get(b.labelSort))*(billSort==='label-up'?1:-1);
+   });
+   displayed=list.map(x=>x.row);
    return options;
  }
  function payableRows(){
@@ -125,7 +139,11 @@ function createReconUI(){
    const due=statement(period)?.dueDate??statement(period)?.due;
    return `<div class="surface recon-screen recon-invoice">
    <p class="recon-due">Vencimento: <strong>${when(safeDate(due)?due:period+'-05')}</strong></p>
-   <div class="recon-label-filter"><select id="reconBillFilter" aria-label="Filtrar por etiqueta">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select></div>
+   <div class="recon-label-filter"><select id="reconBillFilter" aria-label="Filtrar por etiqueta">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select>
+   <label class="recon-sort-control" data-sorted="${billSort!=='original'}" title="Ordenar lançamentos">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h6"/></svg>
+    <select id="reconBillSort" aria-label="Ordenar lançamentos">${billSortOptions.map(([key,label])=>`<option value="${key}" ${billSort===key?'selected':''}>${label}</option>`).join('')}</select>
+   </label></div>
    <div class="recon-rows" id="reconBillRows">${billRows()}</div></div>`;
  }
  function billRows(){
@@ -353,8 +371,14 @@ function createReconUI(){
   });
   dom.addEventListener('change',e=>{
     const el=e.target;
-    if(el.id==='reconBillFilter')return keepPosition(()=>{
-      billFilter=el.value;editing=null;formKind='';
+    if(el.id==='reconBillFilter'||el.id==='reconBillSort')return keepPosition(()=>{
+      if(el.id==='reconBillSort'){
+        if(!isBillSort(el.value))return;
+        billSort=el.value;const control=el.closest('.recon-sort-control');
+        if(control)control.dataset.sorted=String(billSort!=='original');
+        try{localStorage.setItem(billSortKey,billSort);}catch{}
+      }else billFilter=el.value;
+      editing=null;formKind='';
       billList(api.rows(period)||[]);
       const list=$('#reconBillRows',root);
       if(list)list.innerHTML=billRows();

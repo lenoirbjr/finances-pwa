@@ -98,26 +98,23 @@ function pixScenarioEvaluate(snapshot,people,mode){
 }
 
 // One timeline for the Home spending limits. Future Pix are projections, not cash.
-function budgetExpectedReceipts(s,months,asOf,through){
- const given=new Map(),inCents=[];
- for(const p of s.reconciliation?.receipts??[])for(const a of p.allocations){
-  const key=JSON.stringify([a.month,a.rowId,reconPersonKey(p.person)]);
-  given.set(key,(given.get(key)??0)+a.cents);
- }
+function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
  const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
- for(const month of months){
-  const date=addDays(pixScenarioDue(statements.get(month),month),-1);
-  if(date<=asOf||date>through)continue;
-  let total=0;
-  for(const row of reconRows(s,month,true))for(const part of row.parts??[]){
-   const key=JSON.stringify([month,row.id,reconPersonKey(part.person)]);
-   total+=Math.max(0,part.cents-(given.get(key)??0));
+ const totals=new Map(), dates=new Map();
+ const tomorrow=addDays(asOf,1);
+ for(const debt of debts){
+  if(debt.remaining<=0||(selected&&!selected.has(reconPersonKey(debt.person))))continue;
+  if(!dates.has(debt.month)){
+   const eve=addDays(pixScenarioDue(statements.get(debt.month),debt.month),-1);
+   // Overdue amounts may still be expected, but never counted as cash today.
+   dates.set(debt.month,eve<tomorrow?tomorrow:eve);
   }
-  if(total>0)inCents.push({date,cents:total});
+  const date=dates.get(debt.month);
+  if(date<=through)totals.set(date,(totals.get(date)??0)+debt.remaining);
  }
- return inCents.sort((a,b)=>a.date.localeCompare(b.date));
+ return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([date,cents])=>({date,cents}));
 }
-function spendingTimeline(s,asOf,current){
+function spendingTimeline(s,asOf,current,selected,debts){
  const sunday=nextSunday(asOf),payday=nextPayday(s,asOf),beforePayday=addDays(payday,-1);
  const bill=pixScenarioInvoice(s,asOf),first=nextMonthEndPayday(asOf);
  const horizon=[sunday,payday,bill?.date??asOf,eventDate(shiftMonth(first.slice(0,7),2),30)].sort().at(-1);
@@ -126,11 +123,10 @@ function spendingTimeline(s,asOf,current){
  const points=new Set([asOf,sunday,beforePayday,horizon]);
  const events=(date)=>{if(isDate(date)&&date>=asOf&&date<=horizon)points.add(date);};
  if(bill)events(bill.date);
- const start=asOf.slice(0,7),end=horizon.slice(0,7),months=[shiftMonth(start,-1)],relocations=[],extraGoals=[];
+ const start=asOf.slice(0,7),end=horizon.slice(0,7),relocations=[],extraGoals=[];
  const statementByMonth=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
  const reserve=Math.round(overdueReserved(s,asOf)*100);
  for(let m=start;m<=end;m=shiftMonth(m,1)){
-  months.push(m);
   const modeled=eventDate(m,5),due=pixScenarioDue(statementByMonth.get(m),m),investDay=eventDate(m,30);
   events(eventDate(m,1));events(modeled);events(due);events(investDay);
   for(const salary of salaryEvents(s,m))events(salary.date);
@@ -160,7 +156,7 @@ function spendingTimeline(s,asOf,current){
   for(const x of list??[])events(x.date);
  }
  for(const p of reconPayableEvents(s))events(p.date);
- const expected=budgetExpectedReceipts(s,months,asOf,horizon);
+ const expected=budgetExpectedReceipts(s,asOf,horizon,selected,debts);
  for(const p of expected)events(p.date);
  const days=[...points].sort().map(date=>{
   const currentForecast=Math.round(cashForecast(s,date,asOf)*100);

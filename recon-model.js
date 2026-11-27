@@ -5,7 +5,7 @@ function reconValidate(r){
  if(r===undefined)return true;
  const arr=(x,n)=>Array.isArray(x)&&x.length<=n, str=(x,n=180)=>typeof x==='string'&&x.trim().length>0&&x.length<=n;
  const cent=x=>Number.isSafeInteger(x)&&Math.abs(x)<=1e12, pos=x=>cent(x)&&x>0;
- const parts=p=>arr(p,50)&&p.every(x=>x&&str(x.person,100)&&pos(x.cents))&&new Set(p.map(x=>reconPersonKey(x.person))).size===p.length;
+ const parts=p=>arr(p,50)&&p.every(x=>x&&str(x.person,100)&&pos(x.cents)&&(x.expected===undefined||isDate(x.expected)))&&new Set(p.map(x=>reconPersonKey(x.person))).size===p.length;
  const unique=(a,fn)=>new Set(a.map(fn)).size===a.length;
  if(!r||!arr(r.statements,120)||!arr(r.bankRows,30000)||!arr(r.receipts,10000)||!arr(r.overrides,20000)||!arr(r.payments??[],120))return false;
  if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
@@ -37,7 +37,7 @@ function reconScale(parts,label,basis,to){
  const scaled=inputs.map((p,i)=>{const numerator=BigInt(p.cents)*BigInt(to);return {person:p.person,cents:Number(numerator/BigInt(basis)),r:Number(numerator%BigInt(basis)),i}});
  let left=to-scaled.reduce((n,p)=>n+p.cents,0);
  for(const p of [...scaled].sort((a,b)=>b.r-a.r||a.i-b.i)){if(left<=0)break;p.cents++;left--}
- return scaled.filter(x=>x.person&&x.cents>0).map(({person,cents})=>({person,cents}));
+ return scaled.filter(x=>x.person&&x.cents>0).map(({person,cents,i})=>({person,cents,...(inputs[i].expected?{expected:inputs[i].expected}:{})}));
 }
 // Preserva o caixa e os Pix vinculados a movimentos em crédito da 4.0.1,
  // sem voltar a mostrá-los como compras da fatura.
@@ -278,7 +278,7 @@ function reconRows(s,m,includePreviousCredit=false){
   const exact=overrides.find(o=>o.rowId===row.id&&o.month===m&&o.scope==='one')??overrides.find(o=>o.rowId===row.id&&o.month===m&&o.scope==='future');
   const earlier=overrides.filter(o=>o.rowId===row.id&&o.scope==='future'&&o.month<m).sort((a,b)=>b.month.localeCompare(a.month))[0];
   const all=overrides.find(o=>o.scope==='all'&&(reconLinkedSeries(row,o.seriesKey)||o.rowId===row.id));
-  const o=all??exact??earlier;
+  const o=exact??all??earlier;
   if(!o)return row;
   const parts=reconScale(o.parts,o.label,o.basis,row.cents);
   const label=parts.length?(parts.reduce((a,p)=>a+p.cents,0)===row.cents?'other':'split'):o.label?'mine':undefined;
@@ -334,13 +334,13 @@ function reconDebt(s){
  }
  return reconMonths(s).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>{
   const n=received.get(month+'|'+row.id+'|'+reconPersonKey(part.person))??0;
-  return {rowId:row.id,month,person:part.person,cents:part.cents,received:n,remaining:Math.max(0,part.cents-n),name:row.name,number:row.number,count:row.count};
+  return {rowId:row.id,month,person:part.person,cents:part.cents,received:n,remaining:Math.max(0,part.cents-n),expected:part.expected,name:row.name,number:row.number,count:row.count};
  })));
 }
 function reconSetLabel(s,month,rowId,label,parts,scope,name,ownerName){
- const row=reconRows(s,month).find(x=>x.id===rowId&&x.kind==='charge');if(!row)throw Error('Lançamento não encontrado.');
+ const row=reconRows(s,month,true).find(x=>x.id===rowId&&x.kind==='charge');if(!row)throw Error('Lançamento não encontrado.');
  const r=reconInit(s);
- let p=(parts??[]).map(x=>({person:x.person.trim().normalize('NFC'),cents:x.cents}));
+ let p=(parts??[]).map(x=>({person:x.person.trim().normalize('NFC'),cents:x.cents,...(x.expected?{expected:x.expected}:{})}));
  if(!label||label==='mine')p=[];
  if(!['one','future','all'].includes(scope))throw Error('Não foi possível identificar as parcelas.');
  const editedName=name===undefined?undefined:String(name).trim();
@@ -351,7 +351,7 @@ function reconSetLabel(s,month,rowId,label,parts,scope,name,ownerName){
  const touches=(other,id,m)=> scope==='all'?(id===rowId||reconSeriesId(other)===seriesKey):(id===rowId&&(m===month||(scope==='future'&&m>month)));
  if(scope==='all')for(const m of reconMonths(s))for(const item of reconRawRows(s,m))if(reconSeriesId(item)===seriesKey)related.add(item.id);
  for(const d of reconDebt(s))if(d.received>0&&(related.has(d.rowId)||d.rowId===rowId)){
-  const target=reconRawRows(s,d.month).find(t=>t.id===d.rowId);
+  const target=[...reconRawRows(s,d.month),...reconPreviousCreditRows(s,d.month)].find(t=>t.id===d.rowId);
   if(!target||!touches(target,d.rowId,d.month))continue;
   const capacity=reconScale(p,label,row.cents,target.cents).find(x=>reconPersonKey(x.person)===reconPersonKey(d.person))?.cents;
   if((capacity??0)<d.received)throw Error('Já há um Pix vinculado. Mantenha o valor recebido no rateio ou ajuste o Pix antes.');
@@ -556,4 +556,44 @@ function reconEditSettlement(s,key,fields){
   else reconAddPayablePayment(next,payment,entry.batch);
  }
  s.parcels=next.parcels;s.reconciliation=next.reconciliation;
+}
+
+function reconOpenDebtEntries(s){
+ const pending=new Map();
+ for(const item of reconPayableRows(s))if(item.remaining>0){
+  const group=pending.get(item.id)??{remaining:0,nextDue:item.due};
+  group.remaining+=item.remaining;pending.set(item.id,group);
+ }
+ const outgoing=s.parcels.filter(p=>p.payTo&&pending.has(p.id)).map(p=>({
+  ...pending.get(p.id),kind:'purchase',key:reconSettlementKey('purchase',p.id),id:p.id,
+  date:p.payStart,person:p.payTo,name:p.name,cents:Math.round(p.total*100),count:p.count,hasPayments:!!p.payments?.length
+ }));
+ const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
+ const incoming=reconDebt(s).filter(d=>d.remaining>0).map(d=>({
+  ...d,kind:'receivable',key:reconSettlementKey('receivable',d.month,d.rowId,reconPersonKey(d.person)),
+  date:d.expected??addDays(pixScenarioDue(statements.get(d.month),d.month),-1)
+ }));
+ return [...outgoing,...incoming].sort((a,b)=>(a.nextDue??a.date).localeCompare(b.nextDue??b.date)||a.person.localeCompare(b.person,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'));
+}
+function reconEditOpenDebt(s,key,fields){
+ const entry=reconOpenDebtEntries(s).find(e=>e.key===key);
+ if(!entry)throw Error('Dívida não encontrada.');
+ if(entry.kind==='purchase')return reconEditSettlement(s,key,fields);
+ const {month,rowId}=entry,row=reconRows(s,month,true).find(r=>r.kind==='charge'&&r.id===rowId);
+ if(!row)throw Error('Lançamento da fatura não encontrado.');
+ const personKey=reconPersonKey(entry.person);
+ const parts=(row.parts??[]).filter(p=>reconPersonKey(p.person)!==personKey);
+ const name=fields?.name??row.name;
+ if(fields!==null){
+  const person=String(fields.person??'').trim().normalize('NFC'),who=reconPersonKey(person);
+  const {date,cents}=fields;
+  if(!person||person.length>100||!isDate(date)||!Number.isSafeInteger(cents)||cents<=0||cents>row.cents||!name||name.length>250)throw Error('Confira a pessoa, a descrição, o vencimento e o valor.');
+  if(reconOwner(s).aliases.some(owner=>reconPersonKey(owner)===who))throw Error('Informe quem vai te pagar, não o titular da fatura.');
+  if(parts.some(p=>reconPersonKey(p.person)===who))throw Error('Essa pessoa já está no rateio desta linha.');
+  if(entry.received>0&&(who!==personKey||cents<entry.received))throw Error('Desfaça o recebimento vinculado antes de trocar a pessoa ou reduzir abaixo do valor já recebido.');
+  parts.push({person,cents,...(date!==entry.date||entry.expected?{expected:date}:{})});
+ }else if(entry.received>0)throw Error('Desfaça o recebimento vinculado antes de excluir a dívida.');
+ const total=parts.reduce((sum,p)=>sum+p.cents,0);
+ if(total>row.cents)throw Error('O rateio não pode ultrapassar o valor da fatura nesta linha.');
+ reconSetLabel(s,month,rowId,parts.length?(total===row.cents?'other':'split'):null,parts,'one',name);
 }

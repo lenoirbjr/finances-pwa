@@ -126,47 +126,32 @@ function createReconUI(){
  }
  let ledgerRows=[];
  function settlementEditor(r){
-   const purchase=r.kind==='purchase';
-   const dateId='settlementDate', dateLabel=purchase?'Primeiro vencimento':'Data';
-   const amount=(id,v)=>`<input id="${id}" name="ledgerValue" inputmode="decimal" placeholder="0,00" value="${coin(v).replace('.',',')}" required>`;
+   const purchase=r.kind==='purchase',dateId='settlementDate',dateLabel=purchase&&r.count>1?'Primeiro vencimento':'Vencimento';
    return `<form class="recon-edit recon-value-form recon-settlement-form" data-recon-form="settlement">
-   ${purchase?`<label for="settlementName">Descrição</label><input id="settlementName" name="description" value="${escape(r.name)}" placeholder="E.x. Compra" maxlength="120" required>
-   <label for="settlementPerson">Pessoa</label><input id="settlementPerson" name="person" value="${escape(r.person)}" maxlength="100" required>`:''}
-   <label for="${dateId}">${dateLabel}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(r.date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${dateId}" name="date" type="date" value="${escape(r.date)}" ${purchase?'':`max="${escape(api.today)}"`} required></div>
-   ${purchase?`<label for="settlementCount">Parcelas</label><input id="settlementCount" name="count" type="number" min="1" max="120" value="${r.count}" required><label for="settlementAmount">Valor (R$)</label>${amount('settlementAmount',r.cents)}`:
-      r.allocations.map((a,i)=>`<label for="settlementAmount${i}">Valor (R$)${r.allocations.length>1?` <small>${escape(a.name)} · ${monthTitle(a.month)}</small>`:''}</label>${amount('settlementAmount'+i,a.cents)}`).join('')}
+   <label for="settlementName">Descrição</label><input id="settlementName" name="description" value="${escape(r.name)}" placeholder="E.x. Compra" maxlength="${purchase?120:250}" required>
+   <label for="settlementPerson">Pessoa</label><input id="settlementPerson" name="person" value="${escape(r.person)}" maxlength="100" required>
+   <label for="${dateId}">${dateLabel}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(r.date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${dateId}" name="date" type="date" value="${escape(r.date)}" required></div>
+   ${purchase?`<label for="settlementCount">Parcelas</label><input id="settlementCount" name="count" type="number" min="1" max="120" value="${r.count}" required>`:''}
+   <label for="settlementAmount">Valor (R$)</label><input id="settlementAmount" name="amount" inputmode="decimal" placeholder="0,00" value="${coin(r.cents).replace('.',',')}" required>${r.remaining<r.cents?`<small class="assistive">Valor original da dívida.</small>`:''}
    <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-recon-settlement-delete>Excluir</button></div>
    </form>`;
  }
  function ledgerSection(){
    ledgerRows=api.settlements?.()??[];
-   const signed=(c,showPlus=false)=>(c<0?'− ':c>0&&showPlus?'+ ':'')+brl(Math.abs(c));
    const entry=(r,i)=>{
-     const purchase=r.kind==='purchase',open=formKind==='settlement'&&editing===r.key;
-     const title=purchase?r.name:r.kind==='in'?'Recebido de '+r.person:'Pago a '+r.person;
+     const open=formKind==='settlement'&&editing===r.key,due=r.nextDue??r.date;
      return `<article class="recon-row recon-card-line recon-invoice-line movement-statement-line">
-      <button type="button" class="recon-entry-name recon-invoice-name" data-recon-settlement="${i}" aria-expanded="${open}">${escape(title)}</button>
-      <strong class="recon-invoice-amount${r.kind==='in'?' entry-credit':''}">${signed(r.kind==='out'?-r.cents:r.cents,r.kind==='in')}</strong>
-      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${escape(r.date)}">${when(r.date)}</time>${purchase?' · '+escape(r.person):''}</small></div>
+      <button type="button" class="recon-entry-name recon-invoice-name" data-recon-settlement="${i}" aria-expanded="${open}">${escape(r.name)}</button>
+      <strong class="recon-invoice-amount">${brl(r.remaining)}</strong>
+      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${escape(due)}">${when(due)}</time> · ${escape(r.person)}</small></div>
      </article>${open?settlementEditor(r):''}`;
    };
-   const groups=(purchase)=>{
-     const months=new Map();
-     ledgerRows.forEach((r,i)=>{
-       if((r.kind==='purchase')!==purchase)return;
-       const m=r.date.slice(0,7);
-       if(!months.has(m))months.set(m,[]);
-       months.get(m).push([r,i]);
-     });
-     return [...months].map(([m,rows])=>{
-       const key='ledger-'+(purchase?'purchase':'payment')+':'+m,sum=rows.reduce((n,[r])=>n+(r.kind==='out'?-r.cents:r.cents),0);
-       return `<details class="history-month-fold" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>${monthTitle(m)}</span><strong class="statement-month-total${!purchase&&sum>0?' entry-credit':''}">${signed(sum,!purchase)}</strong></summary><div class="history-month-content">${rows.map(([r,i])=>entry(r,i)).join('')}</div></details>`;
-     }).join('');
+   const group=(kind,title)=>{
+     const items=ledgerRows.map((r,i)=>[r,i]).filter(([r])=>r.kind===kind);
+     const key='ledger-'+kind,sum=items.reduce((n,[r])=>n+r.remaining,0);
+     return `<details class="history-month-fold" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>${title}</span><strong class="statement-month-total">${brl(sum)}</strong></summary><div class="history-month-content">${items.map(([r,i])=>entry(r,i)).join('')||'<p class="empty">Nenhuma dívida em aberto.</p>'}</div></details>`;
    };
-   const payments=groups(false),purchases=groups(true);
-   return `<section class="surface recon-screen movement-statement recon-settlement-ledger" aria-label="Extrato de acertos">
-   ${payments||'<p class="empty">Nenhum pagamento ou recebimento registrado.</p>'}
-   ${purchases?`<h3>Compras a pagar</h3>${purchases}`:''}</section>`;
+   return `<section class="surface recon-screen movement-statement recon-settlement-ledger" aria-label="Extrato de acertos">${group('purchase','A Pagar')}${group('receivable','A Receber')}</section>`;
  }
  function moneyViews(){
    return `<div class="recon-money-views"><div class="subtabs recon-money-tabs" role="group" aria-label="Pagamentos e recebimentos">
@@ -381,7 +366,7 @@ function createReconUI(){
    if(b.hasAttribute('data-recon-settlement-delete')){
      const row=ledgerRows.find(r=>r.key===editing);
      if(!row||formKind!=='settlement'||!api.editSettlement)return;
-     const question=row.kind==='purchase'?'Excluir esta compra e todas as parcelas?':'Excluir este registro? Os valores vinculados voltarão a ficar em aberto.';
+     const question=row.kind==='purchase'?'Excluir esta dívida e suas parcelas?':'Excluir este valor a receber? A compra continua na fatura.';
      if(window.confirm(question))apply(()=>api.editSettlement(row.key,null),'Lançamento excluído.');
      return;
    }
@@ -501,9 +486,9 @@ function createReconUI(){
     if(f.dataset.reconForm==='settlement'){
       const row=ledgerRows.find(r=>r.key===editing);
       if(formKind!=='settlement'||!row||!api.editSettlement)return;
-      const date=f.elements.date.value,values=[...f.querySelectorAll('[name=ledgerValue]')].map(x=>cents(x.value));
-      if(!safeDate(date)||row.kind!=='purchase'&&date>api.today||values.some(v=>!Number.isSafeInteger(v)||v<0||v>1e12)){error('Confira a data e os valores.');return;}
-      const fields=row.kind==='purchase'?{name:f.elements.description.value.trim(),person:f.elements.person.value.trim(),date,cents:values[0],count:Number(f.elements.count.value)}:{date,values};
+      const date=f.elements.date.value,value=cents(f.elements.amount.value);
+      if(!safeDate(date)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Confira o vencimento e o valor.');return;}
+      const fields={name:f.elements.description.value.trim(),person:f.elements.person.value.trim(),date,cents:value,...(row.kind==='purchase'?{count:Number(f.elements.count.value)}:{})};
       apply(()=>api.editSettlement(row.key,fields),'Lançamento atualizado.');return;
     }
     if(f.dataset.reconForm==='credit-label'){

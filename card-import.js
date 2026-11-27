@@ -131,9 +131,15 @@ async function saveCardRefund(event){
   $('cardRefundName').value='';$('cardRefundAmount').value='';notice('Estorno registrado.');
  }
 }
-function renderCardRefunds(){
- $('cardRefundHistory').innerHTML=[...(state.reconciliation?.cardRefunds??[])].reverse().map(x=>{
-  const st=state.reconciliation.statements.find(s=>s.month===x.month), counted=st?.closed!==true&&(!st?.snapshotAt||x.enteredAt>st.snapshotAt);
-  return `<article class="recon-row"><div><strong>${esc(x.name)}</strong><small>Fatura ${shortMonthTitle(x.month)}${counted?'':' · Fora do total atualizado pelo CSV'}</small></div><div class="recon-row-amount"><strong>${money(-x.cents/100)}</strong>${st?.closed===true?'':`<button class="secondary" type="button" data-remove-refund="${esc(x.id)}">Excluir</button>`}</div></article>`;
- }).join('')||'<p class="empty">Nenhum estorno registrado.</p>';
+function editCardRefund(s,m,id,fields){
+ if(!reconCanAdjustMonth(s,m))throw Error('Não é possível alterar um estorno de fatura fechada ou paga.');
+ const r=s.reconciliation,old=r?.cardRefunds,record=old?.find(x=>x.id===id&&x.month===m);
+ if(!record||!reconRawRows(s,m).some(x=>x.id===id&&x.source==='manual-refund'))throw Error('Este estorno não está na fatura em aberto.');
+ const rest=old.filter(x=>x!==record);
+ if(fields===null){r.cardRefunds=rest;return;}
+ const name=String(fields.name??'').trim(),date=fields.date,cents=fields.cents;
+ if(!name||name.length>120||!isDate(date)||date>today()||!Number.isSafeInteger(cents)||cents<=0||cents>1e12)throw Error('Confira a descrição, a data e o valor do estorno.');
+ r.cardRefunds=rest;
+ try{addCardRefund(s,{...record,name,date,cents});}
+ catch(err){r.cardRefunds=old;throw err;}
 }

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.40 */
+/* diario-shell:4.0.41 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -24,7 +24,7 @@ function reconValidate(r){
  if(!r.statements.every(st=>st&&isMonth(st.month)&&(st.closed===undefined||typeof st.closed==='boolean')&&(st.snapshotAt===undefined||(Number.isSafeInteger(st.snapshotAt)&&st.snapshotAt>0))&&arr(st.rows,5000)&&st.rows.every(x=>x&&str(x.id)&&str(x.name,250)&&isDate(x.date)&&cent(x.cents)&&(['charge','credit','prior-payment'].includes(x.kind))&&(x.kind==='charge'?x.cents>0:x.cents<0)&&classification(x,Math.abs(x.cents))&&(x.kind==='charge'||!x.label)&&(x.legacyIds===undefined||(arr(x.legacyIds,10)&&x.legacyIds.every(x=>str(x))))&&((x.number===undefined&&x.count===undefined)||(Number.isInteger(x.number)&&Number.isInteger(x.count)&&1<=x.number&&x.number<=x.count&&x.count<=240)))&&unique(st.rows,x=>x.id))||!unique(r.statements,x=>x.month))return false;
  if(!r.bankRows.every(x=>x&&str(x.id)&&str(x.name,300)&&isDate(x.date)&&typeof x.time==='string'&&/^\d{2}:\d{2}:\d{2}$/.test(x.time)&&cent(x.cents)&&cent(x.balanceCents))||!unique(r.bankRows,x=>x.id))return false;
  if(!r.overrides.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&['one','future','all'].includes(x.scope)&&pos(x.basis)&&classification(x,x.basis)&&(x.name===undefined||str(x.name,250))&&(x.ownerName===undefined||str(x.ownerName,100))&&(x.seriesKey===undefined||str(x.seriesKey,500)))||!unique(r.overrides,x=>x.month+'|'+x.rowId+'|'+x.scope))return false;
- if(!(r.payments??[]).every(x=>x&&isMonth(x.month)&&isDate(x.date))||!unique(r.payments??[],x=>x.month))return false;
+ if(!(r.payments??[]).every(x=>x&&isMonth(x.month)&&isDate(x.date)&&(x.cents===undefined||pos(x.cents))&&(x.fixed===undefined||(arr(x.fixed,5000)&&x.fixed.every(f=>f&&str(f.id)&&str(f.name,250)&&str(f.person,100)&&pos(f.cents))&&unique(x.fixed,f=>f.id))))||!unique(r.payments??[],x=>x.month))return false;
  return r.receipts.every(x=>x&&str(x.id)&&isDate(x.date)&&(x.accountId===undefined||str(x.accountId,80))&&str(x.person,100)&&pos(x.cents)&&typeof x.inBaseline==='boolean'&&arr(x.allocations,500)&&x.allocations.length>0&&x.allocations.every(a=>a&&str(a.rowId)&&isMonth(a.month)&&pos(a.cents))&&unique(x.allocations,a=>a.month+'|'+a.rowId)&&x.allocations.reduce((a,z)=>a+z.cents,0)===x.cents)&&unique(r.receipts,x=>x.id);
 }
 function reconPersonKey(x){return String(x??'').trim().normalize('NFC').toLocaleLowerCase('pt-BR')}
@@ -110,27 +110,42 @@ function reconStatementLinks(statements,receipts){
  return {normalized,groups,ambiguous};
 }
 function reconLinkedSeries(row,key){return reconSeriesId(row)===key||row.seriesAliases?.includes(key)}
-function reconRecurringCardRows(s,m,imported=[]){
- if(reconPayment(s,m))return [];
+function reconCardFixedMatches(s,m,rows){
  const exactName=v=>String(v??'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');
- const items=activeFixed(s,m).filter(x=>x.channel==='card'&&x.amount>0);
- const links=e=>imported.filter(r=>r.id==='recurring:'+e.id||r.legacyIds?.includes('recurring:'+e.id)||r.legacyIds?.includes(e.id));
- const linked=new Map(items.map(e=>[e.id,links(e)])),used=new Set([...linked.values()].flat());
- const claims=new Map();
- const key=(kind,cents,name)=>JSON.stringify([kind,cents,exactName(name)]);
- for(const row of imported){
-  if(row.count>1||used.has(row))continue;
-  const k=key(row.kind,row.cents,row.name);
-  claims.set(k,(claims.get(k)??0)+1);
+ const items=activeFixed(s,m).filter(x=>x.channel==='card'&&x.amount>0),used=new Set(),matches=new Map();
+ for(const e of items){
+  const id='recurring:'+e.id,kind=e.direction==='in'?'credit':'charge';
+  const linked=rows.find(r=>r.kind===kind&&!used.has(r)&&(r.id===id||r.legacyIds?.includes(id)||r.legacyIds?.includes(e.id)));
+  if(linked){used.add(linked);matches.set(e.id,linked);}
  }
+ for(const e of items)if(!matches.has(e.id)){
+  const kind=e.direction==='in'?'credit':'charge',cents=Math.round(e.amount*100)*(kind==='credit'?-1:1),name=exactName(e.name);
+  const row=name&&rows.find(r=>!used.has(r)&&!(r.count>1)&&r.kind===kind&&r.cents===cents&&exactName(r.originalName??r.name)===name);
+  if(row){used.add(row);matches.set(e.id,row);}
+ }
+ return {items,matches};
+}
+function reconRecurringCardRows(s,m,imported=[]){
+ const payment=reconPayment(s,m);if(payment&&payment.cents===undefined)return [];
+ const {items,matches}=reconCardFixedMatches(s,m,imported);
  return items.flatMap(e=>{
+  if(matches.has(e.id))return [];
   const id='recurring:'+e.id,kind=e.direction==='in'?'credit':'charge';
   const cents=Math.round(e.amount*100)*(kind==='credit'?-1:1);
-  if(linked.get(e.id).length)return [];
-  const k=key(kind,cents,e.name),available=claims.get(k)??0;
-  if(available&&exactName(e.name)){claims.set(k,available-1);return [];}
   return [{id,name:e.name,date:fixedDate(s,e,m),cents,kind,source:'recurring-card',recurringTag:e.tag}];
  });
+}
+function reconCardPaidDetails(s,m){
+ const {items,matches}=reconCardFixedMatches(s,m,reconRows(s,m));
+ return items.flatMap(e=>{
+  const row=matches.get(e.id),person=e.tag?.trim();
+  return row?.kind==='charge'&&person?[{id:'paidcard:'+e.id,person,name:row.name,cents:row.cents}]:[];
+ });
+}
+function reconPaidCardFixed(s,m){
+ const payment=reconPayment(s,m);if(!payment)return [];
+ return (payment.fixed??reconCardPaidDetails(s,m)).map(row=>({...row,month:m,due:payment.date,date:payment.date,
+  paidDate:payment.date,paid:row.cents,remaining:0,postings:[],invoicePaid:true}));
 }
 function reconUnadjustedRows(s,m){
  const statements=s.reconciliation?.statements??[];
@@ -210,7 +225,8 @@ function reconRawRows(s,m){
   return x&&r.source==='statement'&&(r.kind==='credit'||r.kind==='prior-payment')?{...r,name:x.name,date:x.date,cents:-x.cents,bankEdited:true,originalCents:r.cents}:r;
  });
  const singles=new Map((s.reconciliation?.singleChargeEdits??[]).filter(x=>x.month===m).map(x=>[x.rowId,x.cents]));
- const applicable=reconCanAdjustMonth(s,m)?adjustments.filter(x=>x.month<=m):[];
+ const paid=reconPayment(s,m),isClosed=s.reconciliation?.statements?.some(x=>x.month===m&&x.closed===true);
+ const applicable=(!isClosed&&(!paid||paid.cents!==undefined))?adjustments.filter(x=>x.month<=m):[];
  if(!applicable.length&&!singles.size)return rows;
  return rows.flatMap(r=>{
   if(r.kind!=='charge')return [r];
@@ -375,10 +391,12 @@ function reconRecurringPayables(s,month){
  }).filter(row=>row.cents>0);
 }
 function reconCommitmentTotals(s,month){
- const card=Math.round(invoiceAmount(s,month)*100);
- const outside=reconPayableRows(s,month).reduce((sum,row)=>sum+row.remaining,0)
-  +reconRecurringPayables(s,month).reduce((sum,row)=>sum+row.cents,0);
- return {card,outside,total:card+outside};
+ const payment=reconPayment(s,month);
+ const card=payment?.cents??reconCardDueCents(s,month);
+ const rows=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)];
+ const outside=rows.reduce((sum,row)=>sum+row.cents,0);
+ const paid=(payment?card:0)+rows.reduce((sum,row)=>sum+row.paid,0);
+ return {card,outside,total:card+outside,paid};
 }
 function reconDebt(s,onlyMonth=null){
  const received=new Map();
@@ -442,12 +460,18 @@ function reconDeleteReceipt(s,id){
  r.receipts=r.receipts.filter(p=>p.id!==id);
 }
 function reconPayment(s,m){return s.reconciliation?.payments?.find(x=>x.month===m)??null}
+function reconCardDueCents(s,m){return Math.round((invoiceAmount(s,m)+reconPreviousCredit(s,m))*100)}
 function reconMarkPaid(s,m,date){
- if(!s.reconciliation?.statements?.some(st=>st.month===m))throw Error('Importe a fatura antes de confirmar o pagamento.');
+ if(!isMonth(m))throw Error('Escolha o mês da fatura.');
  if(date!==null&&(!isDate(date)||date>today()))throw Error('Informe uma data de pagamento até hoje.');
- const r=s.reconciliation;
+ const prev=reconPayment(s,m);
+ if(date!==null&&prev)throw Error('O pagamento desta fatura já está confirmado.');
+ if(date===null&&!prev)return;
+ const cents=date===null?0:reconCardDueCents(s,m);
+ if(date!==null&&(!Number.isSafeInteger(cents)||cents<=0||cents>1e12))throw Error('Não há valor a pagar nesta fatura.');
+ const fixed=date===null?[]:reconCardPaidDetails(s,m),r=reconInit(s);
  r.payments=(r.payments??[]).filter(x=>x.month!==m);
- if(date!==null)r.payments.push({month:m,date});
+ if(date!==null)r.payments.push({month:m,date,cents,fixed});
 }
 function reconInvoice(s,m){
  const recon=s.reconciliation,hasStatements=recon?.statements?.some(st=>st.month<=m);

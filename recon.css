@@ -1,4 +1,4 @@
-/* diario-shell:4.0.40 */
+/* diario-shell:4.0.41 */
 /* Finance reconciliation; use theme variables from the host app. */
 .recon-heading h1{margin:0}.recon-heading .recon-kicker{color:var(--accent);font-weight:780;letter-spacing:.13em;font-size:.65rem;margin:0 0 4px}
 .recon-tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 0 14px;gap:8px}
@@ -271,3 +271,10 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 #fixedValues .fixed-editor .calendar-field{min-width:0}
 #fixedValues .fixed-editor .calendar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+
+.recon-card-pay{width:100%;min-height:44px;margin:0 0 12px}
+.recon-card-pay-form,.recon-card-paid{margin:0 0 12px}
+.recon-card-paid{display:grid;justify-items:center;gap:5px}
+.recon-card-paid p{margin:0;color:var(--muted);font-size:.85rem}
+.recon-card-paid p strong{color:var(--text)}
+.recon-card-paid button{min-height:38px}

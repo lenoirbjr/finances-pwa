@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.9: compromissos a pessoas e distribuição de Pix. */
+/* Diário Financeiro 4.0.10: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -297,7 +297,6 @@ function breakdown(s,m){
  const base=reconciled!==null?reconRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
  const newer=reconciled!==null?[]:s.parcels.filter(e=>!e.payTo).map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
  const payables=reconPayableRows(s).filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.cents/100,meta:e.person+' · '+(e.paidDate?'Pago em ':'Previsto para ')+readableDate(e.date)}));
- const confirmedCard=reconConfirmedTotal(s,m);
  const previousCredit=reconPreviousCreditRows(s,m).map(e=>({name:e.name,amount:e.cents/100}));
  const confirmed=settled(s,m),extra=extraInvested(s,m),investmentItems=[];
  if(confirmed)investmentItems.push({name:'Aporte principal realizado',amount:confirmed.amount,meta:confirmed.date.split('-').reverse().join('/')});
@@ -307,7 +306,7 @@ function breakdown(s,m){
  const extras=s.extraIncome.filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.amount}));
  const extraTotal=round(extras.reduce((sum,e)=>sum+e.amount,0));
  return `<div class="detail-line detail-percent"><span>Renda líquida</span><div class="line-amount"><strong>${money(income)}</strong><small>100% da renda</small></div></div>`+
- group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',confirmedCard===null?base:[{name:'Total confirmado no banco',amount:confirmedCard/100}])+(payables.length?group('A pagar a pessoas',payables):'')+(reconciled===null?group('Compras parceladas novas',newer):'')+(previousCredit.length?group('Movimentações de crédito anteriores',previousCredit):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
+ group('Despesas fixas',fixed)+group(reconciled===null?'Parcelas anteriores':'Fatura do cartão',base)+(payables.length?group('A pagar a pessoas',payables):'')+(reconciled===null?group('Compras parceladas novas',newer):'')+(previousCredit.length?group('Movimentações de crédito anteriores',previousCredit):'')+group('Investimentos',investmentItems)+group('Entradas extras',extras,'+')+
  line('Margem protegida',z.margin)+
  `<div class="detail-line detail-total detail-percent"><span>Livre no mês (planejado)</span><div class="line-amount"><strong>${z.known?money(round(z.available+extraTotal)):'—'}</strong><small>${z.known?pct(round(z.available+extraTotal),income):'—'} da renda</small></div></div>`;
 }
@@ -510,18 +509,37 @@ $('forecast').innerHTML=Array.from({length:12},(_,i)=>{
 $('started').value=state.started;const editingMonth=$('effectiveMonth').value||m;$('effectiveMonth').value=editingMonth;fillProfileInputs();
 $('exportLegacy').classList.toggle('hidden',!archived);
 previewParcel();renderImportedBank();calendarLabels();showScreenNoScroll()}
+let cardMonth=null;
+function renderCardHub(){
+ const select=$('cardMonth'),m=cardMonth??defaultCardMonth();
+ cardMonth=m;
+ const months=[...new Set([m,...reconMonths(state),shiftMonth(m,-1),shiftMonth(m,1)])].sort().reverse();
+ const signature=months.join(',');
+ if(select.dataset.months!==signature){
+  select.innerHTML=months.map(month=>`<option value="${month}">${monthTitle(month)}</option>`).join('');
+  select.dataset.months=signature;
+ }
+ if(select.value!==m)select.value=m;
+ const own=Math.round(invoiceAmount(state,m)*100);
+ const people=reconPayableRows(state,m).reduce((sum,x)=>sum+(x.paidDate?0:x.cents),0);
+ $('cardOwnTotal').textContent=money(own/100);$('cardPeopleTotal').textContent=money(people/100);$('cardCommitments').textContent=money((own+people)/100);
+}
 function showScreenNoScroll(){
- const auxiliary=screen==='settings'||screen==='info',launch=screen==='week'||screen==='installments',plan=screen==='planning'||screen==='investments';
+ const auxiliary=screen==='settings'||screen==='info',card=['recon','installments','acertos'].includes(screen),plan=screen==='planning'||screen==='investments';
  document.body.classList.toggle('settings-view',auxiliary);
  $('quickSettings').classList.toggle('hidden',screen==='info');
  $('quickInfo').classList.toggle('hidden',screen==='settings');
- $('launch-tabs').classList.toggle('hidden',!launch);
+ $('card-hub').classList.toggle('hidden',!card);
  $('plan-tabs').classList.toggle('hidden',!plan);
  refreshHeaderButtons();
- for(const name of ['home','week','installments','planning','investments','settings','info','recon'])$('screen-'+name).classList.toggle('hidden',name!==screen);
+ for(const name of ['home','week','installments','planning','investments','settings','info','recon']){
+   $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
+ }
  renderParcelClassify();
- if(screen==='recon')window.ReconUI?.render({state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),payable:m=>reconPayableRows(state,m),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),cardTotal:m=>Math.round(invoiceAmount(state,m)*100),confirmedTotal:m=>reconConfirmedTotal(state,m),setConfirmedTotal:(m,cents)=>update(s=>reconSetConfirmedTotal(s,m,cents)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
- const area=launch?'week':plan?'planning':screen;
+ if(card)renderCardHub();
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),payable:m=>reconPayableRows(state,m),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ else window.ReconUI?.reset();
+ const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
    const active=button.dataset.area?button.dataset.area===area:button.dataset.screen===screen;
    button.classList.toggle('active',active);
@@ -573,6 +591,7 @@ async function saveNew(e){
  const id=editingNew||newId();
  if(await update(s=>{
   const old=editingNew?s.parcels.find(p=>p.id===editingNew):null;
+  if(!personal&&(!old||old.start!==start||old.payTo)&&s.reconciliation?.statements?.some(x=>x.month===start&&x.closed===true))throw Error('Esta fatura já está fechada. Escolha um mês em aberto para a compra.');
   const touchesSchedule=old&&(old.total!==total||old.count!==count||old.start!==start||old.payTo!==(payTo??undefined)||old.payStart!==(payStart??undefined));
   if(personal&&old&&reconParcelLinked(s,id))throw Error('A compra está vinculada a uma cobrança do seu cartão. Não é possível movê-la para outra pessoa por aqui.');
   if(old?.payments?.length&&touchesSchedule)throw Error('Desfaça os pagamentos registrados antes de mudar os dados das parcelas.');
@@ -586,7 +605,7 @@ async function saveNew(e){
  })){
   editingNew=null;$('parcelName').value='';$('parcelTotal').value='';$('parcelSubmit').textContent='Adicionar parcelamento';$('parcelCancel').classList.add('hidden');
   clearParcelOrigin();
-  $('parcelOpenBill').dataset.month=start;$('parcelOpenBill').textContent=personal?'Ver em A pagar':'Ver na fatura de '+monthTitle(start);$('parcelOpenBill').classList.remove('hidden');
+  $('parcelOpenBill').dataset.month=start;$('parcelOpenBill').dataset.target=personal?'acertos':'recon';$('parcelOpenBill').textContent=personal?'Ver em A pagar':'Ver na fatura de '+monthTitle(start);$('parcelOpenBill').classList.remove('hidden');
   $('parcelClassifyLast').dataset.classifyParcel=id;$('parcelClassifyLast').classList.toggle('hidden',!reconParcelTarget(state,id));
  }
 }
@@ -687,7 +706,7 @@ async function init(){try{
  $('app').hidden=false;$('loading').hidden=true;$('expenseDate').value=today();
  for(const id of ['parcelStart','fixedStart','baseStart','effectiveMonth'])$(id).value=monthNow();$('extraDate').value=today();$('incomeExtraDate').value=today();$('openingDate').value=today();$('investmentConfirmDate').value=today();$('investmentFocusMonth').value=monthNow();
  openHistoryYears.add(monthNow().slice(0,4));try{setTheme(localStorage.getItem(THEME_KEY)||'ocean')}catch{setTheme('ocean')}
- $('parcelStart').value=defaultCardMonth();showMovementForm('expense');updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
+ $('parcelStart').value=defaultCardMonth();$('cardImportMonth').value=defaultCardMonth();showMovementForm('expense');updateInvestmentForm();render();navigator.storage?.persist?.().catch(()=>{});
  }catch(e){$('loading').hidden=true;notice('Não foi possível carregar seus dados: '+e.message,'error')}
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
@@ -702,7 +721,17 @@ $('quickSettings').addEventListener('click',()=>showScreen(screen==='settings'?'
 $('quickInfo').addEventListener('click',()=>showScreen(screen==='info'?'home':'info'));
 $('pixScenarios')?.addEventListener('toggle',()=>{if($('pixScenarios').open&&state){const asOf=today();renderPixScenario(asOf,cycleBudget(state,asOf));}});
 $('pixScenarioContent')?.addEventListener('change',onPixScenarioChange);
-$('parcelOpenBill').addEventListener('click',()=>{const m=$('parcelOpenBill').dataset.month;if(isMonth(m)){window.ReconUI?.selectBill(m);showScreen('recon');}});
+$('parcelOpenBill').addEventListener('click',()=>{const b=$('parcelOpenBill'),m=b.dataset.month;if(isMonth(m)){cardMonth=m;showScreen(b.dataset.target==='acertos'?'acertos':'recon');}});
+function setCardMonth(m){
+ if(!isMonth(m))return;
+ cardMonth=m;
+ if(!editingNew&&!$('parcelTotal').value){$('parcelStart').value=m;if($('parcelOrigin').value==='person'&&!$('parcelPayStart').value)$('parcelPayStart').value=eventDate(m,5);calendarLabels();}
+ showScreenNoScroll();
+}
+$('cardMonth').addEventListener('change',e=>setCardMonth(e.target.value));
+$('cardMonthPrev').addEventListener('click',()=>setCardMonth(shiftMonth(cardMonth??defaultCardMonth(),-1)));
+$('cardMonthNext').addEventListener('click',()=>setCardMonth(shiftMonth(cardMonth??defaultCardMonth(),1)));
+$('cardImportForm').addEventListener('submit',importClosedCard);
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('screen-installments').addEventListener('click',event=>{
  const button=event.target.closest?.('[data-classify-parcel]');

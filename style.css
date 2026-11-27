@@ -536,3 +536,14 @@ html body .surface .breakdown-rows .detail-line small,html[data-theme=pink] body
 .pix-scenarios .pix-scenario-note{margin-top:9px}
 
 #parcelForm .parcel-single-column{grid-template-columns:minmax(0,1fr)}
+
+/* The same month and full-size commitments card stay visible in all Fatura views. */
+.card-hub{display:grid;gap:10px;margin-bottom:13px;min-width:0}
+.card-hub>.section-heading{margin:0 3px 1px}
+#card-tabs{grid-template-columns:repeat(3,minmax(0,1fr));margin:0}
+#card-tabs button{padding-inline:3px;overflow-wrap:normal;min-width:0}
+.card-hub .commitment-hero dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 0;padding-top:9px;border-top:1px solid var(--hero-edge)}
+.commitment-hero dt{color:var(--hero-muted);font-size:.76rem;font-weight:600}
+.commitment-hero dd{color:var(--hero-text);font-size:.86rem;font-weight:700;margin:4px 0 0;overflow-wrap:anywhere}
+.card-hub .card-period{margin:0;min-width:0}
+#cardImportFile{font:inherit;display:block;width:100%;min-width:0;color:var(--muted);font-size:.8rem}

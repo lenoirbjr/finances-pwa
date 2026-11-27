@@ -40,18 +40,18 @@
 .recon-allocation small{display:block;font-size:.68rem;color:var(--muted)}
 @media(max-width:350px){.recon-fields{grid-template-columns:1fr}.recon-edit{padding:8px}}
 .recon-month-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px;align-items:center}
-.recon-screen .recon-month-controls button{margin:0;padding:0;font-size:1.15rem}
+:is(.recon-screen,.card-hub) .recon-month-controls button{margin:0;padding:0;font-size:1.15rem}
 .recon-period input[type=month]{min-inline-size:0;max-width:100%;text-align:left}
 .recon-period input[type=month]::-webkit-date-and-time-value{text-align:left}
 
 /* Equal-width controls avoid native iOS month inputs encroaching on the arrows. */
 .recon-screen .recon-period{max-width:26rem;margin:0 auto 16px}
-.recon-screen .recon-period label{text-align:center;margin:0 0 8px}
+:is(.recon-screen,.card-hub) .recon-period label{text-align:center;margin:0 0 8px}
 .recon-month-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:10px;align-items:center}
-.recon-screen .recon-month-controls button,.recon-screen .recon-month-controls select{box-sizing:border-box;margin:0;border:1px solid var(--edge);border-radius:12px;color:var(--text);background:var(--surface-alt);min-height:48px}
-.recon-screen .recon-month-controls button{width:44px;font-size:1.45rem;color:var(--accent);line-height:1}
-.recon-screen .recon-month-controls select{appearance:none;-webkit-appearance:none;width:100%;min-width:0;max-width:100%;text-align:center;text-align-last:center;padding-inline:4px;font-weight:750;font-size:clamp(.85rem,4vw,1.05rem);cursor:pointer}
-.recon-screen .recon-month-controls :is(button,select):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:is(.recon-screen,.card-hub) .recon-month-controls button,:is(.recon-screen,.card-hub) .recon-month-controls select{box-sizing:border-box;margin:0;border:1px solid var(--edge);border-radius:12px;color:var(--text);background:var(--surface-alt);min-height:48px}
+:is(.recon-screen,.card-hub) .recon-month-controls button{width:44px;font-size:1.45rem;color:var(--accent);line-height:1}
+:is(.recon-screen,.card-hub) .recon-month-controls select{appearance:none;-webkit-appearance:none;width:100%;min-width:0;max-width:100%;text-align:center;text-align-last:center;padding-inline:4px;font-weight:750;font-size:clamp(.85rem,4vw,1.05rem);cursor:pointer}
+:is(.recon-screen,.card-hub) .recon-month-controls :is(button,select):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .recon-due{margin:12px 0 15px;font-size:.82rem;color:var(--muted);text-align:center}
 .recon-due strong{color:var(--text)}
 .recon-original{opacity:.82}
@@ -180,3 +180,12 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-payable-lines .recon-row-amount button{width:auto;min-height:40px;font-size:.74rem;margin:0;padding:5px 8px}
 .recon-payable-form input[type=date]{width:100%;min-width:0;box-sizing:border-box}
 .recon-screen .recon-card-breakdown{margin-top:8px}
+
+/* The app owns the common month and KPI controls; these are section contents. */
+.recon-money-views{display:grid;gap:10px;min-width:0}
+.recon-money-views .recon-payable{margin:0}
+.recon-money-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;margin:0 0 8px}
+.recon-money-heading h2,.recon-money-heading p{margin:0}
+.recon-money-heading p{color:var(--muted);font-size:.75rem}
+.recon-invoice .recon-due{margin-top:0}
+[data-recon-message]:empty{display:none}

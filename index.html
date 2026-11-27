@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.9">
-<link rel="stylesheet" href="./recon.css?v=4.0.9">
+<link rel="stylesheet" href="./style.css?v=4.0.10">
+<link rel="stylesheet" href="./recon.css?v=4.0.10">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -49,7 +49,16 @@
 <strong id="currentMargin">—</strong>
 </section>
 </section>
-<nav id="launch-tabs" class="subtabs hidden" aria-label="Tipos de lançamento"><button data-screen="week" type="button">Movimentações</button><button data-screen="installments" type="button">Parcelas</button></nav>
+<section id="card-hub" class="card-hub hidden" aria-label="Área da fatura">
+<div class="section-heading"><span class="screen-kicker">CARTÃO E ACERTOS</span><h1>Fatura</h1></div>
+<section class="balance-card commitment-hero" aria-labelledby="card-commitment-title">
+<h2 id="card-commitment-title">Total de Compromissos</h2>
+<div class="balance-amount" id="cardCommitments">—</div>
+<dl><div><dt>No meu cartão</dt><dd id="cardOwnTotal">—</dd></div><div><dt>A pagar a terceiros</dt><dd id="cardPeopleTotal">—</dd></div></dl>
+</section>
+<nav id="card-tabs" class="subtabs" aria-label="Seções da fatura"><button data-screen="installments" type="button">Lançamentos</button><button data-screen="recon" type="button">Fatura</button><button data-screen="acertos" type="button">A Pagar e Receber</button></nav>
+<div class="recon-period card-period"><label for="cardMonth">Mês dos compromissos</label><div class="recon-month-controls"><button id="cardMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="cardMonth" aria-label="Mês dos compromissos"></select><button id="cardMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
+</section>
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
 <div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Movimentações</h1></div></div>
@@ -110,6 +119,7 @@
 <details class="surface settings-details"><summary>Despesas fixas<strong id="fixedSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="fixedList"></div><div id="itemPanels"><form id="fixedForm"><h3>Cadastrar ou editar despesa fixa</h3><label for="fixedName">Descrição</label><input id="fixedName" maxlength="120" placeholder="Ex.: Spotify" required><label for="fixedAmount">Valor mensal (R$)</label><input id="fixedAmount" type="number" min="0" step="0.01" required><label for="fixedDay">Dia de débito mensal</label><input id="fixedDay" type="number" min="1" max="31" step="1" value="5" required><div class="two-cols"><div><label for="fixedStart">Início</label><div class="calendar-field"><span class="calendar-label" data-for="fixedStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="fixedStart" type="month" required></div></div><div><label for="fixedEnd">Fim (opcional)</label><div class="calendar-field"><span class="calendar-label" data-for="fixedEnd">Sem término</span><span class="calendar-icon">▦</span><input id="fixedEnd" type="month"></div></div></div><button id="fixedSubmit" class="primary" type="submit">Adicionar despesa fixa</button><button id="fixedCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores<strong id="baseSubtotal" class="subtotal">R$ 0,00</strong></summary><div id="baseList"></div><div id="baseEntry"><form id="baseForm"><h3>Cadastrar ou editar parcela anterior</h3><label for="baseName">Descrição</label><input id="baseName" maxlength="120" placeholder="Ex.: Hospedagem" required><label for="basePayment">Valor de cada parcela (R$)</label><input id="basePayment" type="number" min="0.01" step="0.01" required><div class="two-cols"><div><label for="baseRemaining">Parcelas restantes</label><input id="baseRemaining" type="number" min="1" max="240" step="1" required></div><div><label for="baseStart">Primeira fatura pendente</label><div class="calendar-field"><span class="calendar-label" data-for="baseStart">Selecionar mês</span><span class="calendar-icon">▦</span><input id="baseStart" type="month" required></div></div></div><button id="baseSubmit" class="primary" type="submit">Adicionar parcela antiga</button><button id="baseCancel" class="text-button hidden" type="button">Cancelar edição</button></form></div></details>
 <details class="surface settings-details hidden" id="importedBank"><summary>Extrato bancário importado</summary><p class="assistive">Histórico para conferência. Movimentações já refletidas no saldo de partida não são somadas de novo.</p><div id="bankRows"></div></details>
+<details class="surface settings-details"><summary>Atualizar fatura por CSV</summary><form id="cardImportForm"><label for="cardImportMonth">Mês da fatura fechada</label><div class="calendar-field"><span class="calendar-label" data-for="cardImportMonth" aria-hidden="true">Selecionar mês</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="cardImportMonth" type="month" required></div><label for="cardImportFile">Arquivo CSV do cartão (Rico)</label><input id="cardImportFile" type="file" accept=".csv,text/csv,text/plain" required><p class="assistive">Atualiza só este mês. Mantém Pix e classificações já registrados e usa as linhas do banco para o total fechado. As compras manuais continuam em Lançamentos.</p><button type="submit" class="secondary">Importar fatura fechada</button></form></details>
 <details class="surface settings-details"><summary>Backup e restauração</summary><button id="exportBackup" class="secondary" type="button">Exportar meus dados</button><label for="restoreFile" class="file-label">Importar backup</label><input id="restoreFile" class="file-input" type="file" accept=".json,application/json"><p class="assistive">O backup inclui cada item e movimentação, inclusive o histórico de vigência de renda, investimentos e margem de segurança.</p><button id="exportPrevious" type="button" class="text-button">Exportar versão anterior (se disponível)</button><button id="exportLegacy" class="text-button hidden" type="button">Exportar arquivo antigo das duas carteiras</button></details>
 </section>
 <section id="screen-info" class="screen hidden" aria-label="Informações e ajuda">
@@ -164,15 +174,16 @@
 </main>
 <nav class="tabs bottom-nav" aria-label="Áreas do aplicativo">
 <button type="button" data-screen="home" data-area="home" class="active" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-7h6v7"/></svg><span>Início</span></button>
-<button type="button" data-screen="week" data-area="week"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg><span>Lançamentos</span></button>
+<button type="button" data-screen="week" data-area="week"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg><span>Débitos</span></button>
 <button type="button" data-screen="recon" data-area="recon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18m-13 5h4"/></svg><span>Fatura</span></button>
 <button type="button" data-screen="planning" data-area="planning"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span>Planejamento</span></button>
 </nav>
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.9" defer></script>
-<script src="./recon-ui.js?v=4.0.9" defer></script>
-<script src="./scenarios.js?v=4.0.9" defer></script>
-<script src="./app.js?v=4.0.9" defer></script>
+<script src="./recon-model.js?v=4.0.10" defer></script>
+<script src="./recon-ui.js?v=4.0.10" defer></script>
+<script src="./card-import.js?v=4.0.10" defer></script>
+<script src="./scenarios.js?v=4.0.10" defer></script>
+<script src="./app.js?v=4.0.10" defer></script>
 </body></html>

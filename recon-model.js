@@ -389,7 +389,10 @@ function reconPayableValid(p){
  if(p.payTo===undefined)return p.payStart===undefined&&p.payments===undefined;
  if(typeof p.payTo!=='string'||!p.payTo.trim()||p.payTo.length>100||!isDate(p.payStart)||p.payStart.slice(0,7)!==p.start)return false;
  const payments=p.payments??[];
- return Array.isArray(payments)&&payments.length<=p.count&&new Set(payments.map(x=>x?.month)).size===payments.length&&payments.every(x=>x&&isMonth(x.month)&&monthDiff(p.start,x.month)>=0&&monthDiff(p.start,x.month)<p.count&&isDate(x.date));
+ return Array.isArray(payments)&&payments.length<=p.count&&new Set(payments.map(x=>x?.month)).size===payments.length&&payments.every(x=>x&&isMonth(x.month)&&monthDiff(p.start,x.month)>=0&&monthDiff(p.start,x.month)<p.count&&(x.parts===undefined?isDate(x.date):Array.isArray(x.parts)&&x.parts.length>0
+  &&new Set(x.parts.map(a=>a?.batch)).size===x.parts.length
+  &&x.parts.every(a=>a&&typeof a.batch==='string'&&a.batch.length>0&&a.batch.length<=100&&isDate(a.date)&&Number.isSafeInteger(a.cents)&&a.cents>0)
+  &&x.parts.reduce((n,a)=>n+a.cents,0)<=Math.round(newPartAmount(p,x.month)*100)));
 }
 function reconParcelLinked(s,id){
  return (s.reconciliation?.statements??[]).some(st=>st.rows.some(x=>x.kind==='charge'&&(x.id===id||x.legacyIds?.includes(id))));
@@ -403,8 +406,11 @@ function reconPayableRows(s,month=null){
   for(let i=offset;i<(month===null?p.count:offset+1);i++){
    const m=shiftMonth(p.start,i),cents=Math.round(newPartAmount(p,m)*100);
    if(cents<=0)continue;
-   const due=eventDate(m,Number(p.payStart.slice(-2))),paidDate=p.payments?.find(x=>x.month===m)?.date??null;
-   result.push({id:p.id,person:p.payTo,name:p.name,month:m,due,date:paidDate??due,cents,paidDate});
+   const due=eventDate(m,Number(p.payStart.slice(-2))),entry=p.payments?.find(x=>x.month===m);
+   const postings=entry?.parts??(entry?[{date:entry.date,cents}]:[]);
+   const paid=postings.reduce((n,x)=>n+x.cents,0),remaining=cents-paid;
+   const latest=postings.at(-1),paidDate=remaining===0?postings.map(x=>x.date).sort().at(-1):null;
+   result.push({id:p.id,person:p.payTo,name:p.name,month:m,due,date:paidDate??due,cents,paidDate,paid,remaining,postings,latest,number:i+1,count:p.count});
   }
  }
  return result.sort((a,b)=>a.due.localeCompare(b.due)||a.person.localeCompare(b.person,'pt-BR'));
@@ -414,7 +420,46 @@ function reconSetPayable(s,id,month,date){
  if(!p||!isMonth(month)||newPartAmount(p,month)<=0)throw Error('Parcela não encontrada.');
  if(date!==null&&(!isDate(date)||date>today()))throw Error('Informe a data em que o Pix foi pago, até hoje.');
  const prev=p.payments?.find(x=>x.month===month);
+ if(prev?.parts)throw Error('Desfaça pelo registro de pagamento.');
  if(date!==null&&prev)throw Error('Esta parcela já está paga.');
  p.payments=(p.payments??[]).filter(x=>x.month!==month);
  if(date!==null)p.payments.push({month,date});
+}
+
+function reconPayableEvents(s){
+ return reconPayableRows(s).flatMap(row=>[
+  ...row.postings.map(p=>({...row,cents:p.cents,date:p.date,paidDate:p.date})),
+  ...(row.remaining?[{...row,cents:row.remaining,date:row.due,paidDate:null}]:[])
+ ]);
+}
+function reconAddPayablePayment(s,p){
+ const person=String(p.person??'').trim();
+ if(!person||!isDate(p.date)||p.date>today()||!Number.isSafeInteger(p.cents)||p.cents<=0||!Array.isArray(p.allocations)||!p.allocations.length)throw Error('Confira a pessoa, a data e o valor do pagamento.');
+ const key=(id,month)=>JSON.stringify([id,month]);
+ const eligible=new Map(reconPayableRows(s).filter(x=>x.remaining>0&&reconPersonKey(x.person)===reconPersonKey(person)).map(x=>[key(x.id,x.month),x]));
+ const entries=[];
+ for(const a of p.allocations){
+  const k=key(a.rowId,a.month), row=eligible.get(k);
+  if(!row||!Number.isSafeInteger(a.cents)||a.cents<=0||a.cents>row.remaining)throw Error('Confira os valores distribuídos. Eles não podem exceder as dívidas.');
+  eligible.delete(k);entries.push(a);
+ }
+ if(entries.reduce((n,a)=>n+a.cents,0)!==p.cents)throw Error('Distribua todo o valor do pagamento antes de salvar.');
+ const batch=newId();
+ for(const a of entries){
+  const parcel=s.parcels.find(x=>x.id===a.rowId);
+  parcel.payments??=[];
+  let entry=parcel.payments.find(x=>x.month===a.month);
+  if(!entry){entry={month:a.month,parts:[]};parcel.payments.push(entry);}
+  entry.parts.push({batch,date:p.date,cents:a.cents});
+ }
+}
+function reconUndoPayablePayment(s,batch){
+ let found=false;
+ for(const parcel of s.parcels){
+  if(!parcel.payments?.some(e=>e.parts?.some(x=>x.batch===batch)))continue;
+  found=true;
+  for(const e of parcel.payments)if(e.parts)e.parts=e.parts.filter(x=>x.batch!==batch);
+  parcel.payments=parcel.payments.filter(e=>!e.parts||e.parts.length);
+ }
+ if(!found)throw Error('Pagamento não encontrado.');
 }

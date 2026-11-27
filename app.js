@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.24: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.25: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -106,7 +106,7 @@ function cashAt(s,end){
  projected-=s.expenses.filter(e=>!e.cardMonth&&included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected-=s.extraInvestments.filter(e=>included(e.date)).reduce((v,e)=>v+e.amount,0);
  projected+=reconCashReceipts(s,opened.closing?addDays(start,1):start,end);
- projected-=reconPayableRows(s).filter(e=>e.paidDate&&included(e.paidDate)).reduce((n,e)=>n+e.cents,0)/100;
+ projected-=reconPayableEvents(s).filter(e=>e.paidDate&&included(e.paidDate)).reduce((n,e)=>n+e.cents,0)/100;
  return round(projected);
 }
 // Previsão separada: futuros pagamentos são assumidos, mas nunca debitados do caixa atual
@@ -120,7 +120,7 @@ function cashForecast(s,end,asOf=today()){
    if(!settled(s,m)&&!skipped(s,m)&&payDay>asOf&&payDay<=end&&payDay>start)projected-=investmentAmount(s,m);
 
  }
- if(end>=asOf)projected-=reconPayableRows(s).filter(e=>!e.paidDate&&e.due<=end).reduce((n,e)=>n+e.cents,0)/100;
+ if(end>=asOf)projected-=reconPayableEvents(s).filter(e=>!e.paidDate&&e.due<=end).reduce((n,e)=>n+e.cents,0)/100;
  return round(projected);
 }
 function overdueReserved(s,asOf=today()){
@@ -181,7 +181,7 @@ function cycleBudget(s,asOf=today()){
  for(const group of [s.monthlyPaid||[],s.extraIncome||[],s.extraInvestments||[],s.expenses||[],s.reconciliation?.receipts||[],s.reconciliation?.payments||[]]){
    for(const item of group){if(item.date>asOf&&item.date<=horizon)checkpoints.add(item.date)}
  }
- for(const e of reconPayableRows(s)){if(e.date>asOf&&e.date<=horizon)checkpoints.add(e.date);}
+ for(const e of reconPayableEvents(s)){if(e.date>asOf&&e.date<=horizon)checkpoints.add(e.date);}
  const reserve=overdueReserved(s,asOf);
  let minimum=current-profile(s,asOf.slice(0,7)).margin-reserve;
  let lowestDate=asOf;
@@ -261,7 +261,7 @@ function newPartAmount(e,m){const off=monthDiff(e.start,m);if(off<0||off>=e.coun
 function newAmount(s,m){return round(s.parcels.reduce((a,e)=>a+(e.payTo?0:newPartAmount(e,m)),0))}
 function invoiceAmount(s,m){return reconInvoice(s,m)??Math.max(0,round(baseAmount(s,m)+newAmount(s,m)-(s.reconciliation?.cardRefunds??[]).filter(x=>x.month===m).reduce((n,x)=>n+x.cents,0)/100))}
 function investmentAmount(s,m){return Object.prototype.hasOwnProperty.call(s.investmentLowerLegacy||{},m)?s.investmentLowerLegacy[m]:round(profile(s,m).investments+plannedLegacyExtra(s,m))}
-function monthly(s,m){const people=reconPayableRows(s).filter(e=>e.date.slice(0,7)===m).reduce((n,e)=>n+e.cents,0)/100;const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,people,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested-people),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-people)}}
+function monthly(s,m){const people=reconPayableEvents(s).filter(e=>e.date.slice(0,7)===m).reduce((n,e)=>n+e.cents,0)/100;const p=profile(s,m),known=s.mode==='items'||Object.prototype.hasOwnProperty.call(s.legacyInvoices,m),fixed=fixedAmount(s,m),priorCredit=reconPreviousCredit(s,m),base=reconInvoice(s,m)??newBaseAmount(s,m),extra=reconInvoice(s,m)===null?newAmount(s,m):0,investment=investmentAmount(s,m),invested=extraInvested(s,m),actual=settled(s,m),applied=actual?actual.amount:(skipped(s,m)?0:investment);return {known,income:p.income,fixed,base,extra,investment,margin:p.margin,invested,applied,people,available:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-invested-people),quotaBase:round(p.income-fixed-priorCredit-base-extra-applied-p.margin-people)}}
 function weeklyBudget(s,m){const x=monthly(s,m);return x.known?round(x.quotaBase*12/52):null}
 function weekly(s){const start=s.started,cur=monday(new Date()),n=weekDiff(start,cur);if(n<0)return {known:false,balance:0,detail:'O controle ainda não começou.'};if(n>520)return {known:false,balance:0,detail:'Revise a data inicial do controle.'};let total=0,missing=0;for(let i=0;i<=n;i++){const b=weeklyBudget(s,weekShift(start,i).slice(0,7));if(b===null)missing++;else total+=b}const opened=s.opening&&s.opening.date>start?s.opening.date:start;const spent=s.expenses.filter(e=>!e.cardMonth&&e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const extras=s.extraIncome.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);const invested=s.extraInvestments.filter(e=>e.date>=opened&&e.date<=today()).reduce((a,e)=>a+e.amount,0);return missing?{known:false,balance:0,detail:`Faltam faturas-base em ${missing} semana(s) do período.`}:{known:true,balance:round(total-spent-invested+extras),detail:`Acumulado desde ${start.split('-').reverse().join('/')} · após gastos, aportes extras e entradas adicionais`}}
 function calendarLabels(){for(const el of document.querySelectorAll('.calendar-field input')){const lab=document.querySelector(`[data-for="${el.id}"]`);if(!lab)continue;if(!el.value){lab.textContent=el.type==='month'?'Selecionar mês':'Selecionar data';continue}if(el.type==='month'){lab.textContent=shortMonthTitle(el.value)}else{lab.textContent=el.value.split('-').reverse().join('/')}}}
@@ -313,7 +313,7 @@ function breakdown(s,m){
  const reconciled=reconInvoice(s,m);
  const base=reconciled!==null?reconRows(s,m).filter(x=>x.kind!=='prior-payment').map(x=>({name:x.name,amount:x.cents/100})):s.mode==='legacy'?[{name:'Total antigo da fatura',amount:z.base}]:oldParts(s,m).map(e=>({name:e.name,amount:e.payment}));
  const newer=reconciled!==null?[]:s.parcels.filter(e=>!e.payTo).map(e=>({name:e.name,amount:newPartAmount(e,m)})).filter(e=>e.amount>0);
- const payables=reconPayableRows(s).filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.cents/100,meta:e.person+' · '+(e.paidDate?'Pago em ':'Previsto para ')+readableDate(e.date)}));
+ const payables=reconPayableEvents(s).filter(e=>e.date.slice(0,7)===m).map(e=>({name:e.name,amount:e.cents/100,meta:e.person+' · '+(e.paidDate?'Pago em ':'Previsto para ')+readableDate(e.date)}));
  const previousCredit=reconPreviousCreditRows(s,m).map(e=>({name:e.name,amount:e.cents/100}));
  const confirmed=settled(s,m),extra=extraInvested(s,m),investmentItems=[];
  if(confirmed)investmentItems.push({name:'Aporte principal realizado',amount:confirmed.amount,meta:confirmed.date.split('-').reverse().join('/')});
@@ -515,7 +515,7 @@ function renderCardHub(){
  }
  if(select.value!==m)select.value=m;
  const own=Math.round(invoiceAmount(state,m)*100);
- const people=reconPayableRows(state,m).reduce((sum,x)=>sum+(x.paidDate?0:x.cents),0);
+ const people=reconPayableRows(state,m).reduce((sum,x)=>sum+x.remaining,0);
  $('cardOwnTotal').textContent=money(own/100);$('cardPeopleTotal').textContent=money(people/100);$('cardCommitments').textContent=money((own+people)/100);
 }
 function showScreenNoScroll(){return keepScrollPosition(paintScreen)}
@@ -531,7 +531,7 @@ function paintScreen(){
    $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
  }
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){

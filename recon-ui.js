@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.36 */
+/* diario-shell:4.0.37 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -93,6 +93,15 @@ function createReconUI(){
    return (api.payables?.()??api.payable?.()??[]).filter(x=>x.cents>0);
  }
  let currentPayables=[];
+ function recurringPayables(){
+   const items=api.fixedCommitments?.(period)??[];if(!items.length)return '';
+   const key='fixed-payables:'+period;
+   return `<details class="history-month-fold recon-fixed-payables" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>Valores Fixos · ${monthTitle(period)}</span><strong class="statement-month-total">${brl(items.reduce((n,r)=>n+r.cents,0))}</strong></summary>
+    <div class="history-month-content">${[['card','No cartão'],['pix','Por Pix']].map(([channel,label])=>{
+     const list=items.filter(x=>x.channel===channel);if(!list.length)return '';
+     return `<div class="recon-fixed-group"><h3>${label}</h3>${list.map(r=>`<article class="recon-row"><div><button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.id)}">${escape(r.name)}</button><small>${when(r.date)}${r.person?' · '+escape(r.person):''}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong></div></article>`).join('')}</div>`;
+    }).join('')}</div></details>`;
+ }
  function payableSection(items){
    const byPerson=new Map();
    const pending=rows=>rows.reduce((n,r)=>n+r.remaining,0);
@@ -120,7 +129,7 @@ function createReconUI(){
            ${r.postings.map(p=>`<div class="recon-row"><div><small>Pago em ${when(p.date)} · ${brl(p.cents)}</small></div><div class="recon-row-amount"><button type="button" class="secondary" data-recon-undo-payable="${i}" ${p.batch?`data-recon-batch="${escape(p.batch)}"`:''} aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button></div></div>`).join('')}`;
          }).join('')}</div></details>`;
        }).join('')}</div></details>`;
-   }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas.</p>'}</div></section>`;
+   }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas.</p>'}</div>${recurringPayables()}</section>`;
  }
  function paymentDateField(id,label,date=api.today){
    return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(date)}" max="${escape(api.today)}" required></div>`;
@@ -142,9 +151,9 @@ function createReconUI(){
    const entry=(r,i)=>{
      const open=formKind==='settlement'&&editing===r.key,due=r.nextDue??r.date;
      return `<article class="recon-row recon-card-line recon-invoice-line movement-statement-line">
-      <button type="button" class="recon-entry-name recon-invoice-name" data-recon-settlement="${i}" aria-expanded="${open}">${escape(r.name)}</button>
+      <button type="button" class="recon-entry-name recon-invoice-name" ${r.fixedId?`data-recon-fixed-settings="${escape(r.fixedId)}"`:`data-recon-settlement="${i}" aria-expanded="${open}"`}>${escape(r.name)}</button>
       <strong class="recon-invoice-amount">${brl(r.remaining)}</strong>
-      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${escape(due)}">${when(due)}</time> · ${escape(r.person)}</small></div>
+      <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${escape(due)}">${when(due)}</time> · ${escape(r.person)}${r.recurring?' · Pix fixo':''}</small></div>
      </article>${open?settlementEditor(r):''}`;
    };
    const group=(kind,title)=>{
@@ -252,13 +261,13 @@ function createReconUI(){
      const groupKey=JSON.stringify(['month',key,month]);
      return `<details class="recon-debt-month" data-recon-group="${escape(groupKey)}" ${openGroups.has(groupKey)?'open':''}>
        <summary><span>${monthTitle(month)}<small>${rows.length} ${rows.length===1?'dívida':'dívidas'}${recv?' · '+brl(recv)+' recebido':''}</small></span><strong>${open?brl(open):'Quitado'}</strong></summary>
-       <div class="recon-month-debts">${[...rows].sort((a,b)=>b.remaining-a.remaining).map(d=>`<article class="recon-row"><div><strong>${escape(d.name)}</strong>${d.number&&d.count?`<small>Parcela ${d.number}/${d.count}</small>`:''}${!statement(d.month)&&d.month>=api.today.slice(0,7)?'<small>Prevista</small>':''}</div><div class="recon-row-amount"><strong>${brl(d.remaining)}</strong><small>${d.remaining===0?'Quitado':d.received?brl(d.received)+' já recebido':'Pendente'}</small></div></article>`).join('')}</div></details>`;
+       <div class="recon-month-debts">${[...rows].sort((a,b)=>b.remaining-a.remaining).map(d=>`<article class="recon-row"><div><strong>${escape(d.name)}</strong>${d.number&&d.count?`<small>Parcela ${d.number}/${d.count}</small>`:''}${d.recurring?`<small>Pix fixo · ${when(d.expected)}</small>`:!statement(d.month)&&d.month>=api.today.slice(0,7)?'<small>Prevista</small>':''}</div><div class="recon-row-amount"><strong>${brl(d.remaining)}</strong><small>${d.remaining===0?'Quitado':d.received?brl(d.received)+' já recebido':'Pendente'}</small></div></article>`).join('')}</div></details>`;
     }).join('');
     const receipts=receiptsByPerson.get(key)||[], receiptKey='receipts:'+key;
     const receivedRows=receipts.length?`<details class="recon-debt-month" data-recon-group="${escape(receiptKey)}" ${openGroups.has(receiptKey)?'open':''}><summary><span>Pix registrados</span><strong>${receipts.length}</strong></summary><div class="recon-month-debts">${receipts.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<article class="recon-row"><div><strong>${brl(r.cents)}</strong><small>${when(r.date)}${r.inBaseline?' · Já no saldo inicial':''}</small></div><div class="recon-row-amount">${api.deleteReceipt?`<button type="button" class="secondary" data-recon-delete-pix="${escape(r.id)}">Desfazer</button>`:''}</div></article>`).join('')}</div></details>`:'';
     return `<details class="recon-person-group" data-recon-group="${escape('person:'+key)}" ${openGroups.has('person:'+key)?'open':''}><summary><span>${escape(items[0].person)}${received?`<small>${brl(received)} recebido</small>`:''}</span><strong>${pending?brl(pending):'Quitado'}</strong></summary><div class="recon-debt-months">${months}${receivedRows}</div></details>`;
    }).join('');
-   return `<section class="surface recon-screen recon-receivables" aria-labelledby="reconReceivablesTitle"><div class="recon-money-heading"><h2 id="reconReceivablesTitle">A receber</h2><p>Todas as faturas</p></div><dl class="recon-totals"><div><dt>Em Aberto</dt><dd>${brl(debts.reduce((n,d)=>n+d.remaining,0))}</dd></div><div><dt>Já Recebido</dt><dd>${brl(debts.reduce((n,d)=>n+d.received,0))}</dd></div></dl>
+   return `<section class="surface recon-screen recon-receivables" aria-labelledby="reconReceivablesTitle"><div class="recon-money-heading"><h2 id="reconReceivablesTitle">A receber</h2><p>Todas as faturas e Pix fixos</p></div><dl class="recon-totals"><div><dt>Em Aberto</dt><dd>${brl(debts.reduce((n,d)=>n+d.remaining,0))}</dd></div><div><dt>Já Recebido</dt><dd>${brl(debts.reduce((n,d)=>n+d.received,0))}</dd></div></dl>
    ${formKind!=='receipt'?`<button class="primary recon-pix" type="button" data-recon-pix ${list.length?'':'disabled'}>Registrar Pagamento</button>`:''}
    ${formKind==='receipt'?receiptForm(list):''}
    <div class="recon-rows recon-debt-list">${groups||'<p class="empty">Nenhum valor a receber. Classifique uma linha da fatura para começar.</p>'}</div></section>`;
@@ -358,6 +367,7 @@ function createReconUI(){
    }
    const b=e.target.closest('button');if(!b||busy)return;
    if(b.hasAttribute('data-recon-money')){if(b.dataset.reconMoney!==moneyTab){selectMoney(b.dataset.reconMoney);paint();}return;}
+   if(b.hasAttribute('data-recon-fixed-settings')){api.openFixedSetting?.(b.dataset.reconFixedSettings);return;}
    if(b.hasAttribute('data-recon-settlement')){
      const row=ledgerRows[Number(b.dataset.reconSettlement)];
      if(!row||moneyTab!=='ledger')return;

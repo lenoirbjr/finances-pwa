@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.36">
+<meta name="diario-shell" content="4.0.37">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.36">
-<link rel="stylesheet" href="./recon.css?v=4.0.36">
+<link rel="stylesheet" href="./style.css?v=4.0.37">
+<link rel="stylesheet" href="./recon.css?v=4.0.37">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -165,7 +165,7 @@
 <div class="help-item"><strong>Descrição e valor mensal</strong><p>Descrição, etiqueta e valor de uma entrada ou saída mensal.</p></div>
 <div class="help-item"><strong>Início</strong><p>Primeiro mês em que a despesa deve entrar na projeção.</p></div>
 <div class="help-item"><strong>Fim (opcional)</strong><p>Último mês em que ela será cobrada. Deixe vazio se continuar por prazo indeterminado.</p></div>
-<div class="help-item"><strong>Dia de débito</strong><p>O Pix recorrente entra no saldo na data configurada. No cartão, a recorrência entra na fatura do mês e só impacta a conta no pagamento da fatura. O app não envia Pix nem cobra no cartão.</p></div></details>
+<div class="help-item"><strong>Dia de débito</strong><p>Pix recorrente a receber com nome vai para A Receber e só entra no saldo quando registrado. Outros Pix recorrentes seguem a data configurada. No cartão, a recorrência entra na fatura do mês e só impacta a conta no pagamento da fatura. O app não envia Pix nem cobra no cartão.</p></div></details>
 <details class="surface settings-details"><summary>Parcelas anteriores</summary>
 <div class="help-item"><strong>Descrição</strong><p>Nome da compra que já estava parcelada antes de começar o controle.</p></div>
 <div class="help-item"><strong>Valor de cada parcela</strong><p>Quanto você paga por mês; não é o valor total da compra.</p></div>
@@ -207,9 +207,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.36" defer></script>
-<script src="./recon-ui.js?v=4.0.36" defer></script>
-<script src="./card-import.js?v=4.0.36" defer></script>
-<script src="./scenarios.js?v=4.0.36" defer></script>
-<script src="./app.js?v=4.0.36" defer></script>
+<script src="./recon-model.js?v=4.0.37" defer></script>
+<script src="./recon-ui.js?v=4.0.37" defer></script>
+<script src="./card-import.js?v=4.0.37" defer></script>
+<script src="./scenarios.js?v=4.0.37" defer></script>
+<script src="./app.js?v=4.0.37" defer></script>
 </body></html>

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.36 */
+/* diario-shell:4.0.37 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -327,16 +327,48 @@ function reconMonths(s){
  for(const e of [...s.parcels,...s.baseParcels])for(let i=0;i<(e.count??e.remaining);i++){const a=shiftMonth(e.start,i);m.add(a)}
  return [...m].sort();
 }
+function reconNamedPix(item){
+ return item.direction==='in'&&item.channel!=='card'&&Boolean(item.tag?.trim())&&item.amount>0;
+}
+function reconRecurringReceivables(s,asOf=today()){
+ const current=asOf.slice(0,7),last=shiftMonth(current,2),opening=reconOpening(s)?.date??null;
+ const fixedPayments=s.fixedPaid??[],allocations=(s.reconciliation?.receipts??[]).flatMap(r=>r.allocations);
+ const startFloor=[opening?.slice(0,7)??current,shiftMonth(current,-23)].sort().at(-1);
+ const rows=[];
+ for(const item of s.fixedItems.filter(reconNamedPix)){
+  const rowId='fixedpix:'+item.id, recorded=new Set(allocations.filter(a=>a.rowId===rowId).map(a=>a.month));
+  const first=[startFloor,item.start].sort().at(-1),months=new Set(recorded);
+  for(let month=first;month<=last&&(!item.end||month<=item.end);month=shiftMonth(month,1))months.add(month);
+  for(const month of months){
+   const date=fixedDate(s,item,month);
+   if(!recorded.has(month)&&(opening&&date<=opening||!opening&&date<asOf))continue;
+   if(fixedPayments.some(p=>p.id===item.id&&p.month===month))continue;
+   rows.push({rowId,month,person:item.tag.trim(),cents:Math.round(item.amount*100),expected:date,
+    name:item.name,fixedId:item.id,recurring:true});
+  }
+ }
+ return rows;
+}
+function reconFixedCommitments(s,month){
+ const pixIds=new Set(reconFixed(s,month).map(item=>item.id));
+ return activeFixed(s,month).filter(item=>item.direction!=='in'&&item.amount>0&&(item.channel==='card'||pixIds.has(item.id)))
+  .map(item=>({id:item.id,person:item.tag?.trim()??'',name:item.name,cents:Math.round(item.amount*100),
+    channel:item.channel==='card'?'card':'pix',date:confirmedFixed(s,item.id,month)?.date??fixedDate(s,item,month)}))
+  .sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name,'pt-BR'));
+}
 function reconDebt(s){
  const received=new Map();
  for(const p of s.reconciliation?.receipts??[])for(const a of p.allocations){
   const k=a.month+'|'+a.rowId+'|'+reconPersonKey(p.person);
   received.set(k,(received.get(k)??0)+a.cents);
  }
- return reconMonths(s).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>{
-  const n=received.get(month+'|'+row.id+'|'+reconPersonKey(part.person))??0;
-  return {rowId:row.id,month,person:part.person,cents:part.cents,received:n,remaining:Math.max(0,part.cents-n),expected:part.expected,name:row.name,number:row.number,count:row.count};
- })));
+ const billed=reconMonths(s).flatMap(month=>reconRows(s,month,true).flatMap(row=>(row.parts??[]).map(part=>({
+  rowId:row.id,month,person:part.person,cents:part.cents,expected:part.expected,name:row.name,number:row.number,count:row.count
+ }))));
+ return [...billed,...reconRecurringReceivables(s)].map(d=>{
+  const n=received.get(d.month+'|'+d.rowId+'|'+reconPersonKey(d.person))??0;
+  return {...d,received:n,remaining:Math.max(0,d.cents-n)};
+ });
 }
 function reconSetLabel(s,month,rowId,label,parts,scope,name,ownerName){
  const row=reconRows(s,month,true).find(x=>x.id===rowId&&x.kind==='charge');if(!row)throw Error('Lançamento não encontrado.');
@@ -411,7 +443,7 @@ function reconCashReceipts(s,start,end){
 function reconFixed(s,m){
  const st=s.reconciliation?.statements?.find(x=>x.month===m);
  const links=new Set(st?.rows.flatMap(x=>x.legacyIds??[])??[]);
- return activeFixed(s,m).filter(x=>x.channel!=='card'&&!links.has(x.id));
+ return activeFixed(s,m).filter(x=>x.channel!=='card'&&!links.has(x.id)&&(!reconNamedPix(x)||confirmedFixed(s,x.id,m)));
 }
 
 function defaultCardMonth(d=today()){
@@ -580,6 +612,7 @@ function reconEditOpenDebt(s,key,fields){
  const entry=reconOpenDebtEntries(s).find(e=>e.key===key);
  if(!entry)throw Error('Dívida não encontrada.');
  if(entry.kind==='purchase')return reconEditSettlement(s,key,fields);
+ if(entry.fixedId)throw Error('Edite este Pix em Valores Fixos.');
  const {month,rowId}=entry,row=reconRows(s,month,true).find(r=>r.kind==='charge'&&r.id===rowId);
  if(!row)throw Error('Lançamento da fatura não encontrado.');
  const personKey=reconPersonKey(entry.person);

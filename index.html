@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.39">
+<meta name="diario-shell" content="4.0.40">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.39">
-<link rel="stylesheet" href="./recon.css?v=4.0.39">
+<link rel="stylesheet" href="./style.css?v=4.0.40">
+<link rel="stylesheet" href="./recon.css?v=4.0.40">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -59,7 +59,7 @@
 <dl><div><dt>Meu Cartão</dt><dd id="cardOwnTotal">—</dd></div><div><dt>A Pagar</dt><dd id="cardPeopleTotal">—</dd></div></dl>
 </section>
 <nav id="card-tabs" class="subtabs" aria-label="Seções da fatura"><button data-screen="installments" type="button">Lançamentos</button><button data-screen="recon" type="button">Fatura</button><button data-screen="acertos" type="button">A Pagar e Receber</button></nav>
-<div class="recon-period card-period"><label for="cardMonth">Mês dos compromissos</label><div class="recon-month-controls"><button id="cardMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="cardMonth" aria-label="Mês dos compromissos"></select><button id="cardMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
+<div class="recon-period card-period"><label for="cardMonth">Mês dos Compromissos</label><div class="recon-month-controls"><button id="cardMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="cardMonth" aria-label="Mês dos Compromissos"></select><button id="cardMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
 </section>
 <nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
@@ -207,9 +207,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.39" defer></script>
-<script src="./recon-ui.js?v=4.0.39" defer></script>
-<script src="./card-import.js?v=4.0.39" defer></script>
-<script src="./scenarios.js?v=4.0.39" defer></script>
-<script src="./app.js?v=4.0.39" defer></script>
+<script src="./recon-model.js?v=4.0.40" defer></script>
+<script src="./recon-ui.js?v=4.0.40" defer></script>
+<script src="./card-import.js?v=4.0.40" defer></script>
+<script src="./scenarios.js?v=4.0.40" defer></script>
+<script src="./app.js?v=4.0.40" defer></script>
 </body></html>

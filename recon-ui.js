@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.39 */
+/* diario-shell:4.0.40 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -92,8 +92,7 @@ function createReconUI(){
    return (api.payable?.(period)??api.payables?.()??[]).filter(x=>x.cents>0&&x.month===period);
  }
  let currentPayables=[];
- function payableSection(manual){
-   const recurring=api.recurringPayables?.(period)??[],items=[...manual,...recurring];
+ function payableSection(items){
    const byPerson=new Map();
    const pending=rows=>rows.reduce((n,r)=>n+r.remaining,0);
    const paid=rows=>rows.reduce((n,r)=>n+r.paid,0);
@@ -106,14 +105,13 @@ function createReconUI(){
    return `<section class="surface recon-screen recon-payable" aria-labelledby="reconPayablesTitle">
    <div class="recon-money-heading"><h2 id="reconPayablesTitle">A Pagar</h2></div>
    <dl class="recon-totals"><div><dt>Em Aberto</dt><dd>${brl(pending(items))}</dd></div><div><dt>Já Pago</dt><dd>${brl(paid(items))}</dd></div></dl>
-   ${formKind==='payable-start'?receiptForm(groups.filter(g=>pending(g.rows.filter(r=>!r.recurring))).map(g=>g.name),true):`<button class="primary recon-pix" type="button" data-recon-payable-start ${pending(manual)?'':'disabled'}>Registrar Pagamento</button>`}
+   ${formKind==='payable-start'?receiptForm(groups.filter(g=>pending(g.rows)).map(g=>g.name),true):`<button class="primary recon-pix" type="button" data-recon-payable-start ${pending(items)?'':'disabled'}>Registrar Pagamento</button>`}
    <div class="recon-rows recon-debt-list">${groups.length?groups.map(g=>{
      const personKey=payablePersonKey(g.name);
      return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
        <div class="recon-payable-lines">${[...g.rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
-           if(r.recurring)return `<article class="recon-row"><div><button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button><small>${r.paidDate?'Pago em '+when(r.paidDate):'Débito programado · '+when(r.due)}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong></div></article>`;
            const i=r.index;
-           return `<article class="recon-row"><div><strong>${escape(r.name)}</strong><small>${r.remaining?'Vence '+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
+           return `<article class="recon-row"><div>${r.recurring?`<button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button>`:`<strong>${escape(r.name)}</strong>`}<small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
            ${r.postings.map(p=>`<div class="recon-row"><div><small>Pago em ${when(p.date)} · ${brl(p.cents)}</small></div><div class="recon-row-amount"><button type="button" class="secondary" data-recon-undo-payable="${i}" ${p.batch?`data-recon-batch="${escape(p.batch)}"`:''} aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button></div></div>`).join('')}`;
          }).join('')}</div></details>`;
    }).join(''):'<p class="empty">Nenhum valor a pagar.</p>'}</div></section>`;
@@ -146,7 +144,17 @@ function createReconUI(){
    const group=(kind,title)=>{
      const items=ledgerRows.map((r,i)=>[r,i]).filter(([r])=>r.kind===kind);
      const key='ledger-'+kind,sum=items.reduce((n,[r])=>n+r.remaining,0);
-     return `<details class="history-month-fold" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>${title}</span><strong class="statement-month-total">${brl(sum)}</strong></summary><div class="history-month-content">${items.map(([r,i])=>entry(r,i)).join('')||'<p class="empty">Nenhuma dívida em aberto.</p>'}</div></details>`;
+     const dates=new Map();
+     for(const [r,i] of items){
+      const due=r.nextDue??r.date;
+      if(!dates.has(due))dates.set(due,[]);
+      dates.get(due).push([r,i]);
+     }
+     const days=[...dates].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>{
+      const dayKey=key+':'+date;
+      return `<details class="recon-debt-month" data-recon-group="${escape(dayKey)}" ${openGroups.has(dayKey)?'open':''}><summary><span>${when(date)}</span><strong>${brl(rows.reduce((n,[r])=>n+r.remaining,0))}</strong></summary><div class="recon-payable-lines">${rows.map(([r,i])=>entry(r,i)).join('')}</div></details>`;
+     }).join('');
+     return `<details class="history-month-fold" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>${title}</span><strong class="statement-month-total">${brl(sum)}</strong></summary><div class="history-month-content">${days||'<p class="empty">Nenhuma dívida em aberto.</p>'}</div></details>`;
    };
    return `<section class="surface recon-screen movement-statement recon-settlement-ledger" aria-label="Extrato de acertos">${group('purchase','A Pagar')}${group('receivable','A Receber')}</section>`;
  }
@@ -233,7 +241,7 @@ function createReconUI(){
     </form>`;
  }
  function debt(){
-   debts=(api.debt()||[]).filter(d=>d.month===period);
+   debts=(api.debt(period)||[]).filter(d=>d.month===period);
    const list=[...new Map(debts.filter(x=>x.remaining>0).map(x=>[norm(x.person),x.person])).values()];
    const byPerson=new Map();
    for(const d of debts){const p=norm(d.person);if(!byPerson.has(p))byPerson.set(p,[]);byPerson.get(p).push(d);}
@@ -322,7 +330,7 @@ function createReconUI(){
      preview($('[data-recon-form="label"]',root));return;
    }
    period=period||initialPeriod();
-   currentPayables=tab==='debt'&&moneyTab==='payable'?payableRows():[];
+   currentPayables=tab==='debt'&&moneyTab==='payable'?[...payableRows(),...(api.recurringPayables?.(period)??[])]:[];
    root.innerHTML='<p class="recon-message" data-recon-message role="status"></p>'+(tab==='bill'?bill():moneyViews());
    const pix=$('[data-recon-form="receipt"], [data-recon-form="payable-start"]',root);if(pix)allocations(pix);
    const edit=$('[data-recon-form="label"]',root);if(edit)preview(edit);

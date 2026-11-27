@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.39 */
+/* diario-shell:4.0.40 */
 // Read-only cash scenarios. Inputs use integer cents and ISO local dates.
 function pixScenarioReceipts(people,mode,at,inclusive=true,cutoff=at){
  const eligible=people.filter(p=>p.date<=cutoff&&(inclusive?p.date<=at:p.date<at)&&(mode!=='custom'||p.selected));
@@ -131,7 +131,7 @@ function spendingTimeline(s,asOf,current,selected,debts){
   const modeled=eventDate(m,5),due=pixScenarioDue(statementByMonth.get(m),m),investDay=eventDate(m,30);
   events(eventDate(m,1));events(modeled);events(due);events(investDay);
   for(const salary of salaryEvents(s,m))events(salary.date);
-  for(const fixed of reconFixed(s,m))events(confirmedFixed(s,fixed.id,m)?.date??fixedDate(s,fixed,m));
+  for(const fixed of reconFixed(s,m))events(reconScheduledFixed(s,fixed,m).date);
   const contribution=settled(s,m);
   if(contribution){
    events(contribution.date);

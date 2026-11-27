@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="diario-shell" content="4.0.36">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Diário Financeiro">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-VttMBnNTtV30IS3JH5tMyfbaM1nl3ac1zPvdjb0FBfQ='; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.35">
-<link rel="stylesheet" href="./recon.css?v=4.0.35">
+<link rel="stylesheet" href="./style.css?v=4.0.36">
+<link rel="stylesheet" href="./recon.css?v=4.0.36">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -186,11 +187,29 @@
 <button type="button" data-screen="planning" data-area="planning"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span>Planejamento</span></button>
 </nav>
 </div>
-<div id="loading" class="loading">Abrindo seu diário…</div>
+<div id="loading" class="loading"><span id="bootMessage" role="status">Abrindo seu diário…</span><br><button id="bootRetry" class="secondary" type="button" hidden>Tentar novamente</button></div>
 </div>
-<script src="./recon-model.js?v=4.0.35" defer></script>
-<script src="./recon-ui.js?v=4.0.35" defer></script>
-<script src="./card-import.js?v=4.0.35" defer></script>
-<script src="./scenarios.js?v=4.0.35" defer></script>
-<script src="./app.js?v=4.0.35" defer></script>
+<script>
+(function(){
+ const loading=document.getElementById('loading'), message=document.getElementById('bootMessage'), retry=document.getElementById('bootRetry');
+ const report=()=>{if(!loading.hidden){message.textContent='O diário está demorando para abrir. Tente novamente sem apagar seus dados.';retry.hidden=false;}};
+ const timer=setTimeout(report,9000);
+ document.addEventListener('diario-ready',()=>clearTimeout(timer),{once:true});
+ window.addEventListener('error',report,true);
+ retry.addEventListener('click',()=>location.reload());
+ if(!('serviceWorker' in navigator))return;
+ const startedControlled=Boolean(navigator.serviceWorker.controller);
+ let restarting=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{
+  if(restarting||!startedControlled||loading.hidden)return;
+  restarting=true;location.reload();
+ });
+ navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
+})();
+</script>
+<script src="./recon-model.js?v=4.0.36" defer></script>
+<script src="./recon-ui.js?v=4.0.36" defer></script>
+<script src="./card-import.js?v=4.0.36" defer></script>
+<script src="./scenarios.js?v=4.0.36" defer></script>
+<script src="./app.js?v=4.0.36" defer></script>
 </body></html>

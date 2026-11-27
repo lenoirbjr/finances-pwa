@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.56 */
-/* Diário Financeiro 4.0.56: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.57 */
+/* Diário Financeiro 4.0.57: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -243,7 +243,7 @@ function toV5(v){
  }
  x.mode='items';x.version=5;return x;
 }
-let db,state,openPlanMonths=new Set(),closedInvestmentMonths=new Set(),openExpenseDays=new Set(),screen='home',writing=false,archived=false,editingBase=null,editingNew=null,viewMonth=monthNow();
+let db,state,openPlanMonths=new Set(),openExpenseDays=new Set(),screen='home',writing=false,archived=false,editingBase=null,editingNew=null,viewMonth=monthNow();
 function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Feche as outras abas com o aplicativo aberto.'))})}
 function read(key){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
 function write(key,val){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||Error('Falha ao gravar'));tx.onabort=()=>reject(tx.error||Error('Gravação cancelada'))})}
@@ -433,18 +433,20 @@ function renderInvestmentPanels(){
  renderInvestmentHistory(m);
 }
 function renderInvestmentHistory(month){
- const info=investmentsStatus(state,month),difference=round(info.total-info.plan);
- const principal=info.paid?`Feito: ${money(info.paid.amount)}`:info.status==='skipped'?'Não feito':'Pendente';
- const differenceLabel=difference>0?'Acima da meta':difference<0?'Abaixo da meta':'Na meta';
- const extraRows=state.extraInvestments.filter(item=>item.date.slice(0,7)===month).sort((a,b)=>b.date.localeCompare(a.date)).map(item=>
-       `<div class="entry monthly-extra-row"><div class="entry-main"><div class="entry-title">${esc(item.name)}</div><time class="entry-description" datetime="${item.date}">${shortDate(item.date)}</time></div><div class="entry-right"><strong class="entry-price">${money(item.amount)}</strong><button class="entry-remove" type="button" data-delete-extra="${esc(item.id)}" aria-label="Excluir aporte extra: ${esc(item.name)}">×</button></div></div>`).join('');
- const summary=`<details class="investment-history-month investment-month-fold" data-history-month="${month}" open><summary><span class="investment-history-month-name">${shortMonthTitle(month)}</span><strong class="month-big-total">${money(info.total)}</strong></summary><div class="investment-month-content"><div class="investment-month-values"><div><small>Meta ${money(info.plan)}</small><strong>${principal}</strong></div><div><small>Aportes extras</small><strong>${money(info.extra)}</strong></div><div><small>${differenceLabel}</small><strong class="${difference<0?'negative':difference>0?'investment-above':''}">${difference>0?'+':''}${money(difference)}</strong></div></div><button type="button" class="small-action investment-month-edit" data-edit-investment="${month}" aria-label="Editar primeiro aporte de ${monthTitle(month)}">Editar primeiro aporte</button>${extraRows?`<div class="monthly-extras" aria-label="Aportes extras deste mês">${extraRows}</div>`:''}</div></details>`;
+ const paid=settled(state,month);
+ const entries=state.extraInvestments.filter(x=>x.date.slice(0,7)===month).map(x=>({...x,principal:false}));
+ if(paid)entries.push({name:'Primeiro aporte',date:paid.date,amount:paid.amount,principal:true});
+ entries.sort((a,b)=>b.date.localeCompare(a.date)||Number(b.principal)-Number(a.principal));
+ const markup=entries.map((entry,i)=>{
+  const action=entry.principal?`data-edit-investment="${month}"`:`aria-expanded="false" aria-controls="investmentExtraAction${i}" data-investment-extra-action`;
+  return `<article class="recon-row recon-card-line recon-invoice-line movement-statement-line">
+    <button type="button" class="recon-entry-name recon-invoice-name" ${action}>${esc(entry.name)}</button>
+    <strong class="recon-invoice-amount">${money(entry.amount)}</strong>
+    <div class="recon-invoice-meta"><small class="recon-invoice-date"><time datetime="${entry.date}">${readableDate(entry.date)}</time></small></div>
+  </article>${entry.principal?'':`<div id="investmentExtraAction${i}" class="investment-history-action hidden"><button class="secondary recon-exclude-installment" type="button" data-delete-extra="${esc(entry.id)}">Excluir aporte</button></div>`}`;
+ }).join('')||'<p class="empty">Nenhum aporte neste mês.</p>';
  const root=$('investmentHistory');
- if(root.dataset.content!==summary){
-  root.innerHTML=summary;root.dataset.content=summary;
-  const fold=root.firstElementChild;
-  if(fold&&closedInvestmentMonths.has(month))fold.open=false;
- }
+ if(root.dataset.month!==month||root.dataset.content!==markup){root.innerHTML=markup;root.dataset.month=month;root.dataset.content=markup;}
 }
 const dayAndMonth=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit'});
 const shortDate=date=>dayAndMonth.format(new Date(date+'T12:00:00')).replace(' de ',' ').replace('.','');
@@ -1026,11 +1028,14 @@ function rememberAccordion(container,key,opened){
  },true);
 }
 rememberAccordion('expenses','expenseDay',openExpenseDays);
-$('investmentHistory').addEventListener('toggle',e=>{
- const fold=e.target,month=fold.dataset?.historyMonth;
- if(!month||fold!==$('investmentHistory').firstElementChild)return;
- if(fold.open)closedInvestmentMonths.delete(month);else closedInvestmentMonths.add(month);
-},true);
+$('investmentHistory').addEventListener('click',e=>{
+ const button=e.target.closest('[data-investment-extra-action]');
+ if(!button)return;
+ keepScrollPosition(()=>{
+  const row=$(button.getAttribute('aria-controls')),open=row.classList.contains('hidden');
+  row.classList.toggle('hidden',!open);button.setAttribute('aria-expanded',String(open));
+ });
+});
 $('forecast').addEventListener('toggle',e=>{const el=e.target;if(el instanceof HTMLDetailsElement&&el.dataset.planMonth){if(el.open)openPlanMonths.add(el.dataset.planMonth);else openPlanMonths.delete(el.dataset.planMonth)}},true);
 document.addEventListener('click',e=>{const target=e.target;if(!(target instanceof Element))return;for(const kind of ['base','new']){const edit=target.closest(`[data-edit-${kind}]`),del=target.closest(`[data-delete-${kind}]`);if(edit){editItem(kind,edit.getAttribute(`data-edit-${kind}`));return}if(del){if(!confirm('Excluir este item do planejamento?'))return;const id=del.getAttribute(`data-delete-${kind}`),field=kind==='base'?'baseParcels':'parcels';update(s=>{if(reconHasAllocated(s,id))throw Error('Há um Pix vinculado a este item. Desfaça o recebimento antes de excluir.');if(kind==='new'&&s.parcels.find(p=>p.id===id)?.payments?.length)throw Error('Desfaça os pagamentos registrados antes de excluir a compra.');s[field]=s[field].filter(x=>x.id!==id);});return}}const paid=target.closest('[data-delete-paid]');if(paid){if(confirm('Remover a data antecipada? O aporte mensal voltará a ser estimado no dia 30.'))update(s=>s.monthlyPaid=s.monthlyPaid.filter(x=>x.month!==paid.dataset.deletePaid));return}const exInv=target.closest('[data-delete-extra]');if(exInv){if(confirm('Excluir este aporte extra?'))update(s=>s.extraInvestments=s.extraInvestments.filter(x=>x.id!==exInv.dataset.deleteExtra));return}const editInv=target.closest('[data-edit-investment]');if(editInv){showScreen('investments');showInvestmentPanel(false);setInvestmentMonth(editInv.dataset.editInvestment);return}});
 init();

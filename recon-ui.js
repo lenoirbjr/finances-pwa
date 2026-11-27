@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.45 */
+/* diario-shell:4.0.46 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});

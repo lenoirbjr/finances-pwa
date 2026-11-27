@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.45 */
-/* Diário Financeiro 4.0.45: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.46 */
+/* Diário Financeiro 4.0.46: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -472,12 +472,12 @@ function renderTodayLimit(){
   limits.set(key,spendingTimeline(state,asOf,current,budgetSelected,debts));
  }
  const p=limits.get(key);
- for(const [id,cents] of [['todayAvailable',p.todayLimit],['sundayAvailable',p.sundayLimit],['paydayAvailable',p.paydayLimit]]){
-  const el=$(id),text=p.ready?money(cents/100):'—';
+ for(const [id,cents] of [['todayAvailable',p.todayLimit],['sundayAvailable',p.sundayLimit],['paydayAvailable',p.paydayLimit],['billAvailable',p.billLimit]]){
+  const el=$(id),text=p.ready&&Number.isFinite(cents)?money(cents/100):'—';
   if(el.textContent!==text)el.textContent=text;
  }
- for(const [id,date] of [['sundayAvailableDate',p.sunday],['paydayAvailableDate',p.payday]]){
-  const el=$(id);if(el.dateTime!==date){el.dateTime=date;el.textContent=shortDate(date);}
+ for(const [id,date] of [['sundayAvailableDate',p.sunday],['paydayAvailableDate',p.payday],['billAvailableDate',p.bill?.date??'']]){
+  const el=$(id);if(el.dateTime!==date){el.dateTime=date;el.textContent=date?shortDate(date):'';}
  }
 }
 function toggleBudgetPerson(event){

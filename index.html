@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.29">
-<link rel="stylesheet" href="./recon.css?v=4.0.29">
+<link rel="stylesheet" href="./style.css?v=4.0.30">
+<link rel="stylesheet" href="./recon.css?v=4.0.30">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -22,18 +22,21 @@
 <div id="app" hidden>
 <main>
 <section id="screen-home" class="screen dashboard" aria-label="Início">
-<div class="home-intro"><div><span class="screen-kicker">PAINEL PESSOAL</span><h1>Visão geral</h1></div><div class="week-badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span id="weekRange">—</span></div></div>
+<div class="home-intro"><div><span class="screen-kicker">PAINEL PESSOAL</span><h1>Início</h1></div><div class="week-badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span id="weekRange">—</span></div></div>
 <section class="balance-card" aria-labelledby="balance-title">
 <h2 id="balance-title">Saldo</h2>
 <div id="cashBalance" class="balance-amount">—</div>
 </section>
-<section class="dashboard-kpi home-wide-kpi" aria-labelledby="sunday-title">
-<h2 id="sunday-title">Disponível até o próximo domingo</h2>
-<strong id="sundayReference">—</strong>
-<time id="sundayDate">—</time>
-<small id="sundaySetup" class="hidden"></small>
-<details id="pixScenarios" class="pix-scenarios">
-<summary>Simular Pix até a fatura</summary>
+<section class="dashboard-kpi home-availability" aria-labelledby="home-availability-title">
+<div class="availability-heading"><h2 id="home-availability-title">Disponível para gastar</h2></div>
+<dl class="availability-list">
+ <div class="availability-row availability-primary"><dt><span>Até domingo</span><time id="sundayDate">—</time></dt><dd class="availability-amount" id="sundayReference">—</dd></div>
+ <div class="availability-row"><dt><span>Até o próximo salário</span><time id="paydayDate">—</time></dt><dd class="availability-amount" id="paydayAvailable">—</dd></div>
+ <div class="availability-row"><dt><span>Até a fatura</span><time id="billAvailableDate">—</time></dt><dd class="availability-amount" id="billAvailable">—</dd></div>
+</dl>
+<small id="sundaySetup" class="availability-note hidden"></small>
+<details id="pixScenarios" class="pix-scenarios availability-simulator">
+<summary>Simular reembolsos<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg></summary>
 <div id="pixScenarioContent"></div>
 </details>
 </section>
@@ -186,9 +189,9 @@
 </div>
 <div id="loading" class="loading">Abrindo seu diário…</div>
 </div>
-<script src="./recon-model.js?v=4.0.29" defer></script>
-<script src="./recon-ui.js?v=4.0.29" defer></script>
-<script src="./card-import.js?v=4.0.29" defer></script>
-<script src="./scenarios.js?v=4.0.29" defer></script>
-<script src="./app.js?v=4.0.29" defer></script>
+<script src="./recon-model.js?v=4.0.30" defer></script>
+<script src="./recon-ui.js?v=4.0.30" defer></script>
+<script src="./card-import.js?v=4.0.30" defer></script>
+<script src="./scenarios.js?v=4.0.30" defer></script>
+<script src="./app.js?v=4.0.30" defer></script>
 </body></html>

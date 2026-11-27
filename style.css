@@ -559,3 +559,25 @@ html{overflow-anchor:none}
 .movements-switch button{padding-inline:3px;white-space:nowrap;font-size:clamp(.68rem,3.2vw,.83rem)}
 .movement-statement .history-month-content{padding:0;border:0}
 .movement-statement .recon-invoice-amount{white-space:nowrap}
+
+
+/* One compact view of the three spending horizons. */
+.dashboard .home-availability{padding:15px;display:grid;grid-template-rows:none;gap:8px;min-width:0}
+.availability-heading h2{font-size:.97rem!important;margin:0}
+.availability-list,.availability-list dd{margin:0;min-width:0}
+.availability-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,max-content);align-items:center;gap:9px;padding:10px 9px;border-bottom:1px solid var(--edge)}
+.availability-row:last-child{border-bottom:0}
+.availability-row dt>span{display:block}
+.availability-row dt{min-width:0}
+.availability-row dt{font-size:.81rem;font-weight:670;line-height:1.24}
+.availability-row time{display:inline-block;color:var(--muted);font-size:.72rem;margin-top:4px;font-variant-numeric:tabular-nums}
+.availability-row .availability-amount{font-size:clamp(.95rem,4.5vw,1.35rem);font-weight:800;letter-spacing:-.025em;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.availability-primary{background:var(--accent-wash);border:1px solid var(--edge);border-radius:11px}
+.availability-primary .availability-amount{color:var(--accent);font-size:clamp(1.05rem,4.9vw,1.5rem)}
+.availability-note{color:var(--muted);font-size:.7rem;line-height:1.4;padding-inline:9px}
+.availability-simulator{margin-top:0}
+.availability-simulator>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-inline:9px}
+.availability-simulator>summary::-webkit-details-marker{display:none}
+.availability-simulator>summary svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2}
+.availability-simulator[open]>summary svg{transform:rotate(90deg)}
+.statement-month-total{font-variant-numeric:tabular-nums;font-size:.85rem;white-space:nowrap;text-align:right}

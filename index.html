@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.53">
+<meta name="diario-shell" content="4.0.54">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.53">
-<link rel="stylesheet" href="./recon.css?v=4.0.53">
+<link rel="stylesheet" href="./style.css?v=4.0.54">
+<link rel="stylesheet" href="./recon.css?v=4.0.54">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -30,7 +30,7 @@
 </section>
 <details class="dashboard-kpi home-availability">
 <summary>
- <span>Disponível</span>
+ <span class="availability-title">Disponível <time id="availableThrough" hidden></time></span>
  <strong id="todayAvailable" aria-live="polite" aria-atomic="true">—</strong>
  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>
 </summary>
@@ -69,7 +69,6 @@
 <nav id="card-tabs" class="subtabs" aria-label="Seções da fatura"><button data-screen="installments" type="button">Lançamentos</button><button data-screen="recon" type="button">Fatura</button><button data-screen="acertos" type="button">A Pagar e Receber</button></nav>
 <div class="recon-period card-period"><label for="cardMonth">Mês dos Compromissos</label><div class="recon-month-controls"><button id="cardMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="cardMonth" aria-label="Mês dos Compromissos"></select><button id="cardMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
 </section>
-<nav id="plan-tabs" class="subtabs hidden" aria-label="Tipos de planejamento"><button data-screen="planning" type="button">Projeção mensal</button><button data-screen="investments" type="button">Investimentos</button></nav>
 <section id="screen-week" class="screen hidden">
 <div class="movement-hub">
 <div class="section-heading"><div><span class="screen-kicker">LANÇAMENTOS</span><h1>Débitos</h1></div></div>
@@ -109,10 +108,21 @@
 </div></section>
 <section id="screen-planning" class="screen hidden"><div class="section-heading"><span class="screen-kicker">PROJEÇÕES</span><h1>Planejamento</h1><p>Abra um mês para consultar sua composição.</p></div>
 <div class="surface"><div class="surface-heading"><h2>Próximos 12 meses</h2></div><div id="forecast" class="monthly-accordion"></div></div></section>
-<section id="screen-investments" class="screen hidden"><div class="section-heading"><span class="screen-kicker">APORTES</span><h1>Investimentos</h1><p>Confirme sua meta e registre aportes extras no mesmo lugar.</p></div>
-<div class="surface contribution-card">
+<section id="screen-investments" class="screen hidden" aria-label="Investimentos">
+<div class="movement-hub">
+<div class="section-heading"><span class="screen-kicker">APORTES</span><h1>Investimentos</h1></div>
+<section class="balance-card movement-hero investment-hero" aria-labelledby="investment-hero-title">
+<h2 id="investment-hero-title">Investido no Mês</h2><div class="balance-amount" id="investmentMonthTotal" aria-live="polite">—</div>
+<dl><div><dt>Primeiro aporte</dt><dd id="investmentMonthPrincipal">—</dd></div><div><dt>Aportes extras</dt><dd id="investmentMonthExtra">—</dd></div></dl>
+</section>
+<div class="recon-period"><label for="investmentFocusMonth">Mês de Referência</label><div class="recon-month-controls"><button id="investmentMonthPrev" type="button" aria-label="Mês anterior">‹</button><select id="investmentFocusMonth"></select><button id="investmentMonthNext" type="button" aria-label="Mês seguinte">›</button></div></div>
+</div>
+<div class="subtabs" role="group" aria-label="Seções de investimentos">
+<button id="investmentContributionsTab" type="button" class="active" aria-pressed="true" aria-controls="investmentContributionsPanel">Aportes</button>
+<button id="investmentHistoryTab" type="button" aria-pressed="false" aria-controls="investmentHistoryPanel">Histórico</button>
+</div>
+<div class="surface contribution-card" id="investmentContributionsPanel">
 <h2>Aportes</h2>
-<label for="investmentFocusMonth">Mês do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentFocusMonth">Selecionar mês</span><span class="calendar-icon">▦</span><input id="investmentFocusMonth" type="month" required></div>
 <form id="investmentConfirmForm">
 <div class="investment-target"><span>Meta mensal</span><strong id="investmentTarget">R$ 0,00</strong></div>
 <label for="investmentDone" class="contribution-check"><input id="investmentDone" type="checkbox"><span>Fiz o primeiro aporte do mês<small id="investmentStatusNote">Pendente</small></span></label>
@@ -120,9 +130,9 @@
 <label for="investmentConfirmDate">Data do primeiro aporte</label><div class="calendar-field"><span class="calendar-label" data-for="investmentConfirmDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="investmentConfirmDate" type="date"></div></div>
 <div class="contribution-actions"><button class="primary" id="saveFirstContribution" type="submit">Salvar primeiro aporte</button><button id="skipFirstContribution" class="text-button" type="button">Marcar como não feito</button></div>
 </form>
-<div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição (opcional)</label><input id="extraName" type="text" maxlength="120" placeholder="Ex.: Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required><button class="secondary" type="submit">Registrar aporte extra</button></form></div>
+<div class="contribution-extra" id="extraContributionBlock"><h3>Aportes extras</h3><form id="extraForm"><label for="extraDate">Data</label><div class="calendar-field"><span class="calendar-label" data-for="extraDate">Selecionar data</span><span class="calendar-icon">▦</span><input id="extraDate" type="date" required></div><label for="extraName">Descrição</label><input id="extraName" type="text" maxlength="120" placeholder="E.x. Aporte adicional"><label for="extraAmount">Valor (R$)</label><input id="extraAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required><button class="secondary" type="submit">Registrar aporte extra</button></form></div>
 </div>
-<div class="surface"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
+<div class="surface hidden" id="investmentHistoryPanel"><h2>Histórico mensal</h2><div id="investmentHistory" class="investment-history"></div></div></section>
 <section id="screen-settings" class="screen hidden"><div class="section-heading"><div><span class="screen-kicker">PREFERÊNCIAS</span><h1>Ajustes</h1></div></div>
 <section class="surface theme-panel" aria-labelledby="theme-panel-title"><h2 id="theme-panel-title">Aparência</h2>
 <p>Escolha o tema deste dispositivo.</p><div class="theme-choices" role="group" aria-label="Tema do diário">
@@ -149,7 +159,7 @@
 <div class="section-heading"><span class="screen-kicker">GUIA DO DIÁRIO</span><h1>Informações</h1><p>Entenda os valores e campos do aplicativo.</p></div>
 <details class="surface settings-details" open><summary>Indicadores da tela inicial</summary>
 <div class="help-item"><strong>Saldo</strong><p>Parte do saldo de abertura e inclui entradas, gastos e pagamentos lançados ou programados até hoje. A reserva para uma fatura futura não é descontada desse saldo, pois ainda não foi paga. Não consulta o banco.</p></div>
-<div class="help-item"><strong>Disponível até o próximo domingo</strong><p>É quanto fica livre para gastar até domingo, depois de preservar a margem e os compromissos programados. Valores a receber só entram no saldo depois que você registra o Pix.</p></div>
+<div class="help-item"><strong>Disponível até a próxima fatura</strong><p>Mostra a sobra projetada na data da próxima fatura, depois dos compromissos, do investimento e da margem. Os pagamentos selecionados entram na simulação, não no saldo real.</p></div>
 <div class="help-item"><strong>Simular Pix até a fatura</strong><p>Compare atrasos e datas sem registrar reembolsos. O valor até a fatura inclui o que gastar até domingo: não some os dois limites. Registre o Pix em A receber quando o dinheiro entrar.</p></div>
 <div class="help-item"><strong>Investimentos do mês</strong><p>Mostra quanto você registrou no primeiro aporte em relação à meta do mês, e o total de aportes extras em separado.</p></div>
 <div class="help-item"><strong>Margem protegida</strong><p>É um saldo mínimo a preservar, não um pagamento. Se a renda futura não cobrir obrigações, a diferença é protegida do caixa disponível.</p></div></details>
@@ -199,6 +209,7 @@
 <button type="button" data-screen="home" data-area="home" class="active" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-7h6v7"/></svg><span>Início</span></button>
 <button type="button" data-screen="week" data-area="week"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg><span>Débitos</span></button>
 <button type="button" data-screen="recon" data-area="recon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18m-13 5h4"/></svg><span>Fatura</span></button>
+<button type="button" data-screen="investments" data-area="investments"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3v17h18M7 15l5-5 4 3 5-6m-5 0h5v5"/></svg><span>Investimentos</span></button>
 <button type="button" data-screen="planning" data-area="planning"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h2"/></svg><span>Planejamento</span></button>
 </nav>
 </div>
@@ -222,9 +233,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.53" defer></script>
-<script src="./recon-ui.js?v=4.0.53" defer></script>
-<script src="./card-import.js?v=4.0.53" defer></script>
-<script src="./scenarios.js?v=4.0.53" defer></script>
-<script src="./app.js?v=4.0.53" defer></script>
+<script src="./recon-model.js?v=4.0.54" defer></script>
+<script src="./recon-ui.js?v=4.0.54" defer></script>
+<script src="./card-import.js?v=4.0.54" defer></script>
+<script src="./scenarios.js?v=4.0.54" defer></script>
+<script src="./app.js?v=4.0.54" defer></script>
 </body></html>

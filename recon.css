@@ -190,7 +190,9 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-invoice .recon-due{margin-top:0}
 [data-recon-message]:empty{display:none}
 
-.recon-adjust-button{padding:4px 0;min-height:28px;text-align:right;font-size:.73rem}
+.recon-line-editor{min-width:0;margin:0 0 9px}
+.recon-editor-tabs{margin:0 0 6px}
+.recon-line-editor .recon-edit{margin:0}
 .recon-adjustments{margin-top:12px;padding:10px;border:1px solid var(--edge);border-radius:12px}
 .recon-adjustments summary{cursor:pointer;font-size:.85rem;font-weight:700}
 .recon-adjustments article:first-of-type{margin-top:8px}

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.48 */
+/* diario-shell:4.0.49 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -110,11 +110,25 @@ function createReconUI(){
      const personKey=payablePersonKey(g.name);
      return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
        <div class="recon-payable-lines">${[...g.rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
-           const i=r.index;
-           return `<article class="recon-row"><div>${r.recurring?`<button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button>`:`<strong>${escape(r.name)}</strong>`}<small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
-           ${r.postings.map(p=>`<div class="recon-row"><div><small>Pago em ${when(p.date)} · ${brl(p.cents)}</small></div><div class="recon-row-amount"><button type="button" class="secondary" data-recon-undo-payable="${i}" ${p.batch?`data-recon-batch="${escape(p.batch)}"`:''} aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button></div></div>`).join('')}`;
+           const open=formKind==='payable-edit'&&editing===r.id;
+           return `<article class="recon-row"><div><button type="button" class="recon-entry-name" data-recon-payable-edit="${r.index}" aria-expanded="${open}">${escape(r.name)}</button><small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>${open?payableEditor(r):''}`;
          }).join('')}</div></details>`;
    }).join(''):'<p class="empty">Nenhum valor a pagar.</p>'}</div></section>`;
+ }
+ function payableEditor(r){
+   const monthEnd=new Date(Number(period.slice(0,4)),Number(period.slice(5,7)),0).getDate();
+   const parts=r.postings.length?r.postings:[{date:api.today,cents:0}];
+   return `<form class="recon-edit recon-value-form" data-recon-form="payable-edit">
+    <label for="payEditName">Descrição</label><input id="payEditName" name="description" value="${escape(r.name)}" placeholder="E.x. Assinatura" maxlength="120" required>
+    <label for="payEditTotal">Valor total (R$)</label><input id="payEditTotal" name="total" value="${coin(r.cents).replace('.',',')}" inputmode="decimal" placeholder="0,00" required>
+    <label for="payEditDue">Vencimento</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(r.due)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="payEditDue" name="due" type="date" value="${escape(r.due)}" min="${period}-01" max="${period}-${monthEnd}" required></div>
+    ${parts.map((p,i)=>`<div class="recon-pay-edit-row">
+     <label for="payEditAmount-${i}">Valor pago${parts.length>1?' ('+(i+1)+')':''} (R$)</label><input id="payEditAmount-${i}" data-pay-edit-cents inputmode="decimal" placeholder="0,00" value="${coin(p.cents).replace('.',',')}">
+     ${paymentDateField('payEditDate-'+i,'Data do pagamento',p.date)}</div>`).join('')}
+    <p class="recon-note">Para desfazer um pagamento desta dívida, coloque o valor pago em zero.</p>
+    <p class="recon-message" data-recon-form-message role="status"></p>
+    <div class="recon-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
+   </form>`;
  }
  function paymentDateField(id,label,date=api.today){
    return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(date)}" max="${escape(api.today)}" required></div>`;
@@ -353,7 +367,7 @@ function createReconUI(){
    else error(result?.error||'Não foi possível salvar. Confira os dados e tente novamente.');
  }
  function syncPixDate(input){
-   const label=$('[data-recon-date-label]',input.form);
+   const label=$('[data-recon-date-label]',input.closest?.('.calendar-field')??input.form);
    if(label)label.textContent=safeDate(input.value)?when(input.value):'Selecionar data';
  }
  function bind(dom){
@@ -434,16 +448,11 @@ function createReconUI(){
      if(moneyTab!=='payable'||!currentPayables.some(x=>x.remaining>0))return;
      editing=null;formKind='payable-start';paint();return;
    }
-   if(b.hasAttribute('data-recon-undo-payable')){
-     const row=currentPayables[Number(b.dataset.reconUndoPayable)];
-     if(!row?.paid)return;
-     const batch=b.dataset.reconBatch;
-     if(batch&&api.undoPayablePayment&&row.postings.some(x=>x.batch===batch)){
-       if(window.confirm('Desfazer este pagamento em todas as dívidas em que ele foi distribuído?'))apply(()=>api.undoPayablePayment(batch),'Pagamento desfeito.');
-     }else if(!batch&&api.setPayable&&row.paidDate&&window.confirm('Desfazer este pagamento? A dívida voltará a ficar em aberto.')){
-       apply(()=>api.setPayable(row.id,row.month,null),'Pagamento desfeito.');
-     }
-     return;
+   if(b.hasAttribute('data-recon-payable-edit')){
+     const row=currentPayables[Number(b.dataset.reconPayableEdit)];
+     if(!row||!api.editPayable)return;
+     if(formKind==='payable-edit'&&editing===row.id){close();return;}
+     editing=row.id;formKind='payable-edit';paint();return;
    }
    if(b.hasAttribute('data-recon-delete-pix')){if(api.deleteReceipt&&window.confirm('Desfazer este Pix no diário? Todas as dívidas vinculadas a este Pix, inclusive de outros meses, voltarão a ficar em aberto.'))apply(()=>api.deleteReceipt(b.dataset.reconDeletePix),'Registro do Pix removido.');return;}
    if(b.hasAttribute('data-recon-fill-total'))return keepPosition(()=>autofill(b.form));
@@ -494,9 +503,9 @@ function createReconUI(){
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
-    if(el.id==='reconCardPayDate'||el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate'||el.id==='settlementDate')syncPixDate(el);
+    if(el.id==='payEditDue'||el.id?.startsWith('payEditDate-')||el.id==='reconCardPayDate'||el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate'||el.id==='settlementDate')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconCardPayDate'||e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate'||e.target.id==='settlementDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='payEditDue'||e.target.id?.startsWith('payEditDate-')||e.target.id==='reconCardPayDate'||e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate'||e.target.id==='settlementDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
@@ -505,6 +514,14 @@ function createReconUI(){
       if(formKind!=='card-pay'||tab!=='bill'||!api.markPaid)return;
       if(!safeDate(date)||date>api.today){error('Informe uma data de pagamento até hoje.');return;}
       apply(()=>api.markPaid(period,date),'Pagamento da fatura confirmado.');return;
+    }
+    if(f.dataset.reconForm==='payable-edit'){
+      if(formKind!=='payable-edit'||!api.editPayable||!currentPayables.some(r=>r.id===editing))return;
+      const name=f.elements.description.value.trim(),due=f.elements.due.value,total=cents(f.elements.total.value);
+      const payments=[...f.querySelectorAll('[data-pay-edit-cents]')].map((e,i)=>({
+       cents:e.value.trim()?cents(e.value):0,date:$('[id="payEditDate-'+i+'"]',f)?.value
+      }));
+      apply(()=>api.editPayable(period,editing,{name,due,cents:total,payments}),'Lançamento atualizado.');return;
     }
     if(f.dataset.reconForm==='settlement'){
       const row=ledgerRows.find(r=>r.key===editing);

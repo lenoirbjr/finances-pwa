@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.48 */
+/* diario-shell:4.0.49 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -9,6 +9,7 @@ function reconValidate(r){
  const parts=p=>arr(p,50)&&p.every(x=>x&&str(x.person,100)&&pos(x.cents)&&(x.expected===undefined||isDate(x.expected)))&&new Set(p.map(x=>reconPersonKey(x.person))).size===p.length;
  const unique=(a,fn)=>new Set(a.map(fn)).size===a.length;
  if(!r||!arr(r.statements,120)||!arr(r.bankRows,30000)||!arr(r.receipts,10000)||!arr(r.overrides,20000)||!arr(r.payments??[],120))return false;
+ if(r.payableEdits!==undefined&&(!arr(r.payableEdits,10000)||!r.payableEdits.every(x=>x&&str(x.id)&&isMonth(x.month)&&str(x.name,120)&&pos(x.cents)&&isDate(x.due)&&x.due.slice(0,7)===x.month)||!unique(r.payableEdits,x=>JSON.stringify([x.id,x.month]))))return false;
  if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
  if(r.bankCreditEdits!==undefined&&(!arr(r.bankCreditEdits,5000)||!r.bankCreditEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&str(x.name,250)&&isDate(x.date)&&pos(x.cents))||!unique(r.bankCreditEdits,x=>x.month+'|'+x.rowId)))return false;
  if(r.excludedLines!==undefined&&(!arr(r.excludedLines,30000)||!r.excludedLines.every(x=>x&&isMonth(x.month)&&str(x.rowId))||!unique(r.excludedLines,x=>x.month+'|'+x.rowId)))return false;
@@ -374,20 +375,27 @@ function reconFixedParts(s,id,month){
  return (s.fixedPaid??[]).filter(e=>e.id===id&&e.month===month&&e.batch)
   .map(e=>({batch:e.batch,date:e.date,cents:Math.round(e.amount*100)}));
 }
+function reconPayableEdit(s,id,month){
+ return s?.reconciliation?.payableEdits?.find(x=>x.id===id&&x.month===month);
+}
+function reconFixedGrossCents(s,item,month){
+ const original=confirmedFixed(s,item.id,month)?.amount??item.amount;
+ return reconPayableEdit(s,'fixedout:'+item.id,month)?.cents??Math.round(original*100);
+}
 function reconScheduledFixed(s,item,month){
- const legacy=confirmedFixed(s,item.id,month),date=legacy?.date??fixedDate(s,item,month);
+ const legacy=confirmedFixed(s,item.id,month),edit=reconPayableEdit(s,'fixedout:'+item.id,month),date=legacy?.date??edit?.due??fixedDate(s,item,month);
  const used=reconFixedParts(s,item.id,month).reduce((sum,e)=>sum+e.cents,0);
- return {date,amount:Math.max(0,Math.round((legacy?.amount??item.amount)*100)-used)/100};
+ return {date,amount:Math.max(0,reconFixedGrossCents(s,item,month)-used)/100};
 }
 function reconRecurringPayables(s,month){
  return reconFixed(s,month).filter(item=>item.direction!=='in'&&item.amount>0).map(item=>{
-  const confirmed=confirmedFixed(s,item.id,month),due=fixedDate(s,item,month);
-  const cents=Math.round((confirmed?.amount??item.amount)*100);
-  const postings=reconFixedParts(s,item.id,month);
+  const confirmed=confirmedFixed(s,item.id,month),edit=reconPayableEdit(s,'fixedout:'+item.id,month),due=edit?.due??fixedDate(s,item,month);
+  const cents=reconFixedGrossCents(s,item,month);
+  const postings=confirmed?[{date:confirmed.date,cents}]:reconFixedParts(s,item.id,month);
   const paid=confirmed?cents:postings.reduce((n,p)=>n+p.cents,0),remaining=Math.max(0,cents-paid);
   const paidDate=remaining===0?(confirmed?.date??postings.map(p=>p.date).sort().at(-1)):null;
   return {id:'fixedout:'+item.id,fixedId:item.id,person:item.tag?.trim()||'Sem etiqueta',
-   name:item.name,month,cents,due,date:paidDate??due,paidDate,paid,remaining,postings,recurring:true};
+   name:edit?.name??item.name,month,cents,due,date:paidDate??due,paidDate,paid,remaining,postings,recurring:true};
  }).filter(row=>row.cents>0);
 }
 function reconCommitmentTotals(s,month){
@@ -505,14 +513,14 @@ function reconHasAllocated(s,id){
 
 // Compras no cartão de outra pessoa não entram na nossa fatura. A parcela
 // prevista e sua baixa são o mesmo compromisso, não dois lançamentos.
-function reconPayableValid(p){
+function reconPayableValid(p,s){
  if(p.payTo===undefined)return p.payStart===undefined&&p.payments===undefined;
  if(typeof p.payTo!=='string'||!p.payTo.trim()||p.payTo.length>100||!isDate(p.payStart)||p.payStart.slice(0,7)!==p.start)return false;
  const payments=p.payments??[];
  return Array.isArray(payments)&&payments.length<=p.count&&new Set(payments.map(x=>x?.month)).size===payments.length&&payments.every(x=>x&&isMonth(x.month)&&monthDiff(p.start,x.month)>=0&&monthDiff(p.start,x.month)<p.count&&(x.parts===undefined?isDate(x.date):Array.isArray(x.parts)&&x.parts.length>0
   &&new Set(x.parts.map(a=>a?.batch)).size===x.parts.length
   &&x.parts.every(a=>a&&typeof a.batch==='string'&&a.batch.length>0&&a.batch.length<=100&&isDate(a.date)&&Number.isSafeInteger(a.cents)&&a.cents>0)
-  &&x.parts.reduce((n,a)=>n+a.cents,0)<=Math.round(newPartAmount(p,x.month)*100)));
+  &&x.parts.reduce((n,a)=>n+a.cents,0)<=(reconPayableEdit(s,p.id,x.month)?.cents??Math.round(newPartAmount(p,x.month)*100))));
 }
 function reconParcelLinked(s,id){
  return (s.reconciliation?.statements??[]).some(st=>st.rows.some(x=>x.kind==='charge'&&(x.id===id||x.legacyIds?.includes(id))));
@@ -524,16 +532,42 @@ function reconPayableRows(s,month=null){
   const offset=month===null?0:monthDiff(p.start,month);
   if(offset<0||offset>=p.count)continue;
   for(let i=offset;i<(month===null?p.count:offset+1);i++){
-   const m=shiftMonth(p.start,i),cents=Math.round(newPartAmount(p,m)*100);
+   const m=shiftMonth(p.start,i),edit=reconPayableEdit(s,p.id,m),cents=edit?.cents??Math.round(newPartAmount(p,m)*100);
    if(cents<=0)continue;
-   const due=eventDate(m,Number(p.payStart.slice(-2))),entry=p.payments?.find(x=>x.month===m);
+   const due=edit?.due??eventDate(m,Number(p.payStart.slice(-2))),entry=p.payments?.find(x=>x.month===m);
    const postings=entry?.parts??(entry?[{date:entry.date,cents}]:[]);
    const paid=postings.reduce((n,x)=>n+x.cents,0),remaining=cents-paid;
    const latest=postings.at(-1),paidDate=remaining===0?postings.map(x=>x.date).sort().at(-1):null;
-   result.push({id:p.id,person:p.payTo,name:p.name,month:m,due,date:paidDate??due,cents,paidDate,paid,remaining,postings,latest,number:i+1,count:p.count});
+   result.push({id:p.id,person:p.payTo,name:edit?.name??p.name,month:m,due,date:paidDate??due,cents,paidDate,paid,remaining,postings,latest,number:i+1,count:p.count});
   }
  }
  return result.sort((a,b)=>a.due.localeCompare(b.due)||a.person.localeCompare(b.person,'pt-BR'));
+}
+// Edit only this occurrence. Keep the other allocations of a split payment.
+function reconEditPayableOccurrence(s,month,id,fields){
+ const row=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)].find(x=>x.id===id);
+ if(!row)throw Error('Dívida não encontrada.');
+ const name=String(fields.name??'').trim(),{cents,due,payments}=fields;
+ if(!name||name.length>120||!Number.isSafeInteger(cents)||cents<=0||cents>1e12||!isDate(due)||due.slice(0,7)!==month)throw Error('Confira a descrição, o valor e o vencimento dentro deste mês.');
+ if(!Array.isArray(payments)||payments.length!==Math.max(1,row.postings.length)||
+    payments.some(x=>!x||!Number.isSafeInteger(x.cents)||x.cents<0||x.cents>cents||(x.cents>0&&(!isDate(x.date)||x.date>today())))||
+    payments.reduce((n,x)=>n+x.cents,0)>cents)throw Error('Confira os pagamentos. O valor pago não pode ultrapassar o total da dívida.');
+ const data=reconInit(s);
+ (data.payableEdits??=[]);
+ data.payableEdits=data.payableEdits.filter(x=>x.id!==id||x.month!==month);
+ data.payableEdits.push({id,month,name,cents,due});
+ const unchanged=payments.length===row.postings.length&&payments.every((p,i)=>p.cents===row.postings[i].cents&&p.date===row.postings[i].date);
+ if(unchanged&&row.postings.every(p=>p.batch))return;
+ if(unchanged&&cents===row.cents)return;
+ const parts=payments.flatMap(({cents,date},i)=>cents>0?[{cents,date,batch:row.postings[i]?.date===date&&row.postings[i]?.batch||newId()}]:[]);
+ if(row.fixedId){
+  s.fixedPaid=(s.fixedPaid??[]).filter(p=>p.id!==row.fixedId||p.month!==month);
+  s.fixedPaid.push(...parts.map(p=>({id:row.fixedId,month,date:p.date,amount:p.cents/100,batch:p.batch})));
+ }else{
+  const parcel=s.parcels.find(p=>p.id===id&&p.payTo);
+  parcel.payments=(parcel.payments??[]).filter(p=>p.month!==month);
+  if(parts.length)parcel.payments.push({month,parts});
+ }
 }
 function reconSetPayable(s,id,month,date){
  const p=s.parcels.find(x=>x.id===id&&x.payTo);

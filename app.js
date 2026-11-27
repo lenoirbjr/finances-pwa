@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.40 */
-/* Diário Financeiro 4.0.40: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.41 */
+/* Diário Financeiro 4.0.41: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -99,10 +99,15 @@ function cashAt(s,end){
  if(end<start)return round(opened.amount);
  let projected=opened.amount;
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
-   const invoiceDay=reconPayment(s,m)?.date??eventDate(m,5),paid=settled(s,m);
+   const confirmed=reconPayment(s,m),invoiceDay=eventDate(m,5),paid=settled(s,m);
    for(const credit of salaryEvents(s,m))if(credit.date>start&&credit.date<=end)projected+=credit.amount;
    if(paid&&included(paid.date))projected-=paid.amount;
-   if(invoiceDay>start&&invoiceDay<=end)projected-=invoiceAmount(s,m)+reconPreviousCredit(s,m);
+   if(!confirmed&&invoiceDay>start&&invoiceDay<=end)projected-=reconCardDueCents(s,m)/100;
+ }
+ // A fatura confirmada é lançada uma vez na data real, inclusive se o
+ // pagamento ocorreu em mês diferente da competência.
+ for(const entry of s.reconciliation?.payments??[]){
+   if(entry.date>start&&entry.date<=end)projected-=(entry.cents??reconCardDueCents(s,entry.month))/100;
  }
  // Fixos são debitados automaticamente no dia configurado. Pagamentos históricos já confirmados prevalecem.
  for(let m=start.slice(0,7);m<=end.slice(0,7);m=shiftMonth(m,1)){
@@ -649,8 +654,8 @@ function renderCardHub(){
   select.dataset.months=signature;
  }
  if(select.value!==m)select.value=m;
- const {card,outside,total}=reconCommitmentTotals(state,m);
- $('cardOwnTotal').textContent=money(card/100);$('cardPeopleTotal').textContent=money(outside/100);$('cardCommitments').textContent=money(total/100);
+ const {card,outside,total,paid}=reconCommitmentTotals(state,m);
+ $('cardOwnTotal').textContent=money(card/100);$('cardPeopleTotal').textContent=money(outside/100);$('cardCommitments').textContent=money(total/100);$('cardPaidTotal').textContent=money(paid/100);
 }
 function showScreenNoScroll(){return keepScrollPosition(paintScreen)}
 function paintScreen(){
@@ -665,7 +670,7 @@ function paintScreen(){
    $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
  }
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),recurringPayables:m=>reconRecurringPayables(state,m),openFixedSetting,settlements:m=>reconOpenDebtEntries(state,m),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:m=>reconDebt(state,m),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),recurringPayables:m=>reconRecurringPayables(state,m),openFixedSetting,settlements:m=>reconOpenDebtEntries(state,m),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:m=>reconDebt(state,m),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),cardDue:m=>reconCardDueCents(state,m),paidCardFixed:m=>reconPaidCardFixed(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.40 */
+/* diario-shell:4.0.41 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -92,7 +92,8 @@ function createReconUI(){
    return (api.payable?.(period)??api.payables?.()??[]).filter(x=>x.cents>0&&x.month===period);
  }
  let currentPayables=[];
- function payableSection(items){
+ function payableSection(payables){
+   const items=[...payables,...(api.paidCardFixed?.(period)??[])];
    const byPerson=new Map();
    const pending=rows=>rows.reduce((n,r)=>n+r.remaining,0);
    const paid=rows=>rows.reduce((n,r)=>n+r.paid,0);
@@ -111,7 +112,7 @@ function createReconUI(){
      return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
        <div class="recon-payable-lines">${[...g.rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
            const i=r.index;
-           return `<article class="recon-row"><div>${r.recurring?`<button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button>`:`<strong>${escape(r.name)}</strong>`}<small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
+           return `<article class="recon-row"><div>${r.recurring?`<button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button>`:`<strong>${escape(r.name)}</strong>`}<small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):(r.invoicePaid?'Pago na fatura · ':'Quitado em ')+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
            ${r.postings.map(p=>`<div class="recon-row"><div><small>Pago em ${when(p.date)} · ${brl(p.cents)}</small></div><div class="recon-row-amount"><button type="button" class="secondary" data-recon-undo-payable="${i}" ${p.batch?`data-recon-batch="${escape(p.batch)}"`:''} aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button></div></div>`).join('')}`;
          }).join('')}</div></details>`;
    }).join(''):'<p class="empty">Nenhum valor a pagar.</p>'}</div></section>`;
@@ -170,7 +171,15 @@ function createReconUI(){
  function bill(){
    const options=billList(api.rows(period)||[]);
    const due=statement(period)?.dueDate??statement(period)?.due;
+   const payment=api.paid?.(period),value=payment?.cents??api.cardDue?.(period)??0;
+   const payControl=payment?`<div class="recon-card-paid"><p><strong>Fatura paga</strong> · ${when(payment.date)}</p><button class="secondary" type="button" data-recon-unpay-card>Desfazer confirmação</button></div>`:
+    formKind==='card-pay'?`<form class="recon-edit recon-card-pay-form" data-recon-form="card-pay" aria-label="Confirmar Pagamento da Fatura">
+     ${paymentDateField('reconCardPayDate','Data do pagamento')}<p class="recon-note">Total da fatura: ${brl(value)}</p>
+     <p class="recon-message" data-recon-form-message role="status"></p>
+     <div class="recon-actions"><button class="primary" type="submit">Confirmar</button><button class="secondary" type="button" data-recon-cancel>Cancelar</button></div></form>`:
+    `<button class="primary recon-card-pay" type="button" data-recon-pay-card ${api.markPaid&&value>0?'':'disabled'}>Confirmar Pagamento da Fatura</button>`;
    return `<div class="surface recon-screen recon-invoice">
+   ${payControl}
    <p class="recon-due">Vencimento: <strong>${when(safeDate(due)?due:period+'-05')}</strong></p>
    <div class="recon-label-filter"><select id="reconBillFilter" aria-label="Filtrar por etiqueta">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select>
    <label class="recon-sort-control" data-sorted="${billSort!=='original'}" title="Ordenar lançamentos">
@@ -257,7 +266,7 @@ function createReconUI(){
    }
    const groups=people.map(({key,items,pending})=>{
     const received=items.reduce((n,d)=>n+d.received,0);
-    const lines=[...items].sort((a,b)=>b.remaining-a.remaining).map(d=>`<article class="recon-row"><div><strong>${escape(d.name)}</strong>${d.number&&d.count?`<small>Parcela ${d.number}/${d.count}</small>`:''}${d.recurring?`<small>Pix fixo · ${when(d.expected)}</small>`:!statement(d.month)&&d.month>=api.today.slice(0,7)?'<small>Prevista</small>':''}</div><div class="recon-row-amount"><strong>${brl(d.remaining)}</strong><small>${d.remaining===0?'Quitado':d.received?brl(d.received)+' já recebido':'Pendente'}</small></div></article>`).join('');
+    const lines=[...items].sort((a,b)=>b.remaining-a.remaining).map(d=>`<article class="recon-row"><div><strong>${escape(d.name)}</strong>${!d.recurring&&api.paid?.(d.month)?'<small>Pago na fatura</small>':''}${d.number&&d.count?`<small>Parcela ${d.number}/${d.count}</small>`:''}${d.recurring?`<small>Pix fixo · ${when(d.expected)}</small>`:!statement(d.month)&&d.month>=api.today.slice(0,7)?'<small>Prevista</small>':''}</div><div class="recon-row-amount"><strong>${brl(d.remaining)}</strong><small>${d.remaining===0?'Quitado':d.received?brl(d.received)+' já recebido':'Pendente'}</small></div></article>`).join('');
     const receipts=(receiptsByPerson.get(key)||[]).sort((a,b)=>b.date.localeCompare(a.date));
     const receivedRows=receipts.map(r=>`<article class="recon-row"><div><strong>Pix de ${brl(r.cents)}</strong><small>${when(r.date)}${r.shared?' · Parte deste mês':''}${r.inBaseline?' · Já no saldo inicial':''}</small></div><div class="recon-row-amount">${api.deleteReceipt?`<button type="button" class="secondary" data-recon-delete-pix="${escape(r.id)}">Desfazer</button>`:''}</div></article>`).join('');
     return `<details class="recon-person-group" data-recon-group="${escape('person:'+key)}" ${openGroups.has('person:'+key)?'open':''}><summary><span>${escape(items[0].person)}${received?`<small>${brl(received)} recebido</small>`:''}</span><strong>${pending?brl(pending):'Quitado'}</strong></summary><div class="recon-payable-lines">${lines}${receivedRows}</div></details>`;
@@ -356,6 +365,14 @@ function createReconUI(){
      return keepPosition(()=>{summary.parentElement.open=!summary.parentElement.open;});
    }
    const b=e.target.closest('button');if(!b||busy)return;
+   if(b.hasAttribute('data-recon-pay-card')){
+     if(tab==='bill'&&api.markPaid&&!api.paid?.(period)&&api.cardDue?.(period)>0){editing=null;formKind='card-pay';paint();}
+     return;
+   }
+   if(b.hasAttribute('data-recon-unpay-card')){
+     if(tab==='bill'&&api.markPaid&&api.paid?.(period)&&window.confirm('Desfazer a confirmação da fatura? Os Pix e os pagamentos fora do cartão não serão alterados.'))apply(()=>api.markPaid(period,null),'Confirmação desfeita.');
+     return;
+   }
    if(b.hasAttribute('data-recon-money')){if(b.dataset.reconMoney!==moneyTab){selectMoney(b.dataset.reconMoney);paint();}return;}
    if(b.hasAttribute('data-recon-fixed-settings')){api.openFixedSetting?.(b.dataset.reconFixedSettings);return;}
    if(b.hasAttribute('data-recon-settlement')){
@@ -478,12 +495,18 @@ function createReconUI(){
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
-    if(el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate'||el.id==='settlementDate')syncPixDate(el);
+    if(el.id==='reconCardPayDate'||el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate'||el.id==='settlementDate')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate'||e.target.id==='settlementDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconCardPayDate'||e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate'||e.target.id==='settlementDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
+    if(f.dataset.reconForm==='card-pay'){
+      const date=f.elements.date.value;
+      if(formKind!=='card-pay'||tab!=='bill'||!api.markPaid)return;
+      if(!safeDate(date)||date>api.today){error('Informe uma data de pagamento até hoje.');return;}
+      apply(()=>api.markPaid(period,date),'Pagamento da fatura confirmado.');return;
+    }
     if(f.dataset.reconForm==='settlement'){
       const row=ledgerRows.find(r=>r.key===editing);
       if(formKind!=='settlement'||!row||!api.editSettlement)return;

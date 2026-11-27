@@ -178,7 +178,6 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-payable-groups{display:grid;gap:6px;padding:0 7px 7px}
 .recon-payable-lines{padding:0 8px}
 .recon-payable-lines .recon-row-amount button{width:auto;min-height:40px;font-size:.74rem;margin:0;padding:5px 8px}
-.recon-payable-form input[type=date]{width:100%;min-width:0;box-sizing:border-box}
 .recon-screen .recon-card-breakdown{margin-top:8px}
 
 /* The app owns the common month and KPI controls; these are section contents. */

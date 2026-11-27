@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.43">
+<meta name="diario-shell" content="4.0.44">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.43">
-<link rel="stylesheet" href="./recon.css?v=4.0.43">
+<link rel="stylesheet" href="./style.css?v=4.0.44">
+<link rel="stylesheet" href="./recon.css?v=4.0.44">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -30,7 +30,7 @@
 </section>
 <details class="dashboard-kpi home-availability">
 <summary>
- <span>Livre Atualmente</span>
+ <span>Disponível</span>
  <strong id="todayAvailable" aria-live="polite" aria-atomic="true">—</strong>
  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>
 </summary>
@@ -39,9 +39,8 @@
   <div><dt>Até domingo <time id="sundayAvailableDate"></time></dt><dd id="sundayAvailable">—</dd></div>
   <div><dt>Até o próximo salário <time id="paydayAvailableDate"></time></dt><dd id="paydayAvailable">—</dd></div>
  </dl>
- <span id="budgetPeopleLabel">Simular quem vai te pagar</span>
+ <span id="budgetPeopleLabel">Simular pagamento</span>
  <div id="budgetPeople" role="group" aria-labelledby="budgetPeopleLabel"></div>
- <p class="availability-note">O limite do salário é antes do crédito. Os valores não se somam e a simulação não altera o saldo.</p>
 </div>
 </details>
 <section class="dashboard-kpi home-wide-kpi" aria-labelledby="home-investments-title">
@@ -220,9 +219,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.43" defer></script>
-<script src="./recon-ui.js?v=4.0.43" defer></script>
-<script src="./card-import.js?v=4.0.43" defer></script>
-<script src="./scenarios.js?v=4.0.43" defer></script>
-<script src="./app.js?v=4.0.43" defer></script>
+<script src="./recon-model.js?v=4.0.44" defer></script>
+<script src="./recon-ui.js?v=4.0.44" defer></script>
+<script src="./card-import.js?v=4.0.44" defer></script>
+<script src="./scenarios.js?v=4.0.44" defer></script>
+<script src="./app.js?v=4.0.44" defer></script>
 </body></html>

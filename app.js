@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.43 */
-/* Diário Financeiro 4.0.43: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.44 */
+/* Diário Financeiro 4.0.44: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -459,7 +459,7 @@ function renderAvailability(asOf,calc){
   const buttons=[...people].sort(([,a],[,b])=>a.localeCompare(b,'pt-BR')).map(([key,name])=>
    `<button type="button" data-budget-person="${esc(key)}" aria-pressed="${budgetSelected.has(key)}"><span aria-hidden="true">✓ </span>${esc(name)}</button>`
   ).join('');
-  $('budgetPeople').innerHTML=buttons?(people.size>1?`<button type="button" data-budget-all aria-pressed="${budgetSelected.size===people.size}"><span aria-hidden="true">✓ </span>Todos</button>`:'')+buttons:'<span>Ninguém em aberto</span>';
+  $('budgetPeople').innerHTML=buttons||'<span>Ninguém em aberto</span>';
  }
  renderTodayLimit();
 }
@@ -481,21 +481,12 @@ function renderTodayLimit(){
  }
 }
 function toggleBudgetPerson(event){
- const button=event.target.closest('button[data-budget-person],button[data-budget-all]');
- if(!button||!budgetData)return;
- const {people}=budgetData;
- if(button.dataset.budgetAll!==undefined){
-  const all=budgetSelected.size===people.size;
-  budgetSelected.clear();
-  if(!all)for(const key of people.keys())budgetSelected.add(key);
- }else{
-  const key=button.dataset.budgetPerson;
-  if(!people.has(key))return;
-  const selected=!budgetSelected.delete(key);
-  if(selected)budgetSelected.add(key);
-  button.setAttribute('aria-pressed',String(selected));
- }
- $('budgetPeople').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.budgetAll!==undefined?budgetSelected.size===people.size:budgetSelected.has(el.dataset.budgetPerson))));
+ const button=event.target.closest('button[data-budget-person]');
+ if(!button||!budgetData?.people.has(button.dataset.budgetPerson))return;
+ const key=button.dataset.budgetPerson;
+ const selected=!budgetSelected.delete(key);
+ if(selected)budgetSelected.add(key);
+ button.setAttribute('aria-pressed',String(selected));
  renderTodayLimit();
 }
 

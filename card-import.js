@@ -52,7 +52,7 @@ function mergeClosedCard(s,m,parsed,closed=true,now=Date.now()){
  const recon=reconInit(s),old=recon.statements.find(x=>x.month===m);
  if(!closed&&old?.closed===true)throw Error('Esta fatura já foi fechada e não pode voltar a ser uma prévia.');
  const tiedBefore=reconDebt(s).filter(x=>x.received>0);
- const prior=reconRawRows(s,m), future=new Map(), seen=new Map();
+ const prior=reconUnadjustedRows(s,m), future=new Map(), seen=new Map();
  for(const {row} of parsed){const key=cardForecastIdentity(row);if(key)seen.set(key,(seen.get(key)??0)+1);}
  const originalRows=new Map();
  for(const st of recon.statements.filter(st=>st.month<m).sort((a,b)=>a.month.localeCompare(b.month)))for(const row of st.rows)originalRows.set(row.id,row);

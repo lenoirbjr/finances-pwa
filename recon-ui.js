@@ -97,13 +97,22 @@ function createReconUI(){
    return `<div class="surface recon-screen recon-invoice">
    <p class="recon-due">Vencimento: <strong>${when(safeDate(due)?due:period+'-05')}</strong></p>
    <div class="recon-label-filter"><select id="reconBillFilter" aria-label="Filtrar por etiqueta">${[...options].map(([value,label])=>`<option value="${escape(value)}" ${value===billFilter?'selected':''}>${escape(label)}</option>`).join('')}</select></div>
-   <div class="recon-rows" id="reconBillRows">${billRows()}</div></div>`;
+   <div class="recon-rows" id="reconBillRows">${billRows()}</div>${installmentAdjustments()}</div>`;
  }
  function billRows(){
    return `${displayed.length?displayed.map((r,i)=>{
     const name=escape(r.name),part=r.number&&r.count?` · Parcela ${r.number}/${r.count}`:'';
-    return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):''}</div></article>${editing===r.id&&formKind==='label'?editor(r):''}`;
+    return `<article class="recon-row recon-card-line"><div><strong>${name}</strong><small>${when(r.date)}${part}</small>${r.adjusted?`<small>Ajuste manual · Antes: ${brl(r.originalCents)}</small>`:''}${r.kind==='prior-payment'?'<small>Pagamento anterior · sem impacto</small>':r.kind==='credit'?'<small>Crédito ou estorno</small>':''}</div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong>${charge(r)?classificationButton(r,i):''}${charge(r)&&r.number&&r.count&&api.canAdjust?.(period)?`<button type="button" class="text-button recon-adjust-button" data-recon-adjust="${i}" aria-label="Ajustar parcela de ${name}">Ajustar</button>`:''}</div></article>${editing===r.id?(formKind==='label'?editor(r):formKind==='adjust-installment'?installmentEditor(r):''):''}`;
    }).join(''):`<p class="empty">${billFilter==='all'?'Nenhuma linha nesta fatura.':'Nenhum lançamento com esse filtro.'}</p>`}`;
+ }
+ function installmentAdjustments(){
+   const items=api.installmentAdjustments?.(period)||[];
+   if(!items.length)return '';
+   const k='installment-adjustments:'+period;
+   return `<details class="recon-adjustments" data-recon-group="${k}" ${openGroups.has(k)?'open':''}><summary>Ajustes manuais (${items.length})</summary>${items.map(x=>`<article class="recon-row"><div><strong>${escape(x.name)}</strong><small>${x.cents?brl(x.cents):'Excluída'} desde ${monthTitle(x.month)}</small></div><button type="button" class="secondary" data-recon-undo-installment="${escape(x.id)}">Desfazer</button></article>`).join('')}</details>`;
+ }
+ function installmentEditor(r){
+   return `<form class="recon-edit recon-installment-form" data-recon-form="adjust-installment" aria-label="Ajustar valor da parcela"><h3>${escape(r.name)}</h3><p class="recon-note">Vale para esta parcela e as próximas em aberto, a partir de <strong>${monthTitle(period)}</strong>. Não altera o banco nem as parcelas anteriores ou fechadas.</p><label for="reconInstallmentAmount">Valor por parcela (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Salvar valor</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div><button type="button" class="text-button recon-exclude-installment" data-recon-exclude>Excluir a partir deste mês</button></form>`;
  }
  function personRow(person='',c=0,showValue=true,disabled=false,unit='amount'){
    return `<div class="recon-share"><input name="person" aria-label="Nome da pessoa" placeholder="Nome da pessoa" maxlength="100" value="${escape(person)}" required ${disabled?'disabled':''}>${showValue?`<input name="partCents" aria-label="${unit==='percent'?'Percentual desta pessoa':'Valor desta pessoa (R$)'}" type="text" inputmode="decimal" placeholder="${unit==='percent'?'0,00%':'0,00'}" value="${c?coin(c):''}" required ${disabled?'disabled':''}>`:''}<button type="button" data-recon-remove aria-label="Remover pessoa">×</button></div>`;
@@ -231,6 +240,19 @@ function createReconUI(){
  function bind(dom){
   dom.addEventListener('click',e=>{
    const b=e.target.closest('button');if(!b||busy)return;
+   if(b.hasAttribute('data-recon-adjust')){
+     const item=displayed[Number(b.dataset.reconAdjust)];if(!item||!api.canAdjust?.(period))return;
+     editing=item.id;formKind='adjust-installment';paint();$('#reconInstallmentAmount',root)?.focus();return;
+   }
+   if(b.hasAttribute('data-recon-exclude')){
+     const item=displayed.find(x=>x.id===editing);if(!item||!api.canAdjust?.(period))return;
+     if(window.confirm('Excluir esta parcela e as próximas em aberto a partir de '+monthTitle(period)+'? Você pode desfazer em Ajustes manuais.'))apply(()=>api.adjustInstallment(period,item.id,0),'Parcelas excluídas a partir de '+monthTitle(period)+'.');
+     return;
+   }
+   if(b.hasAttribute('data-recon-undo-installment')){
+     if(window.confirm('Desfazer este ajuste nas faturas em aberto?'))apply(()=>api.undoInstallment(b.dataset.reconUndoInstallment),'Ajuste desfeito.');
+     return;
+   }
    if(b.hasAttribute('data-recon-edit')){
      const item=displayed[Number(b.dataset.reconEdit)];if(!item)return;editing=item.id;formKind='label';paint();$('#reconLineName',root)?.focus();return;
    }
@@ -290,6 +312,11 @@ function createReconUI(){
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
+    if(f.dataset.reconForm==='adjust-installment'){
+      const r=displayed.find(x=>x.id===editing),value=cents(f.elements.value.value);
+      if(!r||!api.canAdjust?.(period)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para a parcela.');return;}
+      apply(()=>api.adjustInstallment(period,r.id,value),'Parcela ajustada a partir de '+monthTitle(period)+'.');return;
+    }
     if(f.dataset.reconForm==='payable'){
       const r=currentPayables.find(x=>x.id===editing?.id&&x.month===editing?.month),d=f.elements.date.value;
       if(!r||r.paidDate||!safeDate(d)||d>api.today){error('Confira a data do Pix.');return;}

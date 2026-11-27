@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.11: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.12: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -537,7 +537,7 @@ function showScreenNoScroll(){
  }
  renderParcelClassify();
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),payable:m=>reconPayableRows(state,m),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),installmentAdjustments:m=>(state.reconciliation?.installmentAdjustments??[]).filter(x=>x.month<=m).sort((a,b)=>b.month.localeCompare(a.month)),adjustInstallment:(m,id,cents)=>update(s=>reconSetInstallmentAdjustment(s,m,id,cents)),undoInstallment:id=>update(s=>reconUndoInstallmentAdjustment(s,id)),payable:m=>reconPayableRows(state,m),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),debt:()=>reconDebt(state),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':plan?'planning':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){

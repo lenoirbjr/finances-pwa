@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.52 */
+/* diario-shell:4.0.53 */
 // Read-only cash scenarios. Inputs use integer cents and ISO local dates.
 function pixScenarioReceipts(people,mode,at,inclusive=true,cutoff=at){
  const eligible=people.filter(p=>p.date<=cutoff&&(inclusive?p.date<=at:p.date<at)&&(mode!=='custom'||p.selected));
@@ -115,21 +115,46 @@ function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
  }
  return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([date,cents])=>({date,cents}));
 }
-// Allocate the same projected cash in priority order. Add back only the
-// selected month's deductions already in the projection before reserving them.
-function commitmentWaterfall(s,asOf,month,projection,cutoff=null,beforeSalary=false){
+// Find the next three unpaid billing dates, even when a modeled bill is zero.
+function upcomingBudgetBills(s,asOf){
+ const month=asOf.slice(0,7);
+ const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
+ const paid=new Set((s.reconciliation?.payments??[]).map(p=>p.month));
+ const dates=[];
+ let foundAt=null;
+ // Imported due dates can move up to 42 days from the modeled fifth.
+ for(let n=-2;foundAt===null||n<=foundAt+2;n++){
+  const m=shiftMonth(month,n),date=pixScenarioDue(statements.get(m),m);
+  if(date>=asOf&&!paid.has(m)){
+   dates.push({month:m,date});
+   if(dates.length===3)foundAt=n;
+  }
+ }
+ return dates.sort((a,b)=>a.date.localeCompare(b.date)||a.month.localeCompare(b.month)).slice(0,3);
+}
+function budgetDebts(s,asOf,bills=upcomingBudgetBills(s,asOf)){
+ return reconDebt(s,null,{asOf,through:bills.at(-1)?.date});
+}
+// Allocate projected cash in priority order, restoring just the deductions
+// being presented in this cycle. Earlier cycles stay deducted.
+function commitmentWaterfall(s,asOf,month,projection,cutoff=null,cycleStart=null){
  if(!projection.ready)return null;
  const totals=reconCommitmentTotals(s,month),opening=reconOpening(s).date;
  const st=s.reconciliation?.statements?.find(x=>x.month===month);
  const modeled=eventDate(month,5),due=pixScenarioDue(st,month),onward=d=>d<asOf?asOf:d;
- const fixed=activeFixed(s,month),byFixed=new Map(fixed.map(x=>[x.id,x]));
- const card=totals.cardOpen?[{cents:totals.cardOpen,date:onward(due),deduction:modeled>opening?(due>opening?due:modeled):null}]:[];
- const outside=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)].filter(x=>x.remaining>0).map(x=>{
-  const item=byFixed.get(x.fixedId),scheduled=item?reconScheduledFixed(s,item,month):null;
-  return {cents:x.remaining,date:onward(x.due),deduction:scheduled?(scheduled.date>opening?scheduled.date:null):x.due};
- }).sort((a,b)=>a.date.localeCompare(b.date));
+ const card=totals.cardOpen>0?[{cents:totals.cardOpen,date:onward(due),deduction:modeled>opening?(due>opening?due:modeled):null}]:[];
+ const outside=[];
+ const from=cycleStart?.slice(0,7)??month, until=cutoff&&cycleStart?cutoff.slice(0,7):month;
+ for(let m=from;m<=until;m=shiftMonth(m,1)){
+  const byFixed=new Map(activeFixed(s,m).map(x=>[x.id,x]));
+  for(const x of [...reconPayableRows(s,m),...reconRecurringPayables(s,m)]){
+   if(x.remaining<=0||(cycleStart&&x.due<=cycleStart))continue;
+   const item=byFixed.get(x.fixedId),scheduled=item?reconScheduledFixed(s,item,m):null;
+   outside.push({cents:x.remaining,date:onward(x.due),deduction:scheduled?(scheduled.date>opening?scheduled.date:null):x.due});
+  }
+ }
+ outside.sort((a,b)=>a.date.localeCompare(b.date));
  const last=cutoff??[asOf,...card.map(x=>x.date),...outside.map(x=>x.date)].sort().at(-1);
- const salaryAtCutoff=beforeSalary&&last>asOf?Math.round(salaryEvents(s,last.slice(0,7)).filter(e=>e.date===last).reduce((n,e)=>n+e.amount,0)*100):0;
  const investment=skipped(s,month)?0:Math.max(0,Math.round((investmentAmount(s,month)-(settled(s,month)?.amount??0))*100));
  const investDay=eventDate(month,30), investDate=onward(investDay<last?investDay:last);
  const invest=investment?[{cents:investment,date:investDate,deduction:investDay>opening?(investDay<=asOf&&!settled(s,month)?asOf:investDay):null}]:[];
@@ -138,11 +163,11 @@ function commitmentWaterfall(s,asOf,month,projection,cutoff=null,beforeSalary=fa
  for(const row of outside)if(row.date<=last)byDue.set(row.date,(byDue.get(row.date)??0)+row.cents);
  const byDay=[...byDue].map(([date,cents])=>({date,cents}));
  const groups=[['Fatura',card.filter(x=>x.date<=last)],['A Pagar e Receber',byDay],['Investimento',invest],['Margem',margin?[{cents:margin,date:last}]:[]]];
- const toRestore=[...card,...outside,...invest];
+ const toRestore=[...card,...outside.filter(x=>x.date<=last),...invest];
  const cashFor=date=>{
   const p=projection.days.find(x=>x.date===date)??projection.days.filter(x=>x.date<=date).at(-1);
   if(!p)return 0;
-  return p.room+p.margin-(p.date===last?salaryAtCutoff:0)+toRestore.reduce((n,x)=>n+(x.deduction&&x.deduction<=p.date?x.cents:0),0);
+  return p.room+p.margin+toRestore.reduce((n,x)=>n+(x.deduction&&x.deduction<=p.date?x.cents:0),0);
  };
  const reserved=[];
  const reserveThrough=date=>reserved.reduce((n,x)=>n+(x.date<=date?x.cents:0),0);
@@ -160,27 +185,26 @@ function commitmentWaterfall(s,asOf,month,projection,cutoff=null,beforeSalary=fa
  const free=rows.some(x=>x.covered<x.target)?0:Math.max(0,cashFor(last)-reserveThrough(last));
  let salaries=0;
  for(let m=asOf.slice(0,7);m<=last.slice(0,7);m=shiftMonth(m,1)){
-  for(const e of salaryEvents(s,m))if(e.date>asOf&&(e.date<last||(!beforeSalary&&e.date===last)))salaries+=Math.round(e.amount*100);
+  for(const e of salaryEvents(s,m))if(e.date>asOf&&e.date<=last)salaries+=Math.round(e.amount*100);
  }
  return {month,last,rows,free,salaries,reimbursements:projection.days.filter(x=>x.date<=last).at(-1)?.credit??0};
 }
 function commitmentPeriods(s,asOf,projection){
- const month=projection.bill?.month??defaultCardMonth(asOf);
- const date=projection.bill?.date??eventDate(month,5);
- const first=eventDate(month,15),second=eventDate(month,30);
- return [['Até a fatura',date,false],['Até o 1º salário',first,true],['Até o 2º salário',second,true]].map(([label,d,beforeSalary])=>({
-  label,date:d,beforeSalary,details:d>=asOf?commitmentWaterfall(s,asOf,month,projection,d,beforeSalary):null
+ const bills=projection.bills??upcomingBudgetBills(s,asOf);
+ return bills.map(({month,date},i)=>({
+  label:'Até a fatura',month,date,details:commitmentWaterfall(s,asOf,month,projection,date,bills[i-1]?.date??addDays(asOf,-1))
  }));
 }
-function spendingTimeline(s,asOf,current,selected,debts){
+function spendingTimeline(s,asOf,current,selected,debts,bills=upcomingBudgetBills(s,asOf)){
  const sunday=nextSunday(asOf),payday=nextPayday(s,asOf),beforePayday=addDays(payday,-1);
  const bill=pixScenarioInvoice(s,asOf),first=nextMonthEndPayday(asOf);
- const horizon=[sunday,payday,bill?.date??asOf,eventDate(shiftMonth(first.slice(0,7),2),30)].sort().at(-1);
- if(current===null||!reconOpening(s)||reconOpening(s).date>asOf)return {ready:false,sunday,payday,bill,horizon};
+ const horizon=[sunday,payday,bill?.date??asOf,bills.at(-1)?.date??asOf,eventDate(shiftMonth(first.slice(0,7),2),30)].sort().at(-1);
+ if(current===null||!reconOpening(s)||reconOpening(s).date>asOf)return {ready:false,sunday,payday,bill,bills,horizon};
  const opening=reconOpening(s).date;
  const points=new Set([asOf,sunday,beforePayday,horizon]);
  const events=(date)=>{if(isDate(date)&&date>=asOf&&date<=horizon)points.add(date);};
  if(bill)events(bill.date);
+ for(const entry of bills)events(entry.date);
  const start=asOf.slice(0,7),end=horizon.slice(0,7),relocations=[],extraGoals=[];
  const statementByMonth=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
  const reserve=Math.round(overdueReserved(s,asOf)*100);
@@ -214,7 +238,7 @@ function spendingTimeline(s,asOf,current,selected,debts){
   for(const x of list??[])events(x.date);
  }
  for(const p of reconPayableEvents(s))events(p.date);
- const expected=budgetExpectedReceipts(s,asOf,horizon,selected,debts);
+ const expected=budgetExpectedReceipts(s,asOf,horizon,selected,debts??budgetDebts(s,asOf,bills));
  for(const p of expected)events(p.date);
  const days=[...points].sort().map(date=>{
   const currentForecast=Math.round(cashForecast(s,date,asOf)*100);
@@ -232,7 +256,7 @@ function spendingTimeline(s,asOf,current,selected,debts){
   if(date===asOf)room=Math.min(room,Math.max(0,Math.round((current-profile(s,start).margin)*100)));
   return room;
  };
- return {ready:true,horizon,bill,sunday,payday,todayLimit:limit(asOf),sundayLimit:limit(sunday),paydayLimit:limit(beforePayday),billLimit:bill?limit(bill.date):null,
+ return {ready:true,horizon,bill,bills,sunday,payday,todayLimit:limit(asOf),sundayLimit:limit(sunday),paydayLimit:limit(beforePayday),billLimit:bill?limit(bill.date):null,
   expectedToBill:bill?expected.reduce((n,p)=>n+(p.date<=bill.date?p.cents:0),0):0,
   shortage:weakest.room<0?{date:weakest.date,cents:-weakest.room}:null,days};
 }

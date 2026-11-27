@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.52 */
-/* Diário Financeiro 4.0.52: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.53 */
+/* Diário Financeiro 4.0.53: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -449,13 +449,13 @@ const budgetSelected=new Set();
 let budgetData=null;
 function renderAvailability(asOf,calc){
  if(budgetData?.state!==state||budgetData.asOf!==asOf){
-  const debts=reconDebt(state),people=new Map();
+  const bills=upcomingBudgetBills(state,asOf),debts=budgetDebts(state,asOf,bills),people=new Map();
   for(const d of debts)if(d.remaining>0){
    const key=reconPersonKey(d.person);
    if(!people.has(key))people.set(key,d.person);
   }
   for(const key of budgetSelected)if(!people.has(key))budgetSelected.delete(key);
-  budgetData={state,asOf,debts,people,calc,limits:new Map()};
+  budgetData={state,asOf,debts,bills,people,calc,limits:new Map()};
   const buttons=[...people].sort(([,a],[,b])=>a.localeCompare(b,'pt-BR')).map(([key,name])=>
    `<button type="button" data-budget-person="${esc(key)}" aria-pressed="${budgetSelected.has(key)}"><span aria-hidden="true">✓ </span>${esc(name)}</button>`
   ).join('');
@@ -464,12 +464,12 @@ function renderAvailability(asOf,calc){
  renderTodayLimit();
 }
 function renderTodayLimit(){
- const {asOf,debts,calc,limits}=budgetData;
+ const {asOf,debts,bills,calc,limits}=budgetData;
  const current=calc.ready?calc.current:null;
  const key=JSON.stringify([...budgetSelected].sort());
  if(!limits.has(key)){
   if(limits.size>=24)limits.clear();
-  const projection=spendingTimeline(state,asOf,current,budgetSelected,debts);
+  const projection=spendingTimeline(state,asOf,current,budgetSelected,debts,bills);
   projection.coverage=commitmentPeriods(state,asOf,projection);
   limits.set(key,projection);
  }
@@ -481,9 +481,9 @@ function renderTodayLimit(){
 function renderCommitmentScenario(periods){
  const root=$('budgetCoverage');
  const opened=new Set([...root.querySelectorAll?.('details[open]')??[]].map(x=>x.dataset.budgetPeriod));
- const next=periods.map(({label,date,beforeSalary,details:c},i)=>`<details class="budget-period" data-budget-period="${i}" ${opened.has(String(i))?'open':''}>
+ const next=periods.map(({label,date,month,details:c})=>`<details class="budget-period" data-budget-period="${month}" ${opened.has(month)?'open':''}>
   <summary><span>${label} <time datetime="${date}">${shortDate(date)}</time></span><strong>${c?money(c.free/100):'—'}</strong></summary>
-  ${c?`<div class="budget-period-body"><p>${beforeSalary?'Antes do crédito do salário · ':''}Pix previstos: ${money(c.reimbursements/100)} · Salários previstos: ${money(c.salaries/100)}</p>
+  ${c?`<div class="budget-period-body"><p>Pix previstos: ${money(c.reimbursements/100)} · Salários previstos: ${money(c.salaries/100)}</p>
    <dl>${c.rows.map(r=>`<div><dt>${r.label}</dt><dd>${money(r.covered/100)}${r.covered<r.target?`<small>Faltam ${money((r.target-r.covered)/100)}</small>`:''}</dd></div>`).join('')}
    <div class="coverage-free"><dt>Livre no período</dt><dd>${money(c.free/100)}</dd></div></dl></div>`:'<p class="budget-period-body">Sem projeção para esta data.</p>'}</details>`).join('');
  if(root.dataset.coverage!==next){root.innerHTML=next;root.dataset.coverage=next;}

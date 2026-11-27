@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="diario-shell" content="4.0.52">
+<meta name="diario-shell" content="4.0.53">
 <meta name="theme-color" content="#0a1323" id="appThemeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +12,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./finance-touch-180.png" sizes="180x180">
 <link rel="icon" href="./finance-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./style.css?v=4.0.52">
-<link rel="stylesheet" href="./recon.css?v=4.0.52">
+<link rel="stylesheet" href="./style.css?v=4.0.53">
+<link rel="stylesheet" href="./recon.css?v=4.0.53">
 <title>Diário Financeiro</title>
 </head>
 <body>
@@ -37,7 +37,7 @@
 <div class="availability-people">
  <span id="budgetPeopleLabel">Simular pagamento</span>
  <div id="budgetPeople" role="group" aria-labelledby="budgetPeopleLabel"></div>
- <div id="budgetCoverage" class="budget-coverage" aria-label="Projeções por período"></div>
+ <div id="budgetCoverage" class="budget-coverage" aria-label="Projeções das próximas três faturas"></div>
 </div>
 </details>
 <section class="dashboard-kpi home-wide-kpi" aria-labelledby="home-investments-title">
@@ -222,9 +222,9 @@
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{});
 })();
 </script>
-<script src="./recon-model.js?v=4.0.52" defer></script>
-<script src="./recon-ui.js?v=4.0.52" defer></script>
-<script src="./card-import.js?v=4.0.52" defer></script>
-<script src="./scenarios.js?v=4.0.52" defer></script>
-<script src="./app.js?v=4.0.52" defer></script>
+<script src="./recon-model.js?v=4.0.53" defer></script>
+<script src="./recon-ui.js?v=4.0.53" defer></script>
+<script src="./card-import.js?v=4.0.53" defer></script>
+<script src="./scenarios.js?v=4.0.53" defer></script>
+<script src="./app.js?v=4.0.53" defer></script>
 </body></html>

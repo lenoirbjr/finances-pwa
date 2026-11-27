@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.44 */
+/* diario-shell:4.0.45 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -92,8 +92,7 @@ function createReconUI(){
    return (api.payable?.(period)??api.payables?.()??[]).filter(x=>x.cents>0&&x.month===period);
  }
  let currentPayables=[];
- function payableSection(payables){
-   const items=[...payables,...(api.paidCardFixed?.(period)??[])];
+ function payableSection(items){
    const byPerson=new Map();
    const pending=rows=>rows.reduce((n,r)=>n+r.remaining,0);
    const paid=rows=>rows.reduce((n,r)=>n+r.paid,0);
@@ -112,7 +111,7 @@ function createReconUI(){
      return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
        <div class="recon-payable-lines">${[...g.rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
            const i=r.index;
-           return `<article class="recon-row"><div>${r.recurring?`<button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button>`:`<strong>${escape(r.name)}</strong>`}<small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):(r.invoicePaid?'Pago na fatura · ':'Quitado em ')+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
+           return `<article class="recon-row"><div>${r.recurring?`<button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button>`:`<strong>${escape(r.name)}</strong>`}<small>${r.remaining?(r.recurring?'Débito programado · ':'Vence ')+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
            ${r.postings.map(p=>`<div class="recon-row"><div><small>Pago em ${when(p.date)} · ${brl(p.cents)}</small></div><div class="recon-row-amount"><button type="button" class="secondary" data-recon-undo-payable="${i}" ${p.batch?`data-recon-batch="${escape(p.batch)}"`:''} aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button></div></div>`).join('')}`;
          }).join('')}</div></details>`;
    }).join(''):'<p class="empty">Nenhum valor a pagar.</p>'}</div></section>`;

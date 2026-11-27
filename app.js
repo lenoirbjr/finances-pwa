@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.31: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.32: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -426,30 +426,43 @@ function renderDashboard(asOf,calc,m){
  }
  $('currentMargin').textContent=money(profile(state,m).margin);
 }
-function setAvailableDate(id,date){
- const time=$(id);
- if(date)time.dateTime=date;else time.removeAttribute('datetime');
- time.textContent=date?shortDate(date):'—';
-}
-let homeProjection=null;
+const budgetSelected=new Set();
+let budgetData=null;
 function renderAvailability(asOf,calc){
+ if(budgetData?.state!==state||budgetData.asOf!==asOf){
+  const debts=reconDebt(state),people=new Map();
+  for(const d of debts)if(d.remaining>0){
+   const key=reconPersonKey(d.person);
+   if(!people.has(key))people.set(key,d.person);
+  }
+  for(const key of budgetSelected)if(!people.has(key))budgetSelected.delete(key);
+  budgetData={state,asOf,debts,calc,limits:new Map()};
+  $('budgetPeople').innerHTML=[...people].sort(([,a],[,b])=>a.localeCompare(b,'pt-BR')).map(([key,name])=>
+   `<button type="button" data-budget-person="${esc(key)}" aria-pressed="${budgetSelected.has(key)}"><span aria-hidden="true">✓ </span>${esc(name)}</button>`
+  ).join('')||'<span>Ninguém em aberto</span>';
+ }
+ renderTodayLimit();
+}
+function renderTodayLimit(){
+ const {asOf,debts,calc,limits}=budgetData;
  const current=calc.ready?calc.current:null;
- const projection=homeProjection?.state===state&&homeProjection.asOf===asOf?homeProjection.value:spendingTimeline(state,asOf,current);
- homeProjection={state,asOf,value:projection};
- const {ready,sunday,payday,bill,shortage}=projection;
- setAvailableDate('sundayDate',sunday);
- setAvailableDate('paydayDate',payday);
- setAvailableDate('billAvailableDate',bill?.date);
- const display=(id,cents)=>{$(id).textContent=ready&&cents!=null?money(cents/100):'—';};
- display('todayAvailable',projection.todayLimit);
- display('sundayReference',projection.sundayLimit);
- display('paydayAvailable',projection.paydayLimit);
- display('billAvailable',projection.billLimit);
- const note=$('sundaySetup');
- note.textContent=!ready?calc.reason:shortage?`Em ${shortDate(shortage.date)}, faltam ${money(shortage.cents/100)} para cobrir compromissos, aporte e margem.`:'Tetos acumulados, não somáveis. Antes de gastar hoje, use o primeiro valor.';
- note.classList.toggle('hidden',!note.textContent);
- const details=$('budgetDetails');
- if(details)details.textContent=ready&&bill?`Pix previstos até a fatura: ${money(projection.expectedToBill/100)}. A projeção protege os compromissos e metas até ${readableDate(projection.horizon)}.`:'';
+ const key=JSON.stringify([...budgetSelected].sort());
+ if(!limits.has(key)){
+  if(limits.size>=24)limits.clear();
+  const p=spendingTimeline(state,asOf,current,budgetSelected,debts);
+  limits.set(key,p.ready?money(p.todayLimit/100):'—');
+ }
+ const amount=$('todayAvailable'),next=limits.get(key);
+ if(amount.textContent!==next)amount.textContent=next;
+}
+function toggleBudgetPerson(event){
+ const button=event.target.closest('button[data-budget-person]');
+ if(!button||!budgetData)return;
+ const key=button.dataset.budgetPerson;
+ const selected=!budgetSelected.delete(key);
+ if(selected)budgetSelected.add(key);
+ button.setAttribute('aria-pressed',String(selected));
+ renderTodayLimit();
 }
 
 const calendarDate=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -720,6 +733,7 @@ async function init(){try{
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
 document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',calendarLabels);el.addEventListener('change',calendarLabels)});
+$('budgetPeople').addEventListener('click',toggleBudgetPerson);
 window.addEventListener('scroll',releaseCardScrollTail,{passive:true});
 for(const event of ['pointerdown','touchmove','wheel','keydown'])window.addEventListener(event,()=>{scrollGuardRevision++;},{capture:true,passive:true});
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>{

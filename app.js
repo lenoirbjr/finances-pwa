@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.26: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.27: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -240,15 +240,45 @@ function notice(msg,kind='ok'){
  const box=$('notice');box.textContent=msg;box.className='notice'+(kind==='ok'?'':' '+kind);
  noticeTimer=setTimeout(clearNotice,kind==='ok'?4500:8500);
 }
+const isCardScreen=()=>['recon','installments','acertos'].includes(screen);
+let cardScrollReserve=0,scrollGuardDepth=0,scrollGuardRevision=0;
+function setCardScrollReserve(top){
+ const body=document.body,scroller=document.scrollingElement;
+ if(!body||!scroller)return;
+ cardScrollReserve=top;
+ // A minimum document height does not affect longer lists or add space to them.
+ // It only makes the current offset reachable if a filter or closed panel shortens the page.
+ body.style.minHeight=top>0?(scroller.clientHeight+Math.ceil(top))+'px':'';
+}
+function restoreCardScroll(x,y){
+ const scroller=document.scrollingElement;
+ if(isCardScreen())setCardScrollReserve(y);
+ else if(cardScrollReserve)setCardScrollReserve(0);
+ const limit=scroller?Math.max(0,scroller.scrollHeight-scroller.clientHeight):y;
+ const top=Math.min(y,limit);
+ if(Math.abs(window.scrollY-top)>1||Math.abs((window.scrollX||0)-x)>1)window.scrollTo({left:x,top,behavior:'instant'});
+}
 function keepScrollPosition(work){
- // If the new view is shorter, use its nearest possible scroll position.
- if(typeof window==='undefined'||typeof window.scrollY!=='number')return work();
- const x=window.scrollX||0,y=Math.max(0,window.scrollY);
+ if(scrollGuardDepth||typeof window==='undefined'||typeof window.scrollY!=='number')return work();
+ const x=window.scrollX||0,y=Math.max(0,window.scrollY),rev=++scrollGuardRevision;
+ scrollGuardDepth++;
  try{return work()}finally{
-  const scroller=document.scrollingElement;
-  const limit=scroller?Math.max(0,scroller.scrollHeight-scroller.clientHeight):y;
-  const top=Math.min(y,limit);
-  if(Math.abs(window.scrollY-top)>1||Math.abs((window.scrollX||0)-x)>1)window.scrollTo({left:x,top,behavior:'instant'});
+  scrollGuardDepth--;
+  restoreCardScroll(x,y);
+  // Safari can adjust the page after layout when a focused control was replaced.
+  if(y>0&&isCardScreen()&&typeof window.requestAnimationFrame==='function'){
+   const verify=()=>{if(rev===scrollGuardRevision&&isCardScreen())restoreCardScroll(x,y);};
+   window.requestAnimationFrame(()=>{verify();window.requestAnimationFrame(verify);});
+  }
+ }
+}
+function releaseCardScrollTail(){
+ if(cardScrollReserve&&isCardScreen()&&window.scrollY<cardScrollReserve) {
+  // A scroll event may have been queued by the browser's temporary layout clamp.
+  const revision=scrollGuardRevision;
+  window.requestAnimationFrame(()=>window.requestAnimationFrame(()=>{
+   if(revision===scrollGuardRevision&&isCardScreen()&&window.scrollY<cardScrollReserve)setCardScrollReserve(Math.max(0,window.scrollY));
+  }));
  }
 }
 async function update(fn){if(writing)return false;writing=true;try{const next=structuredClone(state);fn(next);if(!valid(next))throw Error('Dados inválidos. Confira os campos.');await write(RECORD,next);state=next;render();clearNotice();return true}catch(e){notice('Não foi possível salvar: '+e.message,'error');return false}finally{writing=false}}
@@ -520,7 +550,7 @@ function renderCardHub(){
 }
 function showScreenNoScroll(){return keepScrollPosition(paintScreen)}
 function paintScreen(){
- const auxiliary=screen==='settings'||screen==='info',card=['recon','installments','acertos'].includes(screen),plan=screen==='planning'||screen==='investments';
+ const auxiliary=screen==='settings'||screen==='info',card=isCardScreen(),plan=screen==='planning'||screen==='investments';
  document.body.classList.toggle('settings-view',auxiliary);
  $('quickSettings').classList.toggle('hidden',screen==='info');
  $('quickInfo').classList.toggle('hidden',screen==='settings');
@@ -705,6 +735,8 @@ async function init(){try{
 }
 // As seções de Ajustes já são recolhíveis no HTML, com títulos próprios.
 document.querySelectorAll('.calendar-field input').forEach(el=>{el.addEventListener('input',calendarLabels);el.addEventListener('change',calendarLabels)});
+window.addEventListener('scroll',releaseCardScrollTail,{passive:true});
+for(const event of ['pointerdown','touchmove','wheel','keydown'])window.addEventListener(event,()=>{scrollGuardRevision++;},{capture:true,passive:true});
 document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>{
  showScreen(b.dataset.screen);
  if(b.id==='homeInvestments'){
@@ -732,7 +764,7 @@ $('cardRefundForm').addEventListener('submit',saveCardRefund);
 for(const [id,fn] of [['expenseForm',saveExpense],['parcelForm',saveNew],['baselineForm',saveBaseline],['fixedForm',saveFixed],['baseForm',saveBase],['extraForm',saveExtraInvestment],['openingForm',saveOpening],['incomeExtraForm',saveExtraIncome],['investmentConfirmForm',saveInvestmentConfirmation]])$(id).addEventListener('submit',fn);
 $('movementExpenseTab').addEventListener('click',()=>showMovementForm('expense'));
 $('movementIncomeTab').addEventListener('click',()=>showMovementForm('extra'));
-$('parcelOrigin').addEventListener('change',()=>{syncParcelOrigin();previewParcel()});
+$('parcelOrigin').addEventListener('change',()=>keepScrollPosition(()=>{syncParcelOrigin();previewParcel()}));
 $('parcelTotal').addEventListener('input',previewParcel);$('parcelCount').addEventListener('change',previewParcel);
 $('effectiveMonth').addEventListener('change',fillProfileInputs);
 

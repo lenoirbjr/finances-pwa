@@ -244,7 +244,7 @@ function createReconUI(){
    const title=outgoing?'Registrar Pagamento':'Registrar Pagamento Recebido',kind=outgoing?'payable-start':'receipt',personLabel=outgoing?'Para quem':'De quem veio';
    const dateId=outgoing?'reconPayableDate':'reconPixDate',dateLabel=outgoing?'Data do pagamento':'Data do recebimento',amountLabel=outgoing?'Valor pago (R$)':'Valor recebido (R$)';
    return `<form class="recon-edit recon-receipt-form${outgoing?' recon-payable-form':''}" data-recon-form="${kind}" aria-label="${title}"><h2>${title}</h2><label for="reconPerson">${personLabel}</label><select id="reconPerson" name="person" required><option value="">Selecione</option>${list.map(p=>`<option ${norm(p)===norm(personFilter)?'selected':''}>${escape(p)}</option>`).join('')}</select>
-   <div class="recon-pix-fields"><div>${paymentDateField(dateId,dateLabel)}</div><div><label for="reconPixAmount">${amountLabel}</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total em aberto desta pessoa" disabled>Total</button></div></div></div>
+   <div class="recon-pix-fields"><div>${paymentDateField(dateId,dateLabel)}</div><div><label for="reconPixAmount">${amountLabel}</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total desta pessoa" disabled>Total</button></div></div></div>
    ${outgoing?'':'<label class="recon-check"><input name="inBaseline" type="checkbox"> Este Pix já está incluído no saldo inicial.</label>'}
    <fieldset class="recon-allocations"><legend>Distribuir entre dívidas</legend><div data-recon-allocations></div><p class="recon-allocation-summary" data-recon-unallocated aria-live="polite"></p></fieldset>
    <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Registrar Pagamento</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
@@ -257,7 +257,7 @@ function createReconUI(){
    const items=formDebts(form).map((d,index)=>({...d,index})).filter(d=>d.remaining>0&&norm(d.person)===norm(p));
    const totalButton=$('[data-recon-fill-total]',form);
    if(totalButton)totalButton.disabled=!items.length;
-   $('[data-recon-allocations]',form).innerHTML=items.length?groupByMonth(items).map(([month,rows])=>`<details class="recon-debt-month recon-allocation-month"><summary><span>${monthTitle(month)}<small data-recon-assigned-month="${month}" hidden></small></span><strong>${brl(rows.reduce((n,d)=>n+d.remaining,0))} <small>em aberto</small></strong></summary><div class="recon-allocation-lines">${rows.map(d=>`<div class="recon-allocation"><label for="reconDebt-${d.index}">${escape(d.name)}<small>${brl(d.remaining)} em aberto${d.number&&d.count?' · '+d.number+'/'+d.count:''}${form.dataset.reconForm==='receipt'&&!statement(d.month)&&d.month>=api.today.slice(0,7)?' · Prevista':''}</small></label><div class="recon-quick-amount"><input id="reconDebt-${d.index}" type="text" inputmode="decimal" aria-label="Valor para ${escape(d.name)} em ${monthTitle(d.month)}" data-recon-debt="${d.index}" placeholder="0,00"><button type="button" class="secondary" data-recon-fill-debt="${d.index}" aria-label="Preencher total de ${escape(d.name)} em ${monthTitle(month)}">Total</button></div></div>`).join('')}</div></details>`).join(''):'<p class="recon-note">Selecione a pessoa para ver as dívidas.</p>';
+   $('[data-recon-allocations]',form).innerHTML=items.length?groupByMonth(items).map(([month,rows])=>`<details class="recon-debt-month recon-allocation-month"><summary><span>${monthTitle(month)}</span><strong>${brl(rows.reduce((n,d)=>n+d.remaining,0))}</strong></summary><div class="recon-allocation-lines">${rows.map(d=>`<div class="recon-allocation"><label for="reconDebt-${d.index}">${escape(d.name)}<small>${brl(d.remaining)}</small></label><div class="recon-quick-amount"><input id="reconDebt-${d.index}" type="text" inputmode="decimal" aria-label="Valor para ${escape(d.name)} em ${monthTitle(d.month)}" data-recon-debt="${d.index}" placeholder="0,00"><button type="button" class="secondary" data-recon-fill-debt="${d.index}" aria-label="Preencher total de ${escape(d.name)} em ${monthTitle(month)}">Total</button></div></div>`).join('')}</div></details>`).join(''):'<p class="recon-note">Selecione a pessoa para ver as dívidas.</p>';
    preview(form);
  }
  function autofill(form,only){
@@ -274,16 +274,7 @@ function createReconUI(){
  function preview(form){
    if(paymentForm(form)){
      const t=cents(form.elements.amount.value);
-     const byMonth=new Map();
-     const used=[...form.querySelectorAll('[data-recon-debt]')].reduce((n,x)=>{
-       const c=cents(x.value)||0,month=formDebts(form)[Number(x.dataset.reconDebt)]?.month;
-       if(month)byMonth.set(month,(byMonth.get(month)||0)+c);
-       return n+c;
-     },0);
-     for(const summary of form.querySelectorAll('[data-recon-assigned-month]')){
-       const amount=byMonth.get(summary.dataset.reconAssignedMonth)||0;
-       summary.hidden=!amount;summary.textContent=amount?`Distribuído: ${brl(amount)}`:'';
-     }
+     const used=[...form.querySelectorAll('[data-recon-debt]')].reduce((n,x)=>n+(cents(x.value)||0),0);
      $('[data-recon-unallocated]',form).textContent=t>0?(t<used?`Distribuído: ${brl(used)} de ${brl(t)} · excede em ${brl(used-t)}.`:t===used?`Total distribuído: ${brl(t)}.`:`Distribuído: ${brl(used)} de ${brl(t)} · falta ${brl(t-used)}.`):'';
    }else if(form?.dataset.reconForm==='label'){
      const r=displayed.find(x=>x.id===editing);
@@ -332,6 +323,11 @@ function createReconUI(){
  }
  function bind(dom){
   dom.addEventListener('click',e=>{
+   const summary=e.target.closest?.('summary');
+   if(summary?.tagName==='SUMMARY'&&summary.parentElement?.tagName==='DETAILS'&&!e.target.closest('button,a,input,select')){
+     e.preventDefault();
+     return keepPosition(()=>{summary.parentElement.open=!summary.parentElement.open;});
+   }
    const b=e.target.closest('button');if(!b||busy)return;
    if(b.hasAttribute('data-recon-money')){if(b.dataset.reconMoney!==moneyTab){selectMoney(b.dataset.reconMoney);paint();}return;}
    if(b.hasAttribute('data-recon-edit-tab'))return keepPosition(()=>{
@@ -392,8 +388,8 @@ function createReconUI(){
      return;
    }
    if(b.hasAttribute('data-recon-delete-pix')){if(api.deleteReceipt&&window.confirm('Desfazer este Pix no diário? As dívidas vinculadas voltarão a ficar em aberto.'))apply(()=>api.deleteReceipt(b.dataset.reconDeletePix),'Registro do Pix removido.');return;}
-   if(b.hasAttribute('data-recon-fill-total')){autofill(b.form);return;}
-   if(b.hasAttribute('data-recon-fill-debt')){autofill(b.form,Number(b.dataset.reconFillDebt));return;}
+   if(b.hasAttribute('data-recon-fill-total'))return keepPosition(()=>autofill(b.form));
+   if(b.hasAttribute('data-recon-fill-debt'))return keepPosition(()=>autofill(b.form,Number(b.dataset.reconFillDebt)));
    
    if(b.hasAttribute('data-recon-pix')){editing=null;formKind='receipt';paint();return;}
    if(b.hasAttribute('data-recon-cancel')){close();return;}
@@ -442,7 +438,7 @@ function createReconUI(){
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
     if(el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate')syncPixDate(e.target);if(f)preview(f);});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');

@@ -139,7 +139,6 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 [data-recon-allocations]{display:grid;gap:6px}
 .recon-allocations .recon-allocation-month{min-width:0}
 .recon-allocation-lines{padding:1px 8px 7px;min-width:0}
-.recon-allocation-month summary [data-recon-assigned-month]{color:var(--accent)}
 .recon-allocation-month summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:9px}
 .recon-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(132px,.8fr);gap:8px;align-items:center;padding:4px 0}
 .recon-edit .recon-allocation label{margin:0;overflow-wrap:anywhere;font-weight:600;color:var(--text)}

@@ -214,3 +214,39 @@ html[data-theme=pink] .recon-person-chip{color:hsl(var(--person-hue, 215) 78% 84
 .recon-passive-chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:100%;font-size:.72rem;line-height:1.2}
 .recon-screen .recon-row .recon-edit-chip,.recon-empty-chip{display:inline-flex;align-items:center;width:auto;min-height:25px;margin:3px 0 0;padding:3px 6px;border:1px solid var(--edge);border-radius:6px;background:var(--surface-alt);color:var(--muted);font-size:.72rem;line-height:1.2;font-weight:550}
 .recon-screen .recon-row .recon-edit-chip{color:var(--accent)}
+
+/* Invoice: titles and amounts share the first baseline; date and tags share a lower edge. */
+.recon-screen .recon-card-line.recon-invoice-line{
+  grid-template-columns:minmax(0,1fr) minmax(0,max-content);
+  grid-template-areas:"name amount" "date tags" "notes notes";
+  column-gap:10px;
+  row-gap:0;
+  align-items:baseline;
+  padding:9px 0;
+}
+.recon-invoice-name{grid-area:name;min-width:0;overflow-wrap:anywhere}
+.recon-invoice-amount{grid-area:amount;justify-self:end;text-align:right}
+.recon-screen .recon-invoice-line .recon-invoice-date{
+  grid-area:date;
+  align-self:end;
+  min-width:0;
+  overflow-wrap:anywhere;
+  line-height:1.25;
+  margin-top:3px;
+}
+.recon-invoice-tags{
+  grid-area:tags;
+  align-self:end;
+  justify-self:end;
+  max-width:min(42vw,220px);
+  padding-top:3px;
+}
+.recon-screen .recon-invoice-tags button.recon-classification{
+  justify-content:flex-end;
+  align-content:flex-end;
+  padding-block:0;
+}
+.recon-invoice-notes{grid-area:notes}
+.recon-screen .recon-invoice-tags .recon-edit-chip,
+.recon-invoice-tags .recon-empty-chip{margin-top:0}
+.recon-edit .recon-label-actions.recon-two-actions{grid-template-columns:repeat(2,minmax(0,1fr))}

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.51 */
+/* diario-shell:4.0.52 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -695,7 +695,7 @@ function reconOpenDebtEntries(s,month=null){
  const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
  const incoming=reconDebt(s,month).filter(d=>d.remaining>0).map(d=>({
   ...d,kind:'receivable',key:reconSettlementKey('receivable',d.month,d.rowId,reconPersonKey(d.person)),
-  date:d.expected??addDays(pixScenarioDue(statements.get(d.month),d.month),-1)
+  date:d.expected??pixScenarioDue(statements.get(d.month),d.month)
  }));
  const fixed=month?reconRecurringPayables(s,month).filter(x=>x.remaining>0).map(x=>({...x,kind:'purchase'})):[];
  return [...outgoing,...fixed,...incoming].sort((a,b)=>(a.nextDue??a.date).localeCompare(b.nextDue??b.date)||a.person.localeCompare(b.person,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'));

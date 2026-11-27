@@ -1,5 +1,5 @@
 'use strict';
-/* Diário Financeiro 4.0.28: Débitos, Fatura e acertos. */
+/* Diário Financeiro 4.0.29: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -511,7 +511,7 @@ let movementMode='expense',editingMovement=null;
 function movementKey(direction,id){return JSON.stringify([direction,id]);}
 function movementEditor(entry,key){
  return `<form class="recon-edit recon-value-form movement-value-form" data-movement-editor="${key}" aria-label="Editar valor do lançamento">
- <label for="movementEditAmount">Valor (R$)</label><input id="movementEditAmount" name="amount" inputmode="decimal" value="${entry.amount.toFixed(2).replace('.',',')}" required>
+ <label for="movementEditAmount">Valor (R$)</label><input id="movementEditAmount" name="amount" inputmode="decimal" placeholder="0,00" value="${entry.amount.toFixed(2).replace('.',',')}" required>
  <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-movement-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-movement-delete>Excluir</button></div></form>`;
 }
 function renderExpenseHistory(){
@@ -601,7 +601,6 @@ function syncParcelOrigin(){
  $('parcelStart').required=!personal;
  $('parcelPayStart').required=personal;
  $('parcelPayee').required=personal;
- $('parcelTotalLabel').textContent=personal?'Total da sua parte (R$)':'Valor total (R$)';
  $('parcelImpactLabel').textContent=personal?'Parcela mensal que você deve':'Parcela mensal adicionada à fatura';
  if(personal&&!$('parcelPayStart').value)$('parcelPayStart').value=eventDate($('parcelStart').value||defaultCardMonth(),5);
  calendarLabels();

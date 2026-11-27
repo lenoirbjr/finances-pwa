@@ -165,9 +165,9 @@ function createReconUI(){
    const restore=r.bankEdited?'<button type="button" class="secondary" data-recon-reset-bank-credit>Restaurar original</button>':'';
    return `<form class="recon-edit recon-value-form" data-recon-form="refund" aria-label="Editar ${subject}">
    ${payment?'<p class="recon-note">Este pagamento anterior não entra no total da fatura.</p>':''}
-   <label for="reconRefundName">Descrição</label><input id="reconRefundName" name="description" value="${escape(r.name)}" maxlength="${bank?250:120}" required>
+   <label for="reconRefundName">Descrição</label><input id="reconRefundName" name="description" placeholder="E.x. Devolução" value="${escape(r.name)}" maxlength="${bank?250:120}" required>
    ${paymentDateField('reconRefundDate','Data do '+subject,r.date)}
-   <label for="reconRefundValue">Valor do ${subject} (R$)</label><input id="reconRefundValue" name="amount" inputmode="decimal" value="${coin(-r.cents)}" required>
+   <label for="reconRefundValue">Valor (R$)</label><input id="reconRefundValue" name="amount" inputmode="decimal" placeholder="0,00" value="${coin(-r.cents)}" required>
    <p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
  }
  function creditLabelEditor(r){
@@ -188,23 +188,21 @@ function createReconUI(){
    </section>`;
  }
  function installmentEditor(r){
-   const series=r.count>1&&r.number&&api.canAdjust?.(period);
-   const note=series?`Válido de ${monthTitle(period)} em diante.`:`Válido apenas para ${monthTitle(period)}. Não altera o registro do banco.`;
    const restore=r.singleEdited?'<button type="button" class="secondary" data-recon-reset-charge>Restaurar original</button>':'';
-   return `<form class="recon-edit recon-installment-form recon-value-form" data-recon-form="adjust-installment" aria-label="Ajustar valor do lançamento"><h3>${escape(r.name)}</h3><p class="recon-note">${note}</p><label for="reconInstallmentAmount">${series?'Valor por parcela':'Valor do lançamento'} (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
+   return `<form class="recon-edit recon-installment-form recon-value-form" data-recon-form="adjust-installment" aria-label="Ajustar valor do lançamento"><h3>${escape(r.name)}</h3><label for="reconInstallmentAmount">Valor (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" placeholder="0,00" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
  }
  function personRow(person='',c=0,showValue=true,disabled=false,unit='amount'){
-   return `<div class="recon-share"><input name="person" aria-label="Nome da pessoa" placeholder="Nome da pessoa" maxlength="100" value="${escape(person)}" required ${disabled?'disabled':''}>${showValue?`<input name="partCents" aria-label="${unit==='percent'?'Percentual desta pessoa':'Valor desta pessoa (R$)'}" type="text" inputmode="decimal" placeholder="${unit==='percent'?'0,00%':'0,00'}" value="${c?coin(c):''}" required ${disabled?'disabled':''}>`:''}<button type="button" data-recon-remove aria-label="Remover pessoa">×</button></div>`;
+   return `<div class="recon-share"><input name="person" aria-label="Nome da pessoa" placeholder="Nome da pessoa" maxlength="100" value="${escape(person)}" required ${disabled?'disabled':''}>${showValue?`<input name="partCents" aria-label="${unit==='percent'?'Percentual desta pessoa':'Valor (R$)'}" type="text" inputmode="decimal" placeholder="${unit==='percent'?'0,00%':'0,00'}" value="${c?coin(c):''}" required ${disabled?'disabled':''}>`:''}<button type="button" data-recon-remove aria-label="Remover pessoa">×</button></div>`;
  }
  function editor(r){
    const label=knownLabel(r.label), rows=(r.parts||[]).filter(p=>partName(p)).filter(p=>!p.mine);
    const shared=label==='split'||(label==='other'&&rows.length>1);
    const owner=label==='mine'?(r.ownerName||api.owner?.name||''):(!shared&&rows.length?partName(rows[0]):'');
    return `<form class="recon-edit" data-recon-form="label" aria-label="Classificação do lançamento">
-      ${api.parcel?`<input type="hidden" name="lineName" value="${escape(r.name)}">`:`<label for="reconLineName">Nome do lançamento</label><input id="reconLineName" name="lineName" maxlength="250" value="${escape(r.name)}" required>`}
+      ${api.parcel?`<input type="hidden" name="lineName" value="${escape(r.name)}">`:`<label for="reconLineName">Descrição</label><input id="reconLineName" name="lineName" maxlength="250" placeholder="E.x. Farmácia" value="${escape(r.name)}" required>`}
       <fieldset class="recon-divided"><legend>Dividida?</legend><label><input type="radio" name="divided" value="no" ${!shared?'checked':''}> Não</label><label><input type="radio" name="divided" value="yes" ${shared?'checked':''}> Sim</label></fieldset>
       <div class="recon-owner" ${shared?'hidden':''}><label for="reconOwner">De quem é o gasto?</label><div><input id="reconOwner" name="owner" maxlength="100" placeholder="Seu nome ou de outra pessoa" value="${escape(owner)}"></div><p class="recon-note">Em branco, o lançamento fica sem classificação.</p></div>
-      <div class="recon-shares" ${shared?'':'hidden'}><label for="reconUnit">Dividir por</label><select id="reconUnit" name="unit" data-previous-unit="amount"><option value="amount">Valor em reais (R$)</option><option value="percent">Percentual (%)</option></select><p class="recon-note">Informe a parte de cada outra pessoa. O restante é a sua parte.</p><div data-recon-people>${rows.length?rows.map(p=>personRow(partName(p),partValue(p),true,!shared)).join(''):personRow('',0,true,!shared)}</div><button type="button" class="secondary" data-recon-add>+ Pessoa</button><p class="recon-note" data-recon-left></p></div>
+      <div class="recon-shares" ${shared?'':'hidden'}><label for="reconUnit">Dividir por</label><select id="reconUnit" name="unit" data-previous-unit="amount"><option value="amount">Valor (R$)</option><option value="percent">Percentual (%)</option></select><p class="recon-note">Informe a parte de cada outra pessoa. O restante é a sua parte.</p><div data-recon-people>${rows.length?rows.map(p=>personRow(partName(p),partValue(p),true,!shared)).join(''):personRow('',0,true,!shared)}</div><button type="button" class="secondary" data-recon-add>+ Pessoa</button><p class="recon-note" data-recon-left></p></div>
       <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary" data-recon-clear>Limpar</button></div>
     </form>`;
  }
@@ -242,9 +240,9 @@ function createReconUI(){
  }
  function receiptForm(list,outgoing=false){
    const title=outgoing?'Registrar Pagamento':'Registrar Pagamento Recebido',kind=outgoing?'payable-start':'receipt',personLabel=outgoing?'Para quem':'De quem veio';
-   const dateId=outgoing?'reconPayableDate':'reconPixDate',dateLabel=outgoing?'Data do pagamento':'Data do recebimento',amountLabel=outgoing?'Valor pago (R$)':'Valor recebido (R$)';
+   const dateId=outgoing?'reconPayableDate':'reconPixDate',dateLabel=outgoing?'Data do pagamento':'Data do recebimento';
    return `<form class="recon-edit recon-receipt-form${outgoing?' recon-payable-form':''}" data-recon-form="${kind}" aria-label="${title}"><h2>${title}</h2><label for="reconPerson">${personLabel}</label><select id="reconPerson" name="person" required><option value="">Selecione</option>${list.map(p=>`<option ${norm(p)===norm(personFilter)?'selected':''}>${escape(p)}</option>`).join('')}</select>
-   <div class="recon-pix-fields"><div>${paymentDateField(dateId,dateLabel)}</div><div><label for="reconPixAmount">${amountLabel}</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total desta pessoa" disabled>Total</button></div></div></div>
+   <div class="recon-pix-fields"><div>${paymentDateField(dateId,dateLabel)}</div><div><label for="reconPixAmount">Valor (R$)</label><div class="recon-quick-amount"><input id="reconPixAmount" name="amount" inputmode="decimal" type="text" required placeholder="0,00"><button type="button" class="secondary" data-recon-fill-total aria-label="Preencher o total desta pessoa" disabled>Total</button></div></div></div>
    ${outgoing?'':'<label class="recon-check"><input name="inBaseline" type="checkbox"> Este Pix já está incluído no saldo inicial.</label>'}
    <fieldset class="recon-allocations"><legend>Distribuir entre dívidas</legend><div data-recon-allocations></div><p class="recon-allocation-summary" data-recon-unallocated aria-live="polite"></p></fieldset>
    <p class="recon-message" data-recon-form-message role="status"></p><div class="recon-actions"><button type="submit" class="primary">Registrar Pagamento</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
@@ -257,7 +255,7 @@ function createReconUI(){
    const items=formDebts(form).map((d,index)=>({...d,index})).filter(d=>d.remaining>0&&norm(d.person)===norm(p));
    const totalButton=$('[data-recon-fill-total]',form);
    if(totalButton)totalButton.disabled=!items.length;
-   $('[data-recon-allocations]',form).innerHTML=items.length?groupByMonth(items).map(([month,rows])=>`<details class="recon-debt-month recon-allocation-month"><summary><span>${monthTitle(month)}</span><strong>${brl(rows.reduce((n,d)=>n+d.remaining,0))}</strong></summary><div class="recon-allocation-lines">${rows.map(d=>`<div class="recon-allocation"><label for="reconDebt-${d.index}">${escape(d.name)}<small>${brl(d.remaining)}</small></label><div class="recon-quick-amount"><input id="reconDebt-${d.index}" type="text" inputmode="decimal" aria-label="Valor para ${escape(d.name)} em ${monthTitle(d.month)}" data-recon-debt="${d.index}" placeholder="0,00"><button type="button" class="secondary" data-recon-fill-debt="${d.index}" aria-label="Preencher total de ${escape(d.name)} em ${monthTitle(month)}">Total</button></div></div>`).join('')}</div></details>`).join(''):'<p class="recon-note">Selecione a pessoa para ver as dívidas.</p>';
+   $('[data-recon-allocations]',form).innerHTML=items.length?groupByMonth(items).map(([month,rows])=>`<details class="recon-debt-month recon-allocation-month"><summary><span>${monthTitle(month)}</span><strong>${brl(rows.reduce((n,d)=>n+d.remaining,0))}</strong></summary><div class="recon-allocation-lines">${rows.map(d=>`<div class="recon-allocation"><label id="reconDebtDescription-${d.index}" for="reconDebt-${d.index}">${escape(d.name)}<small>${brl(d.remaining)}</small></label><div class="recon-quick-amount"><input id="reconDebt-${d.index}" type="text" inputmode="decimal" aria-label="Valor (R$)" aria-describedby="reconDebtDescription-${d.index}" data-recon-debt="${d.index}" placeholder="0,00"><button type="button" class="secondary" data-recon-fill-debt="${d.index}" aria-label="Preencher total de ${escape(d.name)} em ${monthTitle(month)}">Total</button></div></div>`).join('')}</div></details>`).join(''):'<p class="recon-note">Selecione a pessoa para ver as dívidas.</p>';
    preview(form);
  }
  function autofill(form,only){
@@ -433,7 +431,7 @@ function createReconUI(){
       const f=el.form,r=displayed.find(x=>x.id===editing),fields=[...f.querySelectorAll('[name=partCents]')], values=fields.map(x=>cents(x.value)||0);
       const base=el.dataset.previousUnit==='percent'?10000:r?.cents||0,total=el.value==='percent'?10000:r?.cents||0,used=values.reduce((n,x)=>n+x,0);
       const next=used<=base?spread([...values,base-used],total,base):[];
-      fields.forEach((x,i)=>{x.value=next[i]?coin(next[i]):'';x.placeholder=el.value==='percent'?'0,00%':'0,00';x.setAttribute('aria-label',el.value==='percent'?'Percentual desta pessoa':'Valor desta pessoa (R$)');});
+      fields.forEach((x,i)=>{x.value=next[i]?coin(next[i]):'';x.placeholder=el.value==='percent'?'0,00%':'0,00';x.setAttribute('aria-label',el.value==='percent'?'Percentual desta pessoa':'Valor (R$)');});
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});

@@ -1,6 +1,6 @@
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='diario-financeiro-shell:'+SCOPE.pathname+':';
-const VERSION='4.0.50';
+const VERSION='4.0.51';
 const CACHE=PREFIX+VERSION;
 const page=new URL('./index.html',SCOPE).href;
 const critical=['app.js','scenarios.js','style.css','recon-model.js','recon-ui.js','card-import.js','recon.css'].map(p=>new URL('./'+p+'?v='+VERSION,SCOPE).href);

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.50 */
+/* diario-shell:4.0.51 */
 // Read-only cash scenarios. Inputs use integer cents and ISO local dates.
 function pixScenarioReceipts(people,mode,at,inclusive=true,cutoff=at){
  const eligible=people.filter(p=>p.date<=cutoff&&(inclusive?p.date<=at:p.date<at)&&(mode!=='custom'||p.selected));
@@ -115,34 +115,49 @@ function budgetExpectedReceipts(s,asOf,through,selected,debts=reconDebt(s)){
  }
  return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([date,cents])=>({date,cents}));
 }
-// Reconcile one month with Total de Compromissos. Allocate simulated Pix
-// only against obligations of the same month and only when they arrive in time.
-function commitmentScenario(s,asOf,month,selected,debts,days=[]){
- const totals=reconCommitmentTotals(s,month),st=s.reconciliation?.statements?.find(x=>x.month===month);
- const cardDue=pixScenarioDue(st,month),nextDay=d=>d<asOf?asOf:d;
- const rows=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)];
- const schedule=[
-  ...(totals.cardOpen?[{side:'card',date:nextDay(cardDue),cents:totals.cardOpen}]:[]),
-  ...rows.filter(x=>x.remaining>0).map(x=>({side:'outside',date:nextDay(x.due),cents:x.remaining}))
- ].sort((a,b)=>a.date.localeCompare(b.date));
- const last=schedule.at(-1)?.date??asOf;
- const monthDebts=debts.filter(d=>d.month===month&&d.remaining>0);
- const receipts=budgetExpectedReceipts(s,asOf,last,selected,monthDebts);
- const excluded=new Map();
- for(const debt of monthDebts)if(!selected.has(reconPersonKey(debt.person))){
-  const k=reconPersonKey(debt.person),e=excluded.get(k)??{name:debt.person,cents:0};e.cents+=debt.remaining;excluded.set(k,e);
- }
- const simulated=monthDebts.reduce((n,d)=>n+(selected.has(reconPersonKey(d.person))?d.remaining:0),0);
- const viaPix={card:0,outside:0};let j=0,available=0;
- for(const item of schedule){
-  while(j<receipts.length&&receipts[j].date<=item.date)available+=receipts[j++].cents;
-  const covered=Math.min(item.cents,available);
-  viaPix[item.side]+=covered;available-=covered;
- }
- const pix=viaPix.card+viaPix.outside;
- const late=simulated-receipts.reduce((n,p)=>n+p.cents,0);
- const tight=schedule.length?days.filter(p=>p.date<=last&&p.room<0).reduce((a,p)=>!a||p.room<a.room?p:a,null):null;
- return {month,totals,last,viaPix,pix,own:totals.open-pix,late,excluded:[...excluded.values()].sort((a,b)=>b.cents-a.cents||a.name.localeCompare(b.name,'pt-BR')),gap:tight?{cents:-tight.room,date:tight.date}:null};
+// Allocate the same projected cash in priority order. Add back only the
+// selected month's deductions already in the projection before reserving them.
+function commitmentWaterfall(s,asOf,month,projection){
+ if(!projection.ready)return null;
+ const totals=reconCommitmentTotals(s,month),opening=reconOpening(s).date;
+ const st=s.reconciliation?.statements?.find(x=>x.month===month);
+ const modeled=eventDate(month,5),due=pixScenarioDue(st,month),onward=d=>d<asOf?asOf:d;
+ const fixed=activeFixed(s,month),byFixed=new Map(fixed.map(x=>[x.id,x]));
+ const card=totals.cardOpen?[{cents:totals.cardOpen,date:onward(due),deduction:modeled>opening?(due>opening?due:modeled):null}]:[];
+ const outside=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)].filter(x=>x.remaining>0).map(x=>{
+  const item=byFixed.get(x.fixedId),scheduled=item?reconScheduledFixed(s,item,month):null;
+  return {cents:x.remaining,date:onward(x.due),deduction:scheduled?(scheduled.date>opening?scheduled.date:null):x.due};
+ }).sort((a,b)=>a.date.localeCompare(b.date));
+ const last=[asOf,...card.map(x=>x.date),...outside.map(x=>x.date)].sort().at(-1);
+ const investment=skipped(s,month)?0:Math.max(0,Math.round((investmentAmount(s,month)-(settled(s,month)?.amount??0))*100));
+ const investDay=eventDate(month,30), investDate=onward(investDay<last?investDay:last);
+ const invest=investment?[{cents:investment,date:investDate,deduction:investDay>opening?(investDay<=asOf&&!settled(s,month)?asOf:investDay):null}]:[];
+ const margin=Math.round(profile(s,month).margin*100);
+ const byDue=new Map();
+ for(const row of outside)byDue.set(row.date,(byDue.get(row.date)??0)+row.cents);
+ const byDay=[...byDue].map(([date,cents])=>({date,cents}));
+ const groups=[['Fatura',card],['A Pagar e Receber',byDay],['Investimento',invest],['Margem',margin?[{cents:margin,date:last}]:[]]];
+ const toRestore=[...card,...outside,...invest];
+ const cashFor=date=>{
+  const p=projection.days.find(x=>x.date===date)??projection.days.filter(x=>x.date<=date).at(-1);
+  if(!p)return 0;
+  return p.room+p.margin+toRestore.reduce((n,x)=>n+(x.deduction&&x.deduction<=p.date?x.cents:0),0);
+ };
+ const reserved=[];
+ const reserveThrough=date=>reserved.reduce((n,x)=>n+(x.date<=date?x.cents:0),0);
+ const rows=groups.map(([label,items])=>{
+  let target=0,covered=0;
+  for(const item of items){
+   target+=item.cents;
+   const dates=[item.date,...reserved.filter(x=>x.date>item.date).map(x=>x.date)];
+   const headroom=Math.min(...dates.map(date=>cashFor(date)-reserveThrough(date)));
+   covered+=Math.min(item.cents,Math.max(0,headroom));
+   reserved.push(item);
+  }
+  return {label,target,covered};
+ });
+ const free=rows.some(x=>x.covered<x.target)?0:Math.max(0,cashFor(last)-reserveThrough(last));
+ return {month,last,rows,free,reimbursements:projection.days.filter(x=>x.date<=last).at(-1)?.credit??0};
 }
 function spendingTimeline(s,asOf,current,selected,debts){
  const sunday=nextSunday(asOf),payday=nextPayday(s,asOf),beforePayday=addDays(payday,-1);
@@ -194,7 +209,7 @@ function spendingTimeline(s,asOf,current,selected,debts){
   const correct=relocations.reduce((sum,p)=>sum+(date>=p.modeled?p.cents:0)-(date>=p.due?p.cents:0),0);
   const goal=extraGoals.reduce((sum,p)=>sum+(p.date<=date?p.cents:0),reserve);
   const margin=Math.round(profile(s,date.slice(0,7)).margin*100);
-  return {date,credit,room:currentForecast+credit+correct-goal-margin};
+  return {date,credit,margin,room:currentForecast+credit+correct-goal-margin};
  });
  const weakest=days.reduce((a,b)=>b.room<a.room?b:a);
  const limit=date=>{

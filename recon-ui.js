@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.37 */
+/* diario-shell:4.0.38 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -93,16 +93,8 @@ function createReconUI(){
    return (api.payables?.()??api.payable?.()??[]).filter(x=>x.cents>0);
  }
  let currentPayables=[];
- function recurringPayables(){
-   const items=api.fixedCommitments?.(period)??[];if(!items.length)return '';
-   const key='fixed-payables:'+period;
-   return `<details class="history-month-fold recon-fixed-payables" data-recon-group="${key}" ${openGroups.has(key)?'open':''}><summary><span>Valores Fixos · ${monthTitle(period)}</span><strong class="statement-month-total">${brl(items.reduce((n,r)=>n+r.cents,0))}</strong></summary>
-    <div class="history-month-content">${[['card','No cartão'],['pix','Por Pix']].map(([channel,label])=>{
-     const list=items.filter(x=>x.channel===channel);if(!list.length)return '';
-     return `<div class="recon-fixed-group"><h3>${label}</h3>${list.map(r=>`<article class="recon-row"><div><button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.id)}">${escape(r.name)}</button><small>${when(r.date)}${r.person?' · '+escape(r.person):''}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong></div></article>`).join('')}</div>`;
-    }).join('')}</div></details>`;
- }
- function payableSection(items){
+ function payableSection(manual){
+   const recurring=api.recurringPayables?.(period)??[],items=[...manual,...recurring];
    const byPerson=new Map();
    const pending=rows=>rows.reduce((n,r)=>n+r.remaining,0);
    const paid=rows=>rows.reduce((n,r)=>n+r.paid,0);
@@ -113,9 +105,9 @@ function createReconUI(){
    }
    const groups=[...byPerson.values()].sort((a,b)=>pending(b.rows)-pending(a.rows)||a.name.localeCompare(b.name,'pt-BR'));
    return `<section class="surface recon-screen recon-payable" aria-labelledby="reconPayablesTitle">
-   <div class="recon-money-heading"><h2 id="reconPayablesTitle">A Pagar</h2><p>Todos os meses</p></div>
+   <div class="recon-money-heading"><h2 id="reconPayablesTitle">A Pagar</h2><p>${recurring.length?'Recorrentes · '+monthTitle(period):'Todos os meses'}</p></div>
    <dl class="recon-totals"><div><dt>Em Aberto</dt><dd>${brl(pending(items))}</dd></div><div><dt>Já Pago</dt><dd>${brl(paid(items))}</dd></div></dl>
-   ${formKind==='payable-start'?receiptForm(groups.filter(g=>pending(g.rows)).map(g=>g.name),true):`<button class="primary recon-pix" type="button" data-recon-payable-start ${pending(items)?'':'disabled'}>Registrar Pagamento</button>`}
+   ${formKind==='payable-start'?receiptForm(groups.filter(g=>pending(g.rows.filter(r=>!r.recurring))).map(g=>g.name),true):`<button class="primary recon-pix" type="button" data-recon-payable-start ${pending(manual)?'':'disabled'}>Registrar Pagamento</button>`}
    <div class="recon-rows recon-debt-list">${groups.length?groups.map(g=>{
      const personKey=payablePersonKey(g.name);
      return `<details class="recon-person-group" data-recon-group="${escape(personKey)}" ${openGroups.has(personKey)?'open':''}><summary><span>${escape(g.name)}${paid(g.rows)?`<small>${brl(paid(g.rows))} pago</small>`:''}</span><strong>${pending(g.rows)?brl(pending(g.rows)):'Quitado'}</strong></summary>
@@ -124,12 +116,13 @@ function createReconUI(){
          const total=pending(rows);
          return `<details class="recon-debt-month" data-recon-group="${escape(monthKey)}" ${openGroups.has(monthKey)?'open':''}><summary><span>${monthTitle(month)}</span><strong>${total?brl(total):'Quitado'}</strong></summary>
          <div class="recon-payable-lines">${[...rows].sort((a,b)=>Number(Boolean(a.paidDate))-Number(Boolean(b.paidDate))||String(a.due||a.date).localeCompare(String(b.due||b.date))).map(r=>{
+           if(r.recurring)return `<article class="recon-row"><div><button type="button" class="recon-entry-name" data-recon-fixed-settings="${escape(r.fixedId)}">${escape(r.name)}</button><small>${r.paidDate?'Pago em '+when(r.paidDate):'Débito programado · '+when(r.due)}</small></div><div class="recon-row-amount"><strong>${brl(r.cents)}</strong></div></article>`;
            const i=r.index;
            return `<article class="recon-row"><div><strong>${escape(r.name)}</strong><small>${r.remaining?'Vence '+when(r.due):'Quitado em '+when(r.paidDate)}${r.remaining&&r.paid?' · '+brl(r.paid)+' pago':''}</small></div><div class="recon-row-amount"><strong>${brl(r.remaining||r.cents)}</strong></div></article>
            ${r.postings.map(p=>`<div class="recon-row"><div><small>Pago em ${when(p.date)} · ${brl(p.cents)}</small></div><div class="recon-row-amount"><button type="button" class="secondary" data-recon-undo-payable="${i}" ${p.batch?`data-recon-batch="${escape(p.batch)}"`:''} aria-label="Desfazer pagamento: ${escape(r.name)}">Desfazer</button></div></div>`).join('')}`;
          }).join('')}</div></details>`;
        }).join('')}</div></details>`;
-   }).join(''):'<p class="empty">Nenhuma compra para pagar a outras pessoas.</p>'}</div>${recurringPayables()}</section>`;
+   }).join(''):'<p class="empty">Nenhum valor a pagar.</p>'}</div></section>`;
  }
  function paymentDateField(id,label,date=api.today){
    return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(date)}" max="${escape(api.today)}" required></div>`;

@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.59 */
+/* diario-shell:4.0.60 */
 // Conciliação local. Trabalha com centavos inteiros e nunca antecipa reembolso.
 function reconInit(s){return s.reconciliation ||= {statements:[],bankRows:[],receipts:[],overrides:[],payments:[]}}
 function reconValidate(r){
@@ -13,6 +13,7 @@ function reconValidate(r){
  if(r.cardRefunds!==undefined&&(!arr(r.cardRefunds,5000)||!r.cardRefunds.every(x=>x&&str(x.id)&&str(x.name,120)&&isDate(x.date)&&isMonth(x.month)&&pos(x.cents)&&Number.isSafeInteger(x.enteredAt)&&x.enteredAt>0)||!unique(r.cardRefunds,x=>x.id)))return false;
  if(r.bankCreditEdits!==undefined&&(!arr(r.bankCreditEdits,5000)||!r.bankCreditEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&str(x.name,250)&&isDate(x.date)&&pos(x.cents))||!unique(r.bankCreditEdits,x=>x.month+'|'+x.rowId)))return false;
  if(r.excludedLines!==undefined&&(!arr(r.excludedLines,30000)||!r.excludedLines.every(x=>x&&isMonth(x.month)&&str(x.rowId))||!unique(r.excludedLines,x=>x.month+'|'+x.rowId)))return false;
+ if(r.chargeDateEdits!==undefined&&(!arr(r.chargeDateEdits,30000)||!r.chargeDateEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&isDate(x.date))||!unique(r.chargeDateEdits,x=>x.month+'|'+x.rowId)))return false;
  if(r.singleChargeEdits!==undefined&&(!arr(r.singleChargeEdits,10000)||!r.singleChargeEdits.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&pos(x.cents))||!unique(r.singleChargeEdits,x=>x.month+'|'+x.rowId)))return false;
  if(r.creditTags!==undefined&&(!arr(r.creditTags,10000)||!r.creditTags.every(x=>x&&isMonth(x.month)&&str(x.rowId)&&str(x.tag,100))||!unique(r.creditTags,x=>x.month+'|'+x.rowId)))return false;
  if(r.installmentAdjustments!==undefined&&(!arr(r.installmentAdjustments,5000)||!r.installmentAdjustments.every(x=>x&&str(x.id)&&str(x.rowId)&&str(x.key,900)&&str(x.name,250)&&isMonth(x.month)&&cent(x.cents)&&x.cents>=0&&Number.isInteger(x.count)&&x.count>0&&x.count<=240)||!unique(r.installmentAdjustments,x=>x.id)))return false;
@@ -220,8 +221,10 @@ function reconAdjustmentMatches(r,x){
 function reconRawRows(s,m){
  const adjustments=s.reconciliation?.installmentAdjustments??[];
  const credits=new Map((s.reconciliation?.bankCreditEdits??[]).filter(x=>x.month===m).map(x=>[x.rowId,x]));
+ const dates=new Map((s.reconciliation?.chargeDateEdits??[]).filter(x=>x.month===m).map(x=>[x.rowId,x.date]));
  const excluded=new Set((s.reconciliation?.excludedLines??[]).filter(x=>x.month===m).map(x=>x.rowId));
  const rows=reconUnadjustedRows(s,m).filter(x=>!excluded.has(x.id)).map(r=>{
+  if(r.kind==='charge'&&dates.has(r.id))return {...r,date:dates.get(r.id),dateEdited:true};
   const x=credits.get(r.id);
   return x&&r.source==='statement'&&(r.kind==='credit'||r.kind==='prior-payment')?{...r,name:x.name,date:x.date,cents:-x.cents,bankEdited:true,originalCents:r.cents}:r;
  });
@@ -270,6 +273,19 @@ function reconSetChargeAmount(s,m,id,cents){
  if(cents<=0)throw Error('Informe um valor positivo.');
  reconGuardAdjustment(s,a=>[...a.filter(x=>x.month!==m||x.rowId!==id),...(cents===row[0].cents?[]:[{month:m,rowId:id,cents}])],'singleChargeEdits');
 }
+// A date correction is local to the selected invoice. Keep the imported row,
+ // installment identity, classification, receipts and invoice due date intact.
+function reconEditCharge(s,m,id,{cents,date}){
+ const visible=reconRows(s,m).filter(x=>x.id===id&&x.kind==='charge');
+ if(visible.length!==1)throw Error('Lançamento não encontrado.');
+ if(!isDate(date))throw Error('Informe uma data válida.');
+ const row=visible[0];
+ if(cents!==row.cents)reconSetChargeAmount(s,m,id,cents);
+ if(date===row.date)return;
+ const original=reconUnadjustedRows(s,m).find(x=>x.id===id&&x.kind==='charge');
+ const r=reconInit(s);
+ r.chargeDateEdits=[...(r.chargeDateEdits??[]).filter(x=>x.month!==m||x.rowId!==id),...(date===original.date?[]:[{month:m,rowId:id,date}])];
+}
 function reconExcludeInvoiceLine(s,m,id){
  const visible=reconRows(s,m).filter(x=>x.id===id);
  if(visible.length!==1)throw Error('Lançamento não encontrado.');
@@ -279,6 +295,7 @@ function reconExcludeInvoiceLine(s,m,id){
 }
 function reconRestoreChargeAmount(s,m,id){
  reconGuardAdjustment(s,a=>a.filter(x=>x.month!==m||x.rowId!==id),'singleChargeEdits');
+ if(s.reconciliation?.chargeDateEdits)s.reconciliation.chargeDateEdits=s.reconciliation.chargeDateEdits.filter(x=>x.month!==m||x.rowId!==id);
 }
 function reconSetCreditTag(s,m,id,value){
  const hit=reconUnadjustedRows(s,m).find(x=>x.id===id&&(x.kind==='credit'||x.kind==='prior-payment'));
@@ -538,7 +555,7 @@ function reconPayableRows(s,month=null){
    const postings=entry?.parts??(entry?[{date:entry.date,cents}]:[]);
    const paid=postings.reduce((n,x)=>n+x.cents,0),remaining=cents-paid;
    const latest=postings.at(-1),paidDate=remaining===0?postings.map(x=>x.date).sort().at(-1):null;
-   result.push({id:p.id,person:p.payTo,name:edit?.name??p.name,month:m,due,date:paidDate??due,cents,paidDate,paid,remaining,postings,latest,number:i+1,count:p.count});
+   result.push({id:p.id,purchaseDate:p.purchaseDate??null,person:p.payTo,name:edit?.name??p.name,month:m,due,date:paidDate??due,cents,paidDate,paid,remaining,postings,latest,number:i+1,count:p.count});
   }
  }
  return result.sort((a,b)=>a.due.localeCompare(b.due)||a.person.localeCompare(b.person,'pt-BR'));
@@ -547,7 +564,8 @@ function reconPayableRows(s,month=null){
 function reconEditPayableOccurrence(s,month,id,fields){
  const row=[...reconPayableRows(s,month),...reconRecurringPayables(s,month)].find(x=>x.id===id);
  if(!row)throw Error('Dívida não encontrada.');
- const name=String(fields.name??'').trim(),{cents,due,payments}=fields;
+ const name=String(fields.name??'').trim(),{cents,due,payments,purchaseDate}=fields;
+ if(purchaseDate!==undefined&&(row.fixedId||!isDate(purchaseDate)||purchaseDate>today()))throw Error('Informe uma data válida para a compra, até hoje.');
  if(!name||name.length>120||!Number.isSafeInteger(cents)||cents<=0||cents>1e12||!isDate(due)||due.slice(0,7)!==month)throw Error('Confira a descrição, o valor e o vencimento dentro deste mês.');
  if(!Array.isArray(payments)||payments.length!==Math.max(1,row.postings.length)||
     payments.some(x=>!x||!Number.isSafeInteger(x.cents)||x.cents<0||x.cents>cents||(x.cents>0&&(!isDate(x.date)||x.date>today())))||
@@ -556,6 +574,8 @@ function reconEditPayableOccurrence(s,month,id,fields){
  (data.payableEdits??=[]);
  data.payableEdits=data.payableEdits.filter(x=>x.id!==id||x.month!==month);
  data.payableEdits.push({id,month,name,cents,due});
+ const parcel=row.fixedId?null:s.parcels.find(p=>p.id===id&&p.payTo);
+ if(purchaseDate!==undefined)parcel.purchaseDate=purchaseDate;
  const unchanged=payments.length===row.postings.length&&payments.every((p,i)=>p.cents===row.postings[i].cents&&p.date===row.postings[i].date);
  if(unchanged&&row.postings.every(p=>p.batch))return;
  if(unchanged&&cents===row.cents)return;
@@ -564,7 +584,6 @@ function reconEditPayableOccurrence(s,month,id,fields){
   s.fixedPaid=(s.fixedPaid??[]).filter(p=>p.id!==row.fixedId||p.month!==month);
   s.fixedPaid.push(...parts.map(p=>({id:row.fixedId,month,date:p.date,amount:p.cents/100,batch:p.batch})));
  }else{
-  const parcel=s.parcels.find(p=>p.id===id&&p.payTo);
   parcel.payments=(parcel.payments??[]).filter(p=>p.month!==month);
   if(parts.length)parcel.payments.push({month,parts});
  }
@@ -655,12 +674,13 @@ function reconEditSettlement(s,key,fields){
    if(reconParcelLinked(s,p.id)||reconHasAllocated(s,p.id))throw Error('Esta compra tem vínculos com a fatura. Remova os vínculos antes de excluir.');
    s.parcels=s.parcels.filter(x=>x!==p);return;
   }
-  const {name,person,date,cents,count}=fields;
+  const {name,person,date,cents,count,purchaseDate}=fields;
+  if(purchaseDate!==undefined&&(!isDate(purchaseDate)||purchaseDate>today()))throw Error('Informe uma data válida para a compra, até hoje.');
   if(!name||name.length>120||!person||person.length>100||!isDate(date)||!Number.isSafeInteger(cents)||cents>1e12||!Number.isInteger(count)||count<1||count>120||cents<count)throw Error('Confira a descrição, a pessoa, a data e o valor. Cada parcela deve ter ao menos um centavo.');
   const schedule=person!==p.payTo||date!==p.payStart||cents!==entry.cents||count!==p.count;
   if(schedule&&entry.hasPayments)throw Error('Desfaça os pagamentos vinculados antes de alterar as parcelas.');
   if(schedule&&(reconParcelLinked(s,p.id)||reconHasAllocated(s,p.id)))throw Error('Esta compra tem vínculos com a fatura.');
-  Object.assign(p,{name,payTo:person,payStart:date,start:date.slice(0,7),total:cents/100,count,
+  Object.assign(p,{name,payTo:person,payStart:date,start:date.slice(0,7),total:cents/100,count,...(purchaseDate!==undefined&&{purchaseDate}),
    payment:cents===entry.cents&&count===p.count?p.payment:Math.floor(cents/count)/100});
   return;
  }
@@ -690,12 +710,17 @@ function reconOpenDebtEntries(s,month=null){
  }
  const outgoing=s.parcels.filter(p=>p.payTo&&pending.has(p.id)).map(p=>({
   ...pending.get(p.id),kind:'purchase',key:reconSettlementKey('purchase',p.id),id:p.id,
-  date:p.payStart,person:p.payTo,name:p.name,cents:Math.round(p.total*100),count:p.count,hasPayments:!!p.payments?.length
+  date:p.payStart,launchDate:p.purchaseDate??null,person:p.payTo,name:p.name,cents:Math.round(p.total*100),count:p.count,hasPayments:!!p.payments?.length
  }));
  const statements=new Map((s.reconciliation?.statements??[]).map(st=>[st.month,st]));
+ const launchRows=new Map();
+ const launchDate=d=>{
+  if(!launchRows.has(d.month))launchRows.set(d.month,new Map(reconRows(s,d.month,true).map(r=>[r.id,r.date])));
+  return launchRows.get(d.month).get(d.rowId);
+ };
  const incoming=reconDebt(s,month).filter(d=>d.remaining>0).map(d=>({
   ...d,kind:'receivable',key:reconSettlementKey('receivable',d.month,d.rowId,reconPersonKey(d.person)),
-  date:d.expected??pixScenarioDue(statements.get(d.month),d.month)
+  launchDate:d.fixedId?undefined:launchDate(d),date:d.expected??pixScenarioDue(statements.get(d.month),d.month)
  }));
  const fixed=month?reconRecurringPayables(s,month).filter(x=>x.remaining>0).map(x=>({...x,kind:'purchase'})):[];
  return [...outgoing,...fixed,...incoming].sort((a,b)=>(a.nextDue??a.date).localeCompare(b.nextDue??b.date)||a.person.localeCompare(b.person,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'));
@@ -723,5 +748,12 @@ function reconEditOpenDebt(s,key,fields){
  }else if(entry.received>0)throw Error('Desfaça o recebimento vinculado antes de excluir a dívida.');
  const total=parts.reduce((sum,p)=>sum+p.cents,0);
  if(total>row.cents)throw Error('O rateio não pode ultrapassar o valor da fatura nesta linha.');
+ if(fields?.launchDate!==undefined&&!isDate(fields.launchDate))throw Error('Informe uma data válida para o lançamento.');
  reconSetLabel(s,month,rowId,parts.length?(total===row.cents?'other':'split'):null,parts,'one',name);
+ if(fields?.launchDate!==undefined&&row.date!==fields.launchDate){
+  if(rowId.startsWith('cashcard:')){
+   const entry=s.expenses.find(e=>'cashcard:'+e.id===rowId&&e.cardMonth===month);
+   if(entry)entry.date=fields.launchDate;
+  }else reconEditCharge(s,month,rowId,{cents:row.cents,date:fields.launchDate});
+ }
 }

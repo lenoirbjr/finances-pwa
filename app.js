@@ -1,6 +1,6 @@
 'use strict';
-/* diario-shell:4.0.59 */
-/* Diário Financeiro 4.0.59: Débitos, Fatura e acertos. */
+/* diario-shell:4.0.60 */
+/* Diário Financeiro 4.0.60: Débitos, Fatura e acertos. */
 const DB='finances-pwa-local', STORE='app', RECORD='state', ARCHIVE='legacy-two-wallets-v2', PREVIOUS='state-before-v3.2', BEFORE33='state-before-v3.3', BEFORE34='state-before-v3.4', BEFORE35='state-before-v3.5', OLD_KEY='financas-pwa-piloto-v1';
 const $=id=>document.getElementById(id), round=n=>Math.round((n+Number.EPSILON)*100)/100;
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
@@ -551,6 +551,7 @@ function movementEditor(entry,key){
  return `<form class="recon-edit recon-value-form movement-value-form" data-movement-editor="${key}" aria-label="Editar lançamento">
  <label for="movementEditName">Descrição</label><input id="movementEditName" name="description" type="text" value="${esc(entry.name)}" placeholder="E.x. ${entry.direction==='in'?'Bônus':'Jantar'}" maxlength="120" required>
  <label for="movementEditAmount">Valor (R$)</label><input id="movementEditAmount" name="amount" inputmode="decimal" placeholder="0,00" value="${entry.amount.toFixed(2).replace('.',',')}" required>
+ <label for="movementEditDate">Data do lançamento</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-movement-date-label aria-hidden="true">${readableDate(entry.date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="movementEditDate" name="date" type="date" value="${esc(entry.date)}" required></div>
  <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-movement-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-movement-delete>Excluir</button></div></form>`;
 }
 function renderExpenseHistory(){
@@ -584,7 +585,7 @@ function renderExpenseHistory(){
 function closeMovementEditor(){
  return keepScrollPosition(()=>{editingMovement=null;renderExpenseHistory();});
 }
-function changeMovement(s,key,cents,description){
+function changeMovement(s,key,cents,description,date){
  const [direction,id]=JSON.parse(key);
  const field=direction==='in'?'extraIncome':direction==='out'?'expenses':null;
  const entry=field&&s[field].find(x=>x.id===id);
@@ -592,6 +593,7 @@ function changeMovement(s,key,cents,description){
  if(cents!==null&&(!Number.isSafeInteger(cents)||cents<=0||cents>1e12))throw Error('Informe um valor positivo.');
  if(direction==='out'&&reconHasAllocated(s,'cashcard:'+id)&&(cents===null||cents!==Math.round(entry.amount*100)))throw Error('Há um Pix vinculado a este lançamento. Desfaça o recebimento antes de alterá-lo.');
  if(cents===null){s[field]=s[field].filter(x=>x!==entry);return;}
+ if(date!==undefined&&!isDate(date))throw Error('Informe uma data válida.');
  if(description!==undefined){
   const name=String(description).trim();
   if(!name||name.length>120)throw Error('Informe uma descrição com até 120 caracteres.');
@@ -602,6 +604,7 @@ function changeMovement(s,key,cents,description){
   }
  }
  entry.amount=cents/100;
+ if(date!==undefined)entry.date=date;
 }
 let fixedDirection='out',fixedSelection=null,fixedEditTab='tag';
 const fixedMethod=e=>e.channel==='card'?'Fatura do cartão':'Pix recorrente';
@@ -754,7 +757,7 @@ function paintScreen(){
    $('screen-'+name).classList.toggle('hidden',name!==screen&&!(name==='recon'&&screen==='acertos'));
  }
  if(card)renderCardHub();
- if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),adjustInstallment:(m,id,cents)=>update(s=>reconSetChargeAmount(s,m,id,cents)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),editPayable:(m,id,fields)=>update(s=>reconEditPayableOccurrence(s,m,id,fields)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),recurringPayables:m=>reconRecurringPayables(state,m),openFixedSetting,settlements:m=>reconOpenDebtEntries(state,m),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:m=>reconDebt(state,m),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),cardDue:m=>reconCardDueCents(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
+ if(screen==='recon'||screen==='acertos')window.ReconUI?.render({view:screen==='acertos'?'debt':'bill',month:cardMonth,state,today:today(),months:reconMonths(state),owner:reconOwner(state),rows:m=>reconRows(state,m),canAdjust:m=>reconCanAdjustMonth(state,m),editCharge:(m,id,fields)=>update(s=>reconEditCharge(s,m,id,fields)),excludeLine:(m,id)=>update(s=>reconExcludeInvoiceLine(s,m,id)),restoreCharge:(m,id)=>update(s=>reconRestoreChargeAmount(s,m,id)),creditTag:(m,id,value)=>update(s=>reconSetCreditTag(s,m,id,value)),editRefund:(m,id,fields)=>update(s=>editCardRefund(s,m,id,fields)),editBankCredit:(m,id,fields)=>update(s=>editBankCredit(s,m,id,fields)),keepPosition:keepScrollPosition,notify:notice,payable:m=>reconPayableRows(state,m),payables:()=>reconPayableRows(state),setPayable:(id,m,date)=>update(s=>reconSetPayable(s,id,m,date)),payablePayment:p=>update(s=>reconAddPayablePayment(s,p)),editPayable:(m,id,fields)=>update(s=>reconEditPayableOccurrence(s,m,id,fields)),undoPayablePayment:batch=>update(s=>reconUndoPayablePayment(s,batch)),recurringPayables:m=>reconRecurringPayables(state,m),openFixedSetting,settlements:m=>reconOpenDebtEntries(state,m),editSettlement:(key,fields)=>update(s=>reconEditOpenDebt(s,key,fields)),debt:m=>reconDebt(state,m),label:(m,id,l,p,scope,name,ownerName)=>update(s=>reconSetLabel(s,m,id,l,p,scope,name,ownerName)),receipt:p=>update(s=>reconAddReceipt(s,p)),deleteReceipt:id=>update(s=>reconDeleteReceipt(s,id)),paid:m=>reconPayment(state,m),cardDue:m=>reconCardDueCents(state,m),markPaid:(m,d)=>update(s=>reconMarkPaid(s,m,d))});
  else window.ReconUI?.reset();
  const area=card?'recon':screen;
  for(const button of document.querySelectorAll('.bottom-nav button, .subtabs button[data-screen]')){
@@ -986,6 +989,11 @@ $('expenses').addEventListener('click',async e=>{
   });
  }
 });
+$('expenses').addEventListener('input',e=>{
+ const el=e.target;if(el.id!=='movementEditDate')return;
+ const label=el.closest('.calendar-field')?.querySelector('[data-movement-date-label]');
+ if(label)label.textContent=isDate(el.value)?readableDate(el.value):'Selecionar data';
+});
 $('expenses').addEventListener('submit',async e=>{
  const f=e.target,key=f.dataset.movementEditor;
  if(!key)return;
@@ -995,8 +1003,16 @@ $('expenses').addEventListener('submit',async e=>{
  if(!Number.isSafeInteger(cents)||cents<=0||cents>1e12){notice('Informe um valor positivo com até duas casas decimais.','warning');return;}
  const name=f.elements.description.value.trim();
  if(!name||name.length>120){notice('Informe uma descrição com até 120 caracteres.','warning');return;}
- if(await update(s=>changeMovement(s,key,cents,name))){
-  if(editingMovement===key)closeMovementEditor();
+ const date=f.elements.date.value;
+ if(!isDate(date)){notice('Informe uma data válida.','warning');return;}
+ if(await keepScrollPosition(()=>update(s=>changeMovement(s,key,cents,name,date)))){
+  if(editingMovement===key)keepScrollPosition(()=>{
+   editingMovement=null;
+   movementMonth=date.slice(0,7);
+   openExpenseDays.add(date);
+   openExpenseDays.add('legacy:'+movementMonth);
+   renderExpenseHistory();
+  });
   notice('Lançamento atualizado.');
  }
 });

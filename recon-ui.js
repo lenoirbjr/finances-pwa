@@ -1,5 +1,5 @@
 'use strict';
-/* diario-shell:4.0.59 */
+/* diario-shell:4.0.60 */
 function createReconUI(){
  const $=(sel,within=document)=>within.querySelector(sel), escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -122,6 +122,7 @@ function createReconUI(){
     <label for="payEditName">Descrição</label><input id="payEditName" name="description" value="${escape(r.name)}" placeholder="E.x. Assinatura" maxlength="120" required>
     <label for="payEditTotal">Valor total (R$)</label><input id="payEditTotal" name="total" value="${coin(r.cents).replace('.',',')}" inputmode="decimal" placeholder="0,00" required>
     <label for="payEditDue">Vencimento</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(r.due)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="payEditDue" name="due" type="date" value="${escape(r.due)}" min="${period}-01" max="${period}-${monthEnd}" required></div>
+    ${Object.hasOwn(r,'purchaseDate')?dateField('payEditPurchaseDate','Data do lançamento',r.purchaseDate,{name:'purchaseDate',max:api.today,required:false}):''}
     ${parts.map((p,i)=>`<div class="recon-pay-edit-row">
      <label for="payEditAmount-${i}">Valor pago${parts.length>1?' ('+(i+1)+')':''} (R$)</label><input id="payEditAmount-${i}" data-pay-edit-cents inputmode="decimal" placeholder="0,00" value="${coin(p.cents).replace('.',',')}">
      ${paymentDateField('payEditDate-'+i,'Data do pagamento',p.date)}</div>`).join('')}
@@ -130,9 +131,10 @@ function createReconUI(){
     <div class="recon-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button></div>
    </form>`;
  }
- function paymentDateField(id,label,date=api.today){
-   return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="date" type="date" value="${escape(date)}" max="${escape(api.today)}" required></div>`;
+ function dateField(id,label,date,{name='date',max,required=true}={}){
+   return `<label for="${id}">${label}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${date?when(date):'Selecionar data'}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${id}" name="${name}" type="date" value="${escape(date)}"${max?' max="'+escape(max)+'"':''}${required?' required':''}></div>`;
  }
+ function paymentDateField(id,label,date=api.today){return dateField(id,label,date,{max:api.today});}
  let ledgerRows=[];
  function settlementEditor(r){
    const purchase=r.kind==='purchase',dateId='settlementDate',dateLabel=purchase&&r.count>1?'Primeiro vencimento':'Vencimento';
@@ -140,6 +142,7 @@ function createReconUI(){
    <label for="settlementName">Descrição</label><input id="settlementName" name="description" value="${escape(r.name)}" placeholder="E.x. Compra" maxlength="${purchase?120:250}" required>
    <label for="settlementPerson">Pessoa</label><input id="settlementPerson" name="person" value="${escape(r.person)}" maxlength="100" required>
    <label for="${dateId}">${dateLabel}</label><div class="calendar-field recon-receipt-date"><span class="calendar-label" data-recon-date-label aria-hidden="true">${when(r.date)}</span><span class="calendar-icon" aria-hidden="true">▦</span><input id="${dateId}" name="date" type="date" value="${escape(r.date)}" required></div>
+   ${r.launchDate!==undefined?dateField('settlementLaunchDate','Data do lançamento',r.launchDate,{name:'launchDate',max:purchase?api.today:undefined,required:!purchase}):''}
    ${purchase?`<label for="settlementCount">Parcelas</label><input id="settlementCount" name="count" type="number" min="1" max="120" value="${r.count}" required>`:''}
    <label for="settlementAmount">Valor (R$)</label><input id="settlementAmount" name="amount" inputmode="decimal" placeholder="0,00" value="${coin(r.cents).replace('.',',')}" required>${purchase&&r.count>1?'<small class="assistive">Valor total da compra. A edição vale para todas as parcelas.</small>':r.remaining<r.cents?'<small class="assistive">Valor original da dívida.</small>':''}
    <div class="recon-actions recon-label-actions"><button type="submit" class="primary">Salvar</button><button type="button" class="secondary" data-recon-cancel>Cancelar</button><button type="button" class="secondary recon-exclude-installment" data-recon-settlement-delete>Excluir</button></div>
@@ -244,8 +247,8 @@ function createReconUI(){
    </section>`;
  }
  function installmentEditor(r){
-   const restore=r.singleEdited?'<button type="button" class="secondary" data-recon-reset-charge>Restaurar original</button>':'';
-   return `<form class="recon-edit recon-installment-form recon-value-form" data-recon-form="adjust-installment" aria-label="Ajustar valor do lançamento"><h3>${escape(r.name)}</h3><label for="reconInstallmentAmount">Valor (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" placeholder="0,00" value="${coin(r.cents)}" required><p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
+   const restore=(r.singleEdited||r.dateEdited)?'<button type="button" class="secondary" data-recon-reset-charge>Restaurar original</button>':'';
+   return `<form class="recon-edit recon-installment-form recon-value-form" data-recon-form="adjust-installment" aria-label="Ajustar valor do lançamento"><h3>${escape(r.name)}</h3><label for="reconInstallmentAmount">Valor (R$)</label><input id="reconInstallmentAmount" name="value" inputmode="decimal" placeholder="0,00" value="${coin(r.cents)}" required>${api.editCharge?dateField('reconChargeDate','Data do lançamento',r.date):''}<p class="recon-message" data-recon-form-message role="status"></p>${valueActions(restore)}</form>`;
  }
  function personRow(person='',c=0,showValue=true,disabled=false,unit='amount'){
    return `<div class="recon-share"><input name="person" aria-label="Nome da pessoa" placeholder="Nome da pessoa" maxlength="100" value="${escape(person)}" required ${disabled?'disabled':''}>${showValue?`<input name="partCents" aria-label="${unit==='percent'?'Percentual desta pessoa':'Valor (R$)'}" type="text" inputmode="decimal" placeholder="${unit==='percent'?'0,00%':'0,00'}" value="${c?coin(c):''}" required ${disabled?'disabled':''}>`:''}<button type="button" data-recon-remove aria-label="Remover pessoa">×</button></div>`;
@@ -503,9 +506,9 @@ function createReconUI(){
       el.dataset.previousUnit=el.value;preview(f);return;
     }
     if(el.id==='reconPerson')return keepPosition(()=>{personFilter=el.value;el.form.elements.amount.value='';allocations(el.form);});
-    if(el.id==='payEditDue'||el.id?.startsWith('payEditDate-')||el.id==='reconCardPayDate'||el.id==='reconPixDate'||el.id==='reconPayableDate'||el.id==='reconRefundDate'||el.id==='settlementDate')syncPixDate(el);
+    if(el.type==='date')syncPixDate(el);
   });
-  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.id==='payEditDue'||e.target.id?.startsWith('payEditDate-')||e.target.id==='reconCardPayDate'||e.target.id==='reconPixDate'||e.target.id==='reconPayableDate'||e.target.id==='reconRefundDate'||e.target.id==='settlementDate')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
+  dom.addEventListener('input',e=>{const f=e.target.form;if(e.target.type==='date')syncPixDate(e.target);if(f)keepPosition(()=>preview(f));});
   dom.addEventListener('toggle',e=>{const k=e.target.dataset?.reconGroup;if(k===undefined||!e.target.isConnected)return;if(e.target.open)openGroups.add(k);else openGroups.delete(k);},true);
   dom.addEventListener('submit',e=>{
     const f=e.target;if(!f.dataset.reconForm)return;e.preventDefault();error('');
@@ -521,14 +524,14 @@ function createReconUI(){
       const payments=[...f.querySelectorAll('[data-pay-edit-cents]')].map((e,i)=>({
        cents:e.value.trim()?cents(e.value):0,date:$('[id="payEditDate-'+i+'"]',f)?.value
       }));
-      apply(()=>api.editPayable(period,editing,{name,due,cents:total,payments}),'Lançamento atualizado.');return;
+      apply(()=>api.editPayable(period,editing,{name,due,cents:total,payments,...(f.elements.purchaseDate?.value&&{purchaseDate:f.elements.purchaseDate.value})}),'Lançamento atualizado.');return;
     }
     if(f.dataset.reconForm==='settlement'){
       const row=ledgerRows.find(r=>r.key===editing);
       if(formKind!=='settlement'||!row||!api.editSettlement)return;
       const date=f.elements.date.value,value=cents(f.elements.amount.value);
       if(!safeDate(date)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Confira o vencimento e o valor.');return;}
-      const fields={name:f.elements.description.value.trim(),person:f.elements.person.value.trim(),date,cents:value,...(row.kind==='purchase'?{count:Number(f.elements.count.value)}:{})};
+      const fields={name:f.elements.description.value.trim(),person:f.elements.person.value.trim(),date,cents:value,...(row.kind==='purchase'?{count:Number(f.elements.count.value),...(f.elements.launchDate?.value&&{purchaseDate:f.elements.launchDate.value})}:{...(f.elements.launchDate?.value&&{launchDate:f.elements.launchDate.value})})};
       apply(()=>api.editSettlement(row.key,fields),'Lançamento atualizado.');return;
     }
     if(f.dataset.reconForm==='credit-label'){
@@ -545,8 +548,13 @@ function createReconUI(){
     }
     if(f.dataset.reconForm==='adjust-installment'){
       const r=displayed.find(x=>x.id===editing),value=cents(f.elements.value.value);
-      if(formKind!=='adjust-installment'||!r||!charge(r)||!api.adjustInstallment||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para a parcela.');return;}
-      apply(()=>api.adjustInstallment(period,r.id,value),'Valor atualizado.');return;
+      if(formKind!=='adjust-installment'||!r||!charge(r)||!Number.isSafeInteger(value)||value<=0||value>1e12){error('Informe um valor positivo para o lançamento.');return;}
+      const date=f.elements.date?.value;
+      if(api.editCharge){
+       if(!safeDate(date)){error('Informe uma data válida.');return;}
+       apply(()=>api.editCharge(period,r.id,{cents:value,date}),'Lançamento atualizado.');
+      }
+      return;
     }
     if(f.dataset.reconForm==='label'){
       const r=displayed.find(x=>x.id===editing);if(!r)return;
